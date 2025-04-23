@@ -1,10 +1,24 @@
+Team: Network-bois
+
+Shrivyas | shrivyas@andrew.cmu.edu
+
+R Landau | rlandau@andrew.cmu.edu <-- the guy writing this README
+
 # Orv: the Decentralized, Hierarchical (Height-Aware), Self-Organizing, Service Discovery Tree
 
 (*OR*ganized *V*aults)
 
-Orv provides a mechanism for ...
+Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
 
-## Other names
+Orv does not actually interact with services, it just finds other nodes that purport to provide the service. Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
+
+## The Name 
+
+We couldn't land on a name and I needed something to call it. Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel.
+
+If we come up with something better, outstanding. If not, life goes on.
+
+### Other names
 
 DSOD (Decentralized, Self-Organizing Discovery)
 
@@ -14,7 +28,7 @@ SOSD (pronounced "sauced") (Self-Organizing Service Discovery)
 
 *Leaf* (better name pending): A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
 
-*Vault Keeper*: The counterpart to a leaf, a vault keeper is a single node that can request or provide services, route messages, and support the growth of the tree by enabling children to join.
+*Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This can also be a Raft group or similar, replicated collection of machines. As long as it can service Orv requests, it can be a vk.  
 
 *Vault*: A vault is any, complete instance of the algorithm. A single vault keeper with any number of leaves (included 0) is a vault. A tree with 4 layers and hundreds of leaves is a vault. Any tree that supports Orv semantics is a vault.
 
@@ -41,6 +55,15 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
     - To support ultra-low-power leaves, we shift the assumption of power to their parents.
     - This is closely related to the mist < fog < cloud architecture and follows from power requirements rising with a node's height in the tree.
 
+# Distributed Concepts
+
+- Staleness
+- Gossip-based knowledge
+- Heartbeats
+- Decentralized, dynamic cooperation
+
+# The Protocol
+
 ### Dragon's Hoard (Tree-Seeding)
 
 **Not Implemented**
@@ -49,6 +72,39 @@ As height adjustments only happen when root-root joins occur, small trees can ra
 
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
 Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
+
+# Other Design Decisions
+
+## Depth-less Hierarchy and Cycles
+
+The original design allowed for trees of arbitrary height and width, completely self-organizing naturally as machines joined. However, because our routing is only next-hop, this would make cycle detection *really* hard and/or expensive.
+
+Echoing...
+
+## Depth versus Height
+
+A key trade-off is whether we measure a node's depth (its distance from the root) or we measure a node's height (its distance from the lowest vk in the vault).
+
+### Asking to increase the height on vk join
+
+.
+
+### Lazy Depth/Height Knowledge
+
+Our current design broadcasts height changes down the branch with the root that took over as total root. This is some degree of antithetical to our bubble-up philosophy.
+
+Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height.
+
+## A note on security
+
+One of our core assumptions is cooperation. This, of course, is not in anyway realistic
+
+... after discovery, key exchange. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
+
+
+
+
+
 
 ## Description of project topic, goals, and tasks
 
