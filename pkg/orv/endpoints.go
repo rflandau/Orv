@@ -8,10 +8,17 @@ const (
 	HELLO Endpoint = "/HELLO"
 )
 
+// Request for /hello.
+// Used by nodes to introduce themselves to the tree.
+type HelloReq struct {
+	id uint64 `example:"718926735" doc:"unique identifier for this specific node"`
+}
+
 // Response for /hello
 type RespHello struct {
 	Body struct {
-		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
+		Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
+		Error   string `json:"error" example:"bad identifier (0)" doc:"the hello request was malformed or invalid"`
 	}
 }
 
@@ -25,8 +32,15 @@ type RespStatus struct {
 	}
 }
 
-func handleHELLO(ctx context.Context, input *struct{}) (*RespHello, error) {
+func handleHELLO(ctx context.Context, req *HelloReq) (*RespHello, error) {
 	resp := &RespHello{}
+
+	// validate their ID
+	if req.id == 0 {
+		resp.Body.Error = ErrBadID
+		return resp, nil
+	}
+
 	resp.Body.Message = "Hello, Orv!"
 	return resp, nil
 }
