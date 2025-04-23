@@ -8,6 +8,7 @@ Companion to the vk implementation in vk/main.go.
 
 package main
 
+// TODO rewrite this in a different language to prove our protocol works in any system.
 func main() {
 	// spawn the services we want to offer
 	// TODO spin up a dummy server that just serves arbitrary files or just answers /ping
