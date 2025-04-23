@@ -113,9 +113,19 @@ One of our core assumptions is cooperation. This, of course, is not in anyway re
 
 (some description of what the prototype is)
 
-## I forgot what I was going to put here
+## Rough Around The Edges
 
+The prototype is missing QoL features that would make it more comfortable to import.
 
+For example, Vault Keepers do not take in the logger you want them to use and, as such, the logger is not terribly configurable. This is illustrative of the slapdash nature of the prototype.
+
+## Resources Used
+
+### Libraries
+
+Logging is serviced by [Zerolog](github.com/rs/zerolog).
+
+Our API endpoints are handled by [Huma](https://huma.rocks/).
 
 ## Description of project topic, goals, and tasks
 
