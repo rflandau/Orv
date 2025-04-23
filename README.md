@@ -32,6 +32,8 @@ SOSD (pronounced "sauced") (Self-Organizing Service Discovery)
 
 *Vault*: A vault is any, complete instance of the algorithm. A single vault keeper with any number of leaves (included 0) is a vault. A tree with 4 layers and hundreds of leaves is a vault. Any tree that supports Orv semantics is a vault.
 
+*Sub-Vault*: Any vault that is a child to another vault. When two vaults join and one ascends to root vault keeper, the other becomes a sub-vault. The sub-vault moniker can be used recursively down a branch.
+
 # Core Design Goals
 
 ## IoT Support
@@ -57,6 +59,9 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 - Built on an existing layer 3
     - IP for the prototype, but MPLS or any other kind of Layer 3 protocol would work fine.
     - This requirement is for the corollary assumption that responses can be independently routed to the requester (and do not necessarily walk the tree on response).
+- Unique identifiers
+    - We assume each node can determine and utilize a unique identifier. This is a weighty assumption in a decentralized system.
+    - If we receive a request from ID X on the opposite end of the tree than we last saw ID X, we assume that node has left its original sub-vault and rejoined a new sub-vault in this same vault.
 
 # Distributed Concepts
 
