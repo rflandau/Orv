@@ -54,6 +54,9 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 - Powered vault keepers
     - To support ultra-low-power leaves, we shift the assumption of power to their parents.
     - This is closely related to the mist < fog < cloud architecture and follows from power requirements rising with a node's height in the tree.
+- Built on an existing layer 3
+    - IP for the prototype, but MPLS or any other kind of Layer 3 protocol would work fine.
+    - This requirement is for the corollary assumption that responses can be independently routed to the requester (and do not necessarily walk the tree on response).
 
 # Distributed Concepts
 
@@ -74,6 +77,10 @@ If you know that your tree will grow quickly (at least initially), you can start
 Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
 
 # Other Design Decisions
+
+## Layer 5 vs Layer 4 (vs Layer 3?!?)
+
+The prototype is designed as an application layer protocol because it is easier for us to develop in the short time span. However, the protocol would make a lot of sense to be implemented at layer 4 on top of some kind of reliable UDP (or CoAP, just something less expensive than TCP). You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
 
 ## Depth-less Hierarchy and Cycles
 
@@ -102,7 +109,11 @@ One of our core assumptions is cooperation. This, of course, is not in anyway re
 ... after discovery, key exchange. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
 
 
+# The Prototype 
 
+(some description of what the prototype is)
+
+## I forgot what I was going to put here
 
 
 
