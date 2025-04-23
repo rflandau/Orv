@@ -26,6 +26,7 @@ type VaultKeeper struct {
 		api huma.API
 		mux *http.ServeMux
 	}
+	height uint16
 }
 
 // Spawns and returns a new vault keeper instance.
