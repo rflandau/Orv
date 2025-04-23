@@ -87,6 +87,16 @@ You must then join the vault via a `JOIN` message that includes your unique id a
 
 TODO
 
+### Heartbeats
+
+TODO
+
+The protocol must be able to handle heartbeats that encapsulate multiple services and heartbeats that come from each services on the same id separately. This must update staleness according only to the services included in each heartbeat.
+
+For example:
+- An IoT device probably has a single driver program that handles all "services" (thermistor, barometer, etc) and therefore wants to send a single HB that refreshes the staleness of each.
+- A server probably has a number of different programs running independently (DNS, NAT, etc) and wants each to be able to refresh its staleness individually (per interface). If all services from a single leaf/VK had to be updated together, the developer would need to write a service to encapsulate each existing service which is unacceptable.
+
 ### Status Requests
 
 The only exception to the `HELLO` introduction is `STATUS` messages, which can be issued by anyone, including nodes not part of the vault.
