@@ -127,7 +127,7 @@ For example, Vault Keepers do not take in the logger you want them to use and, a
 
 ## API Docs
 
-API docs can be accessed by running the server application and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
+API docs can be accessed by running the server application (currently just `go run main.go`) and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
 
 ## Resources Used
 
