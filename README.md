@@ -80,7 +80,9 @@ Rather than starting a vault by creating a vk with height 0, start the node with
 
 ## Layer 5 vs Layer 4 (vs Layer 3?!?)
 
-The prototype is designed as an application layer protocol because it is easier for us to develop in the short time span. However, the protocol would make a lot of sense to be implemented at layer 4 on top of some kind of reliable UDP (or CoAP, just something less expensive than TCP). You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
+The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets.
+
+You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
 
 ## Depth-less Hierarchy and Cycles
 
@@ -113,11 +115,19 @@ One of our core assumptions is cooperation. This, of course, is not in anyway re
 
 (some description of what the prototype is)
 
+The prototype comes with the [VaultKeeper library](pkg/orv/orv.go), an implementation of the same (NYI), and a leaf implementation (NYI).
+
+As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototype is implemented as a REST API. Not how we envision a production-level implementation, but it is... you know... a prototype. ¯\\_(ツ)_/¯
+
 ## Rough Around The Edges
 
 The prototype is missing QoL features that would make it more comfortable to import.
 
 For example, Vault Keepers do not take in the logger you want them to use and, as such, the logger is not terribly configurable. This is illustrative of the slapdash nature of the prototype.
+
+## API Docs
+
+API docs can be accessed by running the server application and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
 
 ## Resources Used
 
