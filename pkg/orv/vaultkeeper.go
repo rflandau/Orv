@@ -1,7 +1,6 @@
 package orv
 
 import (
-	"context"
 	"net/http"
 	"net/netip"
 
@@ -34,16 +33,10 @@ type VaultKeeper struct {
 	}
 }
 
-type helloOut struct {
-	Body struct {
-		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
-	}
-}
-
 // Spawns and returns a new vault keeper instance.
 func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *VaultKeeper {
-	// teach the muxer
 	mux := http.NewServeMux()
+
 	vk := &VaultKeeper{
 		log:  logger,
 		id:   id,
@@ -61,15 +54,21 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *Vaul
 		},
 	}
 
-	huma.Get(vk.endpoint.api, HELLO, func(ctx context.Context, input *struct{}) (*helloOut, error) {
-		resp := &helloOut{}
-		resp.Body.Message = "Hello, Orv!"
-		return resp, nil
-	})
+	huma.Get(vk.endpoint.api, HELLO, handleHELLO)
 
 	return vk
 }
 
+// Starts the http api listener in the vk.
+// Currently blocking. // TODO
 func (vk *VaultKeeper) Start() error {
+	// TODO convert this into a real http.Server so we can call .Shutdown on termination
 	return http.ListenAndServe(vk.addr.String(), vk.endpoint.mux)
+}
+
+// Stops the http api listener.
+// Currently ineffectual until we switch to a real http.Server
+func (vk *VaultKeeper) Stop() {
+	// TODO
+
 }
