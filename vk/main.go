@@ -1,3 +1,9 @@
+/*
+VaultKeeper instance.
+Functionally a wrapper around the orv.VaultKeeper type.
+
+Companion to the leaf implementation in leaf/main.go.
+*/
 package main
 
 import (
@@ -14,13 +20,15 @@ func main() {
 		panic(err)
 	}
 
-	vk := orv.NewVaultKeeper(1,
+	var vkid uint64 = 1
+
+	vk := orv.NewVaultKeeper(vkid,
 		zerolog.New(zerolog.ConsoleWriter{
 			Out:         os.Stdout,
-			FieldsOrder: []string{"p", "tag"},
+			FieldsOrder: []string{"vkid"},
 			TimeFormat:  "15:04:05",
 		}).With().
-			Int("p", 1).
+			Uint64("vk", vkid).
 			Timestamp().
 			Caller().
 			Logger().Level(zerolog.DebugLevel),
