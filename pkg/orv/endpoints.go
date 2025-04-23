@@ -9,14 +9,14 @@ const (
 )
 
 // Response for /hello
-type helloOut struct {
+type RespHello struct {
 	Body struct {
 		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
 	}
 }
 
-func handleHELLO(ctx context.Context, input *struct{}) (*helloOut, error) {
-	resp := &helloOut{}
+func handleHELLO(ctx context.Context, input *struct{}) (*RespHello, error) {
+	resp := &RespHello{}
 	//resp.Body.Message = "Hello, Orv!"
 	return resp, nil
 }
