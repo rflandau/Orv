@@ -32,6 +32,11 @@ type VaultKeeper struct {
 func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *VaultKeeper {
 	mux := http.NewServeMux()
 
+	// validate the given address
+	if !addr.IsValid() {
+		// TODO return error
+	}
+
 	vk := &VaultKeeper{
 		log:  logger,
 		id:   id,
@@ -57,6 +62,8 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *Vaul
 // Starts the http api listener in the vk.
 // Currently blocking. // TODO
 func (vk *VaultKeeper) Start() error {
+	vk.log.Info().Str("address", vk.addr.String()).Msg("listening...")
+
 	// TODO convert this into a real http.Server so we can call .Shutdown on termination
 	return http.ListenAndServe(vk.addr.String(), vk.endpoint.mux)
 }
