@@ -67,6 +67,25 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 
 # The Protocol
 
+## API Specifications
+
+> [!TIP]
+> You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
+
+### Initiating and Joining a Vault
+
+All new nodes must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
+
+You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_CONFIRM` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper they contacted. If you receive a `JOIN_DENY`... TODO (this probably needs to enumerate reasons for JOIN_DENY, such as bad height).
+
+#### ROOT-ROOT Joins
+
+TODO
+
+### Status Requests
+
+The only exception to the `HELLO` introduction is `STATUS` messages, which can be issued by anyone, including nodes not part of the vault.
+
 ### Dragon's Hoard (Tree-Seeding)
 
 **Not Implemented**
