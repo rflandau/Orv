@@ -9,11 +9,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	_API_NAME    string = "Orv"
-	_API_VERSION string = "0.0.1"
-)
-
 /*
 A single instance of a Vault Keeper.
 Able to provide services, route & answer requests, and facilitate vault growth.
