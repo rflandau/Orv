@@ -3,6 +3,7 @@ package orv
 import (
 	"net/http"
 	"net/netip"
+	"sync"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
@@ -26,7 +27,8 @@ type VaultKeeper struct {
 		api huma.API
 		mux *http.ServeMux
 	}
-	height uint16
+	heightRWMu sync.RWMutex // locker for height
+	height     uint16       // current height of this vk
 }
 
 // Spawns and returns a new vault keeper instance.
