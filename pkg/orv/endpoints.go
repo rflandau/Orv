@@ -62,6 +62,7 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 		return nil, huma.Error400BadRequest(ErrBadID)
 	}
 
+	vk.heightRWMu.RLock()
 	resp := &HelloResp{Body: struct {
 		Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
 		Height uint16 "json:\"height\" required:\"true\" example:\"8\" doc:\"the height of the node answering the greeting\""
@@ -69,6 +70,7 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 		Id:     vk.id,
 		Height: vk.height,
 	}}
+	vk.heightRWMu.RUnlock()
 
 	return resp, nil
 }
