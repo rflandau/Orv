@@ -20,7 +20,7 @@ const (
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
 func (vk *VaultKeeper) buildRoutes() {
 	// Handle GET requests on /hello
-	huma.Post(vk.endpoint.api, HELLO, handleHELLO) // TODO switch handleHello to be a method on vk
+	huma.Post(vk.endpoint.api, HELLO, vk.handleHello)
 
 	// Handle GET requests on /status (using the more advanced .Register() method)
 	huma.Register(vk.endpoint.api, huma.Operation{
@@ -56,13 +56,19 @@ type HelloResp struct {
 }
 
 // Handle requests against the HELLO endpoint
-func handleHELLO(ctx context.Context, req *HelloReq) (*HelloResp, error) {
+func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloResp, error) {
 	// validate their ID
 	if req.Body.Id == 0 {
 		return nil, huma.Error400BadRequest(ErrBadID)
 	}
 
-	resp := &HelloResp{}
+	resp := &HelloResp{Body: struct {
+		Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
+		Height uint16 "json:\"height\" required:\"true\" example:\"8\" doc:\"the height of the node answering the greeting\""
+	}{
+		Id:     vk.id,
+		Height: vk.height,
+	}}
 
 	return resp, nil
 }
