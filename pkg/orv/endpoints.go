@@ -1,6 +1,10 @@
 package orv
 
-import "context"
+import (
+	"context"
+
+	"github.com/danielgtaylor/huma/v2"
+)
 
 type Endpoint = string
 
@@ -9,6 +13,19 @@ const (
 	STATUS Endpoint = "/status"
 	JOIN   Endpoint = "/join"
 )
+
+// Generates endpoint handling on the given api instance.
+// Directly alters a shared pointer within the parameter
+// (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
+func (vk *VaultKeeper) buildRoutes() {
+	// Handle GET requests on /hello
+	huma.Get(vk.endpoint.api, HELLO, handleHELLO) // TODO switch handleHello to be a method on vk
+
+	// Handle GET requests on /status (using the more advanced .Register() method)
+	huma.Register(vk.endpoint.api, huma.Operation{}, vk.handleStatus) // TODO populate huma.Op as https://huma.rocks/tutorial/your-first-api/#enhancing-documentation
+}
+
+//#region HELLO
 
 // Request for /hello.
 // Used by nodes to introduce themselves to the tree.
@@ -29,6 +46,24 @@ type HelloResp struct {
 	}
 }
 
+// Handle requests against the HELLO endpoint
+func handleHELLO(ctx context.Context, req *HelloReq) (*HelloResp, error) {
+	resp := &HelloResp{}
+
+	// validate their ID
+	if req.Id == 0 {
+		resp.Body.Error = ErrBadID
+		return resp, nil
+	}
+
+	//resp.Body
+	return resp, nil
+}
+
+//#endregion HELLO
+
+//#region STATUS
+
 // Request for /status.
 // Used by clients and tests to fetch information about the current state of a vk.
 type StatusReq struct {
@@ -44,15 +79,14 @@ type StatusResp struct {
 	}
 }
 
-func handleHELLO(ctx context.Context, req *HelloReq) (*HelloResp, error) {
-	resp := &HelloResp{}
+// Handle requests against the HELLO endpoint
+func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*StatusResp, error) {
+	resp := &StatusResp{}
 
-	// validate their ID
-	if req.Id == 0 {
-		resp.Body.Error = ErrBadID
-		return resp, nil
-	}
+	resp.Body.Message = "TODO"
+	// TODO
 
-	//resp.Body
 	return resp, nil
 }
+
+//#endregion STATUS

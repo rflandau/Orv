@@ -57,7 +57,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *Vaul
 		},
 	}
 
-	huma.Get(vk.endpoint.api, HELLO, handleHELLO)
+	vk.buildRoutes()
 
 	return vk
 }
@@ -75,5 +75,6 @@ func (vk *VaultKeeper) Start() error {
 // Currently ineffectual until we switch to a real http.Server
 func (vk *VaultKeeper) Stop() {
 	// TODO
+	// TODO include graceful shutdown: https://huma.rocks/how-to/graceful-shutdown/
 
 }
