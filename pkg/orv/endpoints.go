@@ -62,6 +62,9 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 		return nil, huma.Error400BadRequest(ErrBadID)
 	}
 
+	// register the id in the HELLO map
+	// TODO
+
 	vk.heightRWMu.RLock()
 	resp := &HelloResp{Body: struct {
 		Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""

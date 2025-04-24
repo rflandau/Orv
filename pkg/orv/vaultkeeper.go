@@ -60,6 +60,8 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *Vaul
 
 	vk.buildRoutes()
 
+	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
+
 	return vk
 }
 
