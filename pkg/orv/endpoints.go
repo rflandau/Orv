@@ -5,7 +5,9 @@ import "context"
 type Endpoint = string
 
 const (
-	HELLO Endpoint = "/HELLO"
+	HELLO  Endpoint = "/hello"
+	STATUS Endpoint = "/status"
+	JOIN   Endpoint = "/join"
 )
 
 // Request for /hello.
@@ -16,8 +18,8 @@ type HelloReq struct {
 }
 
 // Response for /hello
-type RespHello struct {
-	// any fields outside of the body are expected to be in the header
+type HelloResp struct {
+	// any fields outside of the body are placed in the header
 	// we don't really plan to make use of the header
 	Body struct {
 		Id uint64 `json:"id" required:"true" example:"123" doc:"unique identifier for the VK"`
@@ -27,18 +29,23 @@ type RespHello struct {
 	}
 }
 
+// Request for /status.
+// Used by clients and tests to fetch information about the current state of a vk.
+type StatusReq struct {
+}
+
 // Response for GET /status commands.
 // Returns the status of the current node.
 // TODO create handleSTATUS as a method on vk to return information about the status of the node
 // we can use this endpoint to query node info in our tests.
-type RespStatus struct {
+type StatusResp struct {
 	Body struct {
 		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
 	}
 }
 
-func handleHELLO(ctx context.Context, req *HelloReq) (*RespHello, error) {
-	resp := &RespHello{}
+func handleHELLO(ctx context.Context, req *HelloReq) (*HelloResp, error) {
+	resp := &HelloResp{}
 
 	// validate their ID
 	if req.Id == 0 {
