@@ -3,6 +3,7 @@ package orv
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -63,7 +64,7 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 	}
 
 	// register the id in the HELLO map
-	// TODO
+	vk.pendingHellos.Store(vk.id, time.Now())
 
 	vk.heightRWMu.RLock()
 	resp := &HelloResp{Body: struct {
