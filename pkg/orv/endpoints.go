@@ -48,15 +48,13 @@ type HelloResp struct {
 
 // Handle requests against the HELLO endpoint
 func handleHELLO(ctx context.Context, req *HelloReq) (*HelloResp, error) {
-	resp := &HelloResp{}
-
 	// validate their ID
 	if req.Id == 0 {
-		resp.Body.Error = ErrBadID
-		return resp, nil
+		return nil, huma.Error400BadRequest(ErrBadID)
 	}
 
-	//resp.Body
+	resp := &HelloResp{}
+
 	return resp, nil
 }
 
