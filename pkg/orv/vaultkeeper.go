@@ -55,6 +55,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort) *Vaul
 			api: humago.New(mux, huma.DefaultConfig(_API_NAME, _API_VERSION)),
 			mux: mux,
 		},
+		height: 0, // TODO take in a parameter if the developer wishes to utilize dragon's hoard
 	}
 
 	vk.buildRoutes()
