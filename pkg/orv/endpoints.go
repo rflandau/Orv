@@ -84,8 +84,7 @@ type StatusReq struct {
 
 // Response for GET /status commands.
 // Returns the status of the current node.
-// TODO create handleSTATUS as a method on vk to return information about the status of the node
-// we can use this endpoint to query node info in our tests.
+// Used query node info for some tests.
 type StatusResp struct {
 	Body struct {
 		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
