@@ -2,6 +2,7 @@ package orv
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -22,7 +23,14 @@ func (vk *VaultKeeper) buildRoutes() {
 	huma.Get(vk.endpoint.api, HELLO, handleHELLO) // TODO switch handleHello to be a method on vk
 
 	// Handle GET requests on /status (using the more advanced .Register() method)
-	huma.Register(vk.endpoint.api, huma.Operation{}, vk.handleStatus) // TODO populate huma.Op as https://huma.rocks/tutorial/your-first-api/#enhancing-documentation
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   "get-status",
+		Method:        http.MethodGet,
+		Path:          STATUS,
+		Summary:       "", // TODO
+		Tags:          []string{"meta"},
+		DefaultStatus: http.StatusOK,
+	}, vk.handleStatus)
 }
 
 //#region HELLO
