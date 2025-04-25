@@ -1,15 +1,20 @@
 package orv
 
 import (
+	"fmt"
 	"net/http"
 	"net/netip"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/rs/zerolog"
+)
+
+// type aliases for readability
+type (
+	childID = uint64
 )
 
 // Default durations after the K/V may be pruned
@@ -35,13 +40,11 @@ type VaultKeeper struct {
 	id   uint64         // unique identifier
 	addr netip.AddrPort
 	// services
-	children map[string]struct {
-		id       uint64
-		services map[string]string // service name -> endpoint
-	}
+	children map[childID]map[string]netip.AddrPort // cID -> (service name -> address)
 	endpoint struct {
-		api huma.API
-		mux *http.ServeMux
+		api  huma.API
+		mux  *http.ServeMux
+		http http.Server
 	}
 	heightRWMu sync.RWMutex // locker for height
 	height     uint16       // current height of this vk
@@ -89,21 +92,19 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// set defaults
 	vk := &VaultKeeper{
-		log:  logger,
-		id:   id,
-		addr: addr,
-		children: map[string]struct {
-			id       uint64
-			services map[string]string
-		}{},
+		log:      logger,
+		id:       id,
+		addr:     addr,
+		children: map[childID]map[string]netip.AddrPort{},
 		endpoint: struct {
-			api huma.API
-			mux *http.ServeMux
+			api  huma.API
+			mux  *http.ServeMux
+			http http.Server // TODO populate with new server
 		}{
 			api: humago.New(mux, huma.DefaultConfig(_API_NAME, _API_VERSION)),
 			mux: mux,
 		},
-		height: 0, // TODO take in a parameter if the developer wishes to utilize dragon's hoard
+		height: 0,
 
 		pt: PruneTimes{pendingHello: DEFAULT_PRUNE_TIME_PENDING_HELLO},
 	}
@@ -118,9 +119,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
 
 	// dump out data about the vault keeper
-	vk.log.Debug().Func(func(e *zerolog.Event) {
-		e.Str("state", vk.Dump())
-	}).Msg("New Vault Keeper created")
+	vk.log.Debug().Func(vk.LogDump).Msg("New Vault Keeper created")
 
 	return vk
 }
@@ -144,13 +143,20 @@ func (vk *VaultKeeper) Stop() {
 
 }
 
-// Returns a pretty string of the current state of the vault keeper.
+// Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
-func (vk *VaultKeeper) Dump() string {
-	var sb strings.Builder
-	//TODO
+func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
+	// e.Uint64(vk.id) // assumed to exist
+	e.Uint16("height", vk.height)
+	// iterate through your children
+	for cid, services := range vk.children {
+		m := zerolog.Dict()
+		for sn, srv := range services {
+			m.Str(sn, srv.String())
+		}
 
-	return sb.String()
+		e.Dict(fmt.Sprintf("child %d", cid), m)
+	}
 }
 
 //#endregion methods
