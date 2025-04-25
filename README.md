@@ -77,6 +77,16 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 > [!TIP]
 > You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
 
+```mermaid
+sequenceDiagram
+    Node->>VaultKeeper: HELLO{Id:123}
+    VaultKeeper->>Node: HELLO_ACK{Id:456, Height:3, Error:nil}
+    Node->>VaultKeeper: JOIN{Id:123, Height:2}
+    VaultKeeper->>+Node: JOIN_ACCEPT{Id:456}
+    Node->>VaultKeeper: REGISTER{<br>Id:123<br>Service:"ServiceA"<br>Address:"111.111.111.111:80"<br>Stale:"5s"}
+    VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456}
+```
+
 ### Initiating and Joining a Vault
 
 All new nodes must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
@@ -144,6 +154,11 @@ One of our core assumptions is cooperation. This, of course, is not in anyway re
 
 ... after discovery, key exchange. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
 
+## Sequence Numbers
+
+This protocol needs sequence numbers. However, we cannot assume that a single node has a single sequence number. If we did, multiple services on that node would have to coordinate the seqNum, which is unacceptable.
+
+For now, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
 
 # The Prototype 
 
