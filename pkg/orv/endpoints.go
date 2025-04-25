@@ -2,6 +2,7 @@ package orv
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -11,16 +12,17 @@ import (
 type Endpoint = string
 
 const (
-	HELLO  Endpoint = "/hello"
-	STATUS Endpoint = "/status"
-	JOIN   Endpoint = "/join"
+	HELLO    Endpoint = "/hello"
+	STATUS   Endpoint = "/status"
+	JOIN     Endpoint = "/join"
+	REGISTER Endpoint = "/register"
 )
 
 // Generates endpoint handling on the given api instance.
 // Directly alters a shared pointer within the parameter
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
 func (vk *VaultKeeper) buildRoutes() {
-	// Handle GET requests on /hello
+	// Handle POST requests on /hello
 	huma.Post(vk.endpoint.api, HELLO, vk.handleHello)
 
 	// Handle GET requests on /status (using the more advanced .Register() method)
@@ -32,6 +34,16 @@ func (vk *VaultKeeper) buildRoutes() {
 		Tags:          []string{"meta"},
 		DefaultStatus: http.StatusOK,
 	}, vk.handleStatus)
+
+	// handle POST requests on /join
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   JOIN[1:],
+		Method:        http.MethodPost,
+		Path:          JOIN,
+		Summary:       "", // TODO docuemntation
+		DefaultStatus: http.StatusAccepted,
+	}, vk.handleJoin)
+
 }
 
 //#region HELLO
@@ -97,7 +109,7 @@ type StatusResp struct {
 	}
 }
 
-// Handle requests against the HELLO endpoint
+// Handle requests against the status endpoint
 func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*StatusResp, error) {
 	resp := &StatusResp{}
 
@@ -108,3 +120,55 @@ func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*Statu
 }
 
 //#endregion STATUS
+
+//#region JOIN
+
+// Request for /join.
+// Used by nodes to ask to join the vault after introducing themselves with HELLO.
+type JoinReq struct {
+	Body struct {
+		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
+		Height uint16 `json:"height" required:"true" example:"3" doc:"height of the node attempting to join the vault"`
+	}
+}
+
+// Response for /join
+type JoinAcceptResp struct {
+	Status  int
+	PktType string // JOIN_ACCEPT
+	Body    struct {
+		Id uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
+		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
+		Height uint16 `json:"height" example:"8" doc:"the height of the node answering the greeting"`
+	}
+}
+
+// Handle requests against the HELLO endpoint
+func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
+	// validate parameters
+	if req.Body.Id == 0 {
+		return nil, huma.Error400BadRequest("JOIN_DENY", errors.New(ErrBadID))
+	}
+	vk.heightRWMu.RLock()
+	defer vk.heightRWMu.RUnlock()
+	if req.Body.Height != vk.height-1 {
+		return nil, huma.Error400BadRequest("JOIN_DENY", ErrBadHeight{vk.height, req.Body.Height})
+	}
+
+	// check the pendingHello table for this id
+	if _, ok := vk.pendingHellos.Load(req.Body.Id); !ok {
+		return nil, huma.Error400BadRequest("JOIN_DENY", errors.New("must send HELLO first"))
+	}
+
+	resp := &JoinAcceptResp{PktType: "JOIN_ACCEPT", Body: struct {
+		Id     uint64 "json:\"id\" example:\"123\" doc:\"unique identifier for the VK\""
+		Height uint16 "json:\"height\" example:\"8\" doc:\"the height of the node answering the greeting\""
+	}{
+		vk.id,
+		vk.height,
+	}}
+
+	return resp, nil
+}
+
+//#endregion JOIN
