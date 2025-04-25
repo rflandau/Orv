@@ -46,8 +46,9 @@ type VaultKeeper struct {
 		mux  *http.ServeMux
 		http http.Server
 	}
-	heightRWMu sync.RWMutex // locker for height
+	heightRWMu sync.RWMutex // locker for height+isRoot
 	height     uint16       // current height of this vk
+	isRoot     bool
 
 	pt PruneTimes
 
@@ -106,6 +107,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 			mux: mux,
 		},
 		height: 0,
+		isRoot: true,
 
 		pt: PruneTimes{pendingHello: DEFAULT_PRUNE_TIME_PENDING_HELLO},
 	}
