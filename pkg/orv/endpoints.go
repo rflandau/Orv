@@ -150,8 +150,11 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 	}
 	vk.heightRWMu.RLock()
 	defer vk.heightRWMu.RUnlock()
-	if req.Body.Height != vk.height-1 {
-		return nil, HErrBadHeight(vk.height, req.Body.Height, pt_JOIN_DENY)
+	if req.Body.Height < vk.height-1 {
+		return nil, HErrBadHeight(vk.height, req.Body.Height, vk.isRoot, pt_JOIN_DENY)
+	} else if req.Body.Height == vk.height { // if we are root and we get a request from the same height, we can propose a merge (root-root interaction)
+		// TODO we may also want to validate the assumption that we are sending a JOIN_DENY pkt type initially and disable the pkt_t param if we then know all pkt types
+		return &JoinAcceptResp{}, nil // TODO change this type to a JoinMergeResp or merge all JoinResps into a single struct and just vary the pkt-type in the header
 	}
 
 	// check the pendingHello table for this id
