@@ -22,7 +22,7 @@ func main() {
 
 	var vkid uint64 = 1
 
-	vk := orv.NewVaultKeeper(vkid,
+	vk, err := orv.NewVaultKeeper(vkid,
 		zerolog.New(zerolog.ConsoleWriter{
 			Out:         os.Stdout,
 			FieldsOrder: []string{"vkid"},
@@ -34,6 +34,9 @@ func main() {
 			Logger().Level(zerolog.DebugLevel),
 		addr,
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	vk.Start()
 }

@@ -82,12 +82,12 @@ func Height(h uint16) VKOption {
 //
 // Optionally takes additional options to modify the state of the VaultKeeper.
 // Conflicting options prefer options latter.
-func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts ...VKOption) *VaultKeeper {
+func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
 	mux := http.NewServeMux()
 
 	// validate the given address
 	if !addr.IsValid() {
-		// TODO return error
+		return nil, ErrBadAddr{addr}
 	}
 
 	// set defaults
@@ -117,11 +117,23 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	}
 
 	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
+	go func() {
+		for {
+			/*select {
+				// some cancellable channel
+			}*/
+			vk.pendingHellos.Range(func(key, value any) bool {
+				// cast value to time.Time
+				// TODO
+				return false
+			})
+		}
+	}()
 
 	// dump out data about the vault keeper
 	vk.log.Debug().Func(vk.LogDump).Msg("New Vault Keeper created")
 
-	return vk
+	return vk, nil
 }
 
 //#region methods
