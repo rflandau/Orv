@@ -72,7 +72,7 @@ type HelloResp struct {
 func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloResp, error) {
 	// validate their ID
 	if req.Body.Id == 0 {
-		return nil, huma.Error400BadRequest(ErrBadID)
+		return nil, HErrBadID(req.Body.Id, pt_HELLO_ACK)
 	}
 
 	// register the id in the HELLO map
@@ -134,8 +134,7 @@ type JoinReq struct {
 
 // Response for /join
 type JoinAcceptResp struct {
-	Status  int
-	PktType string // JOIN_ACCEPT
+	PktType string `header:"Packet-Type"` // JOIN_ACCEPT
 	Body    struct {
 		Id uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
 		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
@@ -147,12 +146,12 @@ type JoinAcceptResp struct {
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
 	if req.Body.Id == 0 {
-		return nil, huma.Error400BadRequest("JOIN_DENY", errors.New(ErrBadID))
+		return nil, HErrBadID(req.Body.Id, pt_JOIN_DENY)
 	}
 	vk.heightRWMu.RLock()
 	defer vk.heightRWMu.RUnlock()
 	if req.Body.Height != vk.height-1 {
-		return nil, huma.Error400BadRequest("JOIN_DENY", ErrBadHeight{vk.height, req.Body.Height})
+		return nil, HErrBadHeight(vk.height, req.Body.Height, pt_JOIN_DENY)
 	}
 
 	// check the pendingHello table for this id

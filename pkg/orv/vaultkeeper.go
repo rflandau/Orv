@@ -88,7 +88,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// validate the given address
 	if !addr.IsValid() {
-		return nil, ErrBadAddr{addr}
+		return nil, ErrBadAddr(addr)
 	}
 
 	// set defaults

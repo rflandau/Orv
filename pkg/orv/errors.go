@@ -2,29 +2,29 @@ package orv
 
 import (
 	"fmt"
+	"net/http"
 	"net/netip"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
-const (
-	ErrBadID string = "id must be 0 < x <= max(uint64)"
-)
+const hdrPkt_t string = "Pkt-Type"
 
-type ErrBadAddr struct {
-	BadAddr netip.AddrPort
+// id is not 0 < id <= max(uint64)
+func HErrBadID(id uint64, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(fmt.Errorf("id (%d) must be 0 < x <= max(uint64)", id), http.Header{
+		hdrPkt_t: {pkt_t},
+	})
 }
 
-func (e ErrBadAddr) Error() string {
-	return fmt.Sprintf("Address %v is not a valid ip:port", e.BadAddr)
+func ErrBadAddr(ap netip.AddrPort) error {
+	return fmt.Errorf("Address %v is not a valid ip:port", ap)
 }
 
-// TODO create constructor
-type ErrBadHeight struct {
-	CurVKHeight     uint16
-	RequesterHeight uint16
-}
-
-func (e ErrBadHeight) Error() string {
+func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
 	// TODO if a parent is available, tell the requester to try the parent
 	// TODO if root and VKHeight==ReqHeight, send special MERGE error message
-	return fmt.Sprintf("To join this VK, height must be =%d-1 (given %d)", e.CurVKHeight, e.RequesterHeight)
+	return huma.ErrorWithHeaders(fmt.Errorf("To join this VK, height must be =%d-1 (given %d)", CurVKHeight, RequesterHeight), http.Header{
+		hdrPkt_t: {hdrPkt_t},
+	})
 }
