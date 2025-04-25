@@ -51,6 +51,7 @@ type VaultKeeper struct {
 
 	pt PruneTimes
 
+	// TODO potentially convert to id -> time.Timer and have the pruner select on the timer channels
 	pendingHellos sync.Map // id -> timestamp
 }
 
