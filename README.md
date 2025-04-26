@@ -92,12 +92,12 @@ You must then join the vault via a `JOIN` message that includes your unique id a
 
 ```mermaid
 sequenceDiagram
-    Node->>VaultKeeper: HELLO{Id:123}
-    VaultKeeper->>Node: HELLO_ACK{Id:456, Height:3, Error:nil}
-    Node->>VaultKeeper: JOIN{Id:123, Height:2}
-    VaultKeeper->>+Node: JOIN_ACCEPT{Id:456}
-    Node->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
-    VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
+    Child->>VaultKeeper: HELLO{Id:123}
+    VaultKeeper->>Child: HELLO_ACK{Id:456, Height:3, Root:False}
+    Child->>VaultKeeper: JOIN{Id:123, Height:2}
+    VaultKeeper->>+Child: JOIN_ACCEPT{Id:456}
+    Child->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
+    VaultKeeper->>+Child: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
 ```
 
 ## Merging (Root-Root joins)
@@ -108,7 +108,7 @@ sequenceDiagram
     participant Node
     participant VaultKeeper as Root VaultKeeper
     Node->>+VaultKeeper: HELLO{Id:123}
-    VaultKeeper->>-Node: HELLO_ACK{Id:456, Height:3, Error:nil}
+    VaultKeeper->>-Node: HELLO_ACK{Id:456, Height:3, Root:True}
     Node->>+VaultKeeper: MERGE{Id:123, Height:3}
     VaultKeeper->>-Node: MERGE_ACCEPT{Id:456}
     Node->>Node: increment height
