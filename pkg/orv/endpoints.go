@@ -27,10 +27,10 @@ func (vk *VaultKeeper) buildRoutes() {
 
 	// Handle GET requests on /status (using the more advanced .Register() method)
 	huma.Register(vk.endpoint.api, huma.Operation{
-		OperationID:   "status",
+		OperationID:   STATUS[1:],
 		Method:        http.MethodGet,
 		Path:          STATUS,
-		Summary:       "", // TODO
+		Summary:       STATUS[1:],
 		Tags:          []string{"meta"},
 		DefaultStatus: http.StatusOK,
 	}, vk.handleStatus)
@@ -40,7 +40,7 @@ func (vk *VaultKeeper) buildRoutes() {
 		OperationID:   JOIN[1:],
 		Method:        http.MethodPost,
 		Path:          JOIN,
-		Summary:       "", // TODO docuemntation
+		Summary:       JOIN[1:],
 		DefaultStatus: http.StatusAccepted,
 	}, vk.handleJoin)
 
@@ -72,7 +72,7 @@ type HelloResp struct {
 func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloResp, error) {
 	// validate their ID
 	if req.Body.Id == 0 {
-		return nil, HErrBadID(req.Body.Id, pt_HELLO_ACK)
+		return nil, HErrBadID(req.Body.Id, PT_HELLO_ACK)
 	}
 
 	// register the id in the HELLO map
@@ -146,12 +146,12 @@ type JoinAcceptResp struct {
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
 	if req.Body.Id == 0 {
-		return nil, HErrBadID(req.Body.Id, pt_JOIN_DENY)
+		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
 	}
 	vk.heightRWMu.RLock()
 	defer vk.heightRWMu.RUnlock()
 	if req.Body.Height < vk.height-1 {
-		return nil, HErrBadHeight(vk.height, req.Body.Height, vk.isRoot, pt_JOIN_DENY)
+		return nil, HErrBadHeight(vk.height, req.Body.Height, vk.isRoot, PT_JOIN_DENY)
 	} else if req.Body.Height == vk.height { // if we are root and we get a request from the same height, we can propose a merge (root-root interaction)
 		// TODO we may also want to validate the assumption that we are sending a JOIN_DENY pkt type initially and disable the pkt_t param if we then know all pkt types
 		return &JoinAcceptResp{}, nil // TODO change this type to a JoinMergeResp or merge all JoinResps into a single struct and just vary the pkt-type in the header
