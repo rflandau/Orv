@@ -24,7 +24,8 @@ const (
 
 // special commands that do not necessarily need to follow a HELLO
 const (
-	PT_STATUS PacketType = "STATUS"
+	PT_STATUS          PacketType = "STATUS"
+	PT_STATUS_RESPONSE PacketType = "STATUS_RESPONSE"
 )
 
 // new node joining as leaf or VK
