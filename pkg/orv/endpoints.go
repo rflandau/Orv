@@ -2,7 +2,6 @@ package orv
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -78,7 +77,7 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 	// register the id in the HELLO map
 	vk.pendingHellos.Store(vk.id, time.Now())
 
-	vk.heightRWMu.RLock()
+	vk.structureRWMu.RLock()
 	resp := &HelloResp{PktType: PT_HELLO_ACK,
 		Body: struct {
 			Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
@@ -87,7 +86,7 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 			Id:     vk.id,
 			Height: vk.height,
 		}}
-	vk.heightRWMu.RUnlock()
+	vk.structureRWMu.RUnlock()
 
 	return resp, nil
 }
@@ -138,38 +137,44 @@ type JoinReq struct {
 
 // Response for /join
 type JoinAcceptResp struct {
-	PktType PacketType `header:"Packet-Type"` // JOIN_ACCEPT or JOIN_DENY
+	PktType PacketType `header:"Packet-Type"` // JOIN_ACCEPT
 	Body    struct {
 		Id uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
 		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
-		Height uint16 `json:"height" example:"8" doc:"the height of the node answering the greeting"`
+		Height uint16 `json:"height" example:"8" doc:"the height of the requester's new parent"`
 	}
 }
 
-// Handle requests against the HELLO endpoint
+// Handle requests against the JOIN endpoint
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
 	if req.Body.Id == 0 {
 		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
 	}
-	vk.heightRWMu.RLock()
-	defer vk.heightRWMu.RUnlock()
+	vk.structureRWMu.RLock()
+	defer vk.structureRWMu.RUnlock()
 	if req.Body.Height != vk.height-1 {
 		return nil, HErrBadHeight(vk.height, req.Body.Height, PT_JOIN_DENY)
 	}
 
 	// check the pendingHello table for this id
 	if _, ok := vk.pendingHellos.Load(req.Body.Id); !ok {
-		return nil, huma.Error400BadRequest("JOIN_DENY", errors.New("must send HELLO first"))
+		return nil, HErrMustHello(PT_JOIN_DENY)
 	}
 
-	resp := &JoinAcceptResp{PktType: "JOIN_ACCEPT", Body: struct {
-		Id     uint64 "json:\"id\" example:\"123\" doc:\"unique identifier for the VK\""
-		Height uint16 "json:\"height\" example:\"8\" doc:\"the height of the node answering the greeting\""
-	}{
-		vk.id,
-		vk.height,
-	}}
+	// we can accept this node as a child
+	// add them to our list of children and start the timer for their removal if they do not register a service after enough time
+	// TODO
+
+	resp := &JoinAcceptResp{
+		PktType: "JOIN_ACCEPT",
+		Body: struct {
+			Id     uint64 "json:\"id\" example:\"123\" doc:\"unique identifier for the VK\""
+			Height uint16 "json:\"height\" example:\"8\" doc:\"the height of the requester's new parent\""
+		}{
+			vk.id,
+			vk.height,
+		}}
 
 	return resp, nil
 }

@@ -46,9 +46,12 @@ type VaultKeeper struct {
 		mux  *http.ServeMux
 		http http.Server
 	}
-	heightRWMu sync.RWMutex // locker for height+isRoot
-	height     uint16       // current height of this vk
-	isRoot     bool
+	structureRWMu sync.RWMutex // locker for height+parent
+	height        uint16       // current height of this vk
+	parent        struct {
+		id   uint64 // 0 if we are root
+		addr netip.AddrPort
+	}
 
 	pt PruneTimes
 
@@ -107,7 +110,6 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 			mux: mux,
 		},
 		height: 0,
-		isRoot: true,
 
 		pt: PruneTimes{pendingHello: DEFAULT_PRUNE_TIME_PENDING_HELLO},
 	}
@@ -130,6 +132,10 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 				// TODO
 				return false
 			})
+
+			// TODO check that each child has at least one service associated to it
+			// if it does not, check if its join-grace period has elapsed
+			// if it has, prune it
 		}
 	}()
 
@@ -156,6 +162,10 @@ func (vk *VaultKeeper) Stop() {
 	// TODO
 	// TODO include graceful shutdown: https://huma.rocks/how-to/graceful-shutdown/
 
+}
+
+func (vk *VaultKeeper) isRoot() bool {
+	return vk.parent.id != 0
 }
 
 // Pretty prints the state of the vk into the given zerolog event.
