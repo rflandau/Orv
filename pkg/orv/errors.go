@@ -12,9 +12,11 @@ const hdrPkt_t string = "Pkt-Type"
 
 // id is not 0 < id <= max(uint64)
 func HErrBadID(id uint64, pkt_t PacketType) error {
-	return huma.ErrorWithHeaders(fmt.Errorf("id (%d) must be 0 < x <= max(uint64)", id), http.Header{
-		hdrPkt_t: {pkt_t},
-	})
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest(fmt.Sprintf("id (%d) must be 0 < x <= max(uint64)", id)),
+		http.Header{
+			hdrPkt_t: {pkt_t},
+		})
 }
 
 func ErrBadAddr(ap netip.AddrPort) error {
@@ -23,7 +25,17 @@ func ErrBadAddr(ap netip.AddrPort) error {
 
 func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
 	// TODO if a parent is available, tell the requester to try the parent
-	return huma.ErrorWithHeaders(fmt.Errorf("to join this VK, height (%d) must be VK height (%d)-1", CurVKHeight, RequesterHeight), http.Header{
-		hdrPkt_t: {pkt_t},
-	})
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest(fmt.Sprintf("to join this VK, height (%d) must be VK height (%d)-1", CurVKHeight, RequesterHeight)),
+		http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+// The requester was not found in the pendingHello table and therefore did not first greet with a HELLO (or their HELLO was pruned).
+func HErrMustHello(pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest("must send HELLO first"), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
 }
