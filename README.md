@@ -12,6 +12,10 @@ Orv is an algorithm for building self-organizing, decentralized service discover
 
 Orv does not actually interact with services, it just finds other nodes that purport to provide the service. Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
 
+TODO build an example Vault to showcase message flows. Or pull the diagrams from the proposal.
+
+TODO possible two diagrams, one of just the vault in operation and a more advanced one to show all the heartbeats and interaction models as well.
+
 ## The Name 
 
 We couldn't land on a name and I needed something to call it. Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel.
@@ -85,10 +89,13 @@ This section covers Orv's interaction models but if you just want to read about 
 
 ## Initiating and Joining a Vault
 
-All new nodes must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
+> [!IMPORTANT]
+> Nodes only need to join a vault if they wish to aid the tree by offering a service and/or becoming a vault keeper.
+> Node who just wish to find services do not need to HELLO or JOIN and can skip right down to [Making Requests](#making-requests-of-a-vault).
 
-You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted. If you receive a `JOIN_DENY`... TODO (this probably needs to enumerate reasons for JOIN_DENY, such as bad height).
+Nodes who wish to join the vault must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
 
+You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted.
 
 ```mermaid
 sequenceDiagram
@@ -101,6 +108,7 @@ sequenceDiagram
 ```
 
 ## Merging (Root-Root joins)
+
 
 ```mermaid
 sequenceDiagram
@@ -115,21 +123,7 @@ sequenceDiagram
     Node-->>Children: INCR{Id:123}
 ```
 
-## Heartbeats
-
-TODO
-
-The protocol must be able to handle heartbeats that encapsulate multiple services and heartbeats that come from each services on the same id separately. This must update staleness according only to the services included in each heartbeat.
-
-For example:
-- An IoT device probably has a single driver program that handles all "services" (thermistor, barometer, etc) and therefore wants to send a single HB that refreshes the staleness of each.
-- A server probably has a number of different programs running independently (DNS, NAT, etc) and wants each to be able to refresh its staleness individually (per interface). If all services from a single leaf/VK had to be updated together, the developer would need to write a service to encapsulate each existing service which is unacceptable.
-
-## Status Requests
-
-The only exception to the `HELLO` introduction is `STATUS` messages, which can be issued by anyone, including nodes not part of the vault.
-
-## Dragon's Hoard (Tree-Seeding)
+### Dragon's Hoard (Tree-Seeding)
 
 **Not Implemented**
 
@@ -137,6 +131,40 @@ As height adjustments only happen when root-root joins occur, small trees can ra
 
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
 Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
+
+## Heartbeats
+
+There are two kinds of heartbeats: service heartbeats and vault heartbeats. They are detailed below.
+
+All heartbeats also receive an acknowledgement (HEARTBEAT_ACK) which child nodes can leverage the lack of to consider their parent AWOL.
+
+### Service Heartbeats
+
+Service heartbeats are sent from a leaf to its parent to refresh the staleness of the included services.
+Service heartbeats may encapsulate any number of services offered by the leaf (though they will be rejected if a service not registered to the leaf is found; all valid services in the heartbeat message will still be refreshed).
+
+Leaves have the discretion to send one heartbeat for all services or a separate heartbeat for each service or any combination therein.
+
+For example:
+- An IoT device probably has a single driver program that handles all "services" (thermistor, barometer, etc) and therefore wants to send a single heartbeat that refreshes the staleness of each.
+- A server probably has a number of different programs running independently (DNS, NAT, etc) and wants each to be able to refresh its staleness individually (per interface). If all services from a single leaf had to be updated together, a developer would need to write a helper service to group each existing service (which we should not ask of a developer).
+
+They have the form: HEARTBEAT{Id:123, Services:[ServiceA, ServiceB, ...]}
+
+### Vault Heartbeats
+
+Vault heartbeats are sent from a child VK to its parent to ensure the parent does not prune its branch.
+
+They have the form: VK_HEARTBEAT{Id:123}.
+
+
+## Status Requests
+
+The only exception to the `HELLO` introduction is `STATUS` messages, which can be issued by anyone, including nodes not part of the vault.
+
+## Making Requests of a Vault
+
+TODO discuss GET and LIST requests
 
 # Other Design Decisions
 
