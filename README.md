@@ -80,12 +80,11 @@ Orv is, fundamentally, a protocol. As long as a machine or language can speak Or
 
 This section covers Orv's interaction models but if you just want to read about the packet types, take a look at their implementation in the [Go VaultKeeper prototype](pkg/orv/packets.go).
 
-> [!NOTE]
+> [!TIP]
 > Orv is implemented as a Layer 5 protocol (in the form of HTTP API) in the prototype contained within this repo.
 > While some tweaks have been made to support the Client-Server nature of a REST API, it can still be considered a representative Orv implementation.
-
-> [!TIP]
 > You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
+
 
 ## Initiating and Joining a Vault
 
