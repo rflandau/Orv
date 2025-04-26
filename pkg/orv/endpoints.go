@@ -52,16 +52,16 @@ func (vk *VaultKeeper) buildRoutes() {
 // Used by nodes to introduce themselves to the tree.
 // Theoretically, this could be a broadcast and the requester could then pick which HELLO response to follow up on
 type HelloReq struct {
-	Body struct {
+	PktType PacketType `header:"Packet-Type"` // HELLO
+	Body    struct {
 		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
 	}
 }
 
 // Response for /hello
 type HelloResp struct {
-	// any fields outside of the body are placed in the header
-	// we don't really plan to make use of the header
-	Body struct {
+	PktType PacketType `header:"Packet-Type"` // HELLO_ACK
+	Body    struct {
 		Id uint64 `json:"id" required:"true" example:"123" doc:"unique identifier for the VK"`
 		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
 		Height uint16 `json:"height" required:"true" example:"8" doc:"the height of the node answering the greeting"`
@@ -79,13 +79,14 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 	vk.pendingHellos.Store(vk.id, time.Now())
 
 	vk.heightRWMu.RLock()
-	resp := &HelloResp{Body: struct {
-		Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
-		Height uint16 "json:\"height\" required:\"true\" example:\"8\" doc:\"the height of the node answering the greeting\""
-	}{
-		Id:     vk.id,
-		Height: vk.height,
-	}}
+	resp := &HelloResp{PktType: PT_HELLO_ACK,
+		Body: struct {
+			Id     uint64 "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
+			Height uint16 "json:\"height\" required:\"true\" example:\"8\" doc:\"the height of the node answering the greeting\""
+		}{
+			Id:     vk.id,
+			Height: vk.height,
+		}}
 	vk.heightRWMu.RUnlock()
 
 	return resp, nil
@@ -98,20 +99,22 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 // Request for /status.
 // Used by clients and tests to fetch information about the current state of a vk.
 type StatusReq struct {
+	PktType PacketType `header:"Packet-Type"` // STATUS
 }
 
 // Response for GET /status commands.
 // Returns the status of the current node.
 // Used query node info for some tests.
 type StatusResp struct {
-	Body struct {
+	PktType PacketType `header:"Packet-Type"` // STATUS_RESPONSE
+	Body    struct {
 		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
 	}
 }
 
 // Handle requests against the status endpoint
 func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*StatusResp, error) {
-	resp := &StatusResp{}
+	resp := &StatusResp{PktType: PT_STATUS_RESPONSE}
 
 	resp.Body.Message = "TODO"
 	// TODO
@@ -126,7 +129,8 @@ func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*Statu
 // Request for /join.
 // Used by nodes to ask to join the vault after introducing themselves with HELLO.
 type JoinReq struct {
-	Body struct {
+	PktType PacketType `header:"Packet-Type"` // JOIN
+	Body    struct {
 		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
 		Height uint16 `json:"height" required:"true" example:"3" doc:"height of the node attempting to join the vault"`
 	}
@@ -134,7 +138,7 @@ type JoinReq struct {
 
 // Response for /join
 type JoinAcceptResp struct {
-	PktType string `header:"Packet-Type"` // JOIN_ACCEPT
+	PktType PacketType `header:"Packet-Type"` // JOIN_ACCEPT or JOIN_DENY
 	Body    struct {
 		Id uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
 		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
@@ -150,11 +154,8 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 	}
 	vk.heightRWMu.RLock()
 	defer vk.heightRWMu.RUnlock()
-	if req.Body.Height < vk.height-1 {
-		return nil, HErrBadHeight(vk.height, req.Body.Height, vk.isRoot, PT_JOIN_DENY)
-	} else if req.Body.Height == vk.height { // if we are root and we get a request from the same height, we can propose a merge (root-root interaction)
-		// TODO we may also want to validate the assumption that we are sending a JOIN_DENY pkt type initially and disable the pkt_t param if we then know all pkt types
-		return &JoinAcceptResp{}, nil // TODO change this type to a JoinMergeResp or merge all JoinResps into a single struct and just vary the pkt-type in the header
+	if req.Body.Height != vk.height-1 {
+		return nil, HErrBadHeight(vk.height, req.Body.Height, PT_JOIN_DENY)
 	}
 
 	// check the pendingHello table for this id

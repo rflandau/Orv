@@ -21,9 +21,9 @@ func ErrBadAddr(ap netip.AddrPort) error {
 	return fmt.Errorf("address %v is not a valid ip:port", ap)
 }
 
-func HErrBadHeight(CurVKHeight, RequesterHeight uint16, amRoot bool, pkt_t PacketType) error {
+func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
 	// TODO if a parent is available, tell the requester to try the parent
-	return huma.ErrorWithHeaders(fmt.Errorf("to join this VK, height must be =%d-1 (given %d)", CurVKHeight, RequesterHeight), http.Header{
+	return huma.ErrorWithHeaders(fmt.Errorf("to join this VK, height (%d) must be VK height (%d)-1", CurVKHeight, RequesterHeight), http.Header{
 		hdrPkt_t: {pkt_t},
 	})
 }
