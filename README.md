@@ -196,11 +196,31 @@ The only exception to the `HELLO` introduction is `STATUS` messages, which can b
 
 TODO discuss GET and LIST requests
 
+## "Rivering" VaultKeepers
+
+**Not Implemented**
+
+For partition resiliency and load balancing, Orv could support a lateral connection between VKs of the same height. We call this functionality "rivering", as it creates a gossip stream between VKs *of the same height*.
+Rivered VKs are VKs that duplicate information across one another. This allows a vault to not splinter completely at the loss of the root and potentially reduces the hotspot that forms around root.
+
+> [!WARNING]
+> Only VKs of the same height can be rivered and a VK that merges and therefore increases its height must leave the river.
+
+![Paired VKs](img/pairedVKs.drawio.svg)
+
+Rivered VKs do not query each other like children do of their parents; instead, they gossip information back and forth and act as if information from a paired node is always up to date (we cannot allow querying as it could create cycles and count-to-infinite problems). Recurrent heartbeats keep pairs up to date with one another, allowing them to know about services offered by their pairs' children without querying their root.
+
+This function would also allow multiple trees to share services without merging, easing the cost of sending INCRs down a heavily populated branch.
+
+> [!WARNING]
+> This idea should be further explored prior to implementation.
+> It must not be allowed to create cycles or generate confusion about the route to a service.
+
 # Other Design Decisions
 
 ## Layer 5 vs Layer 4 (vs Layer 3?!?)
 
-The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of impleemnting a 
+The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a ...
 
 You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
 
