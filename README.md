@@ -72,12 +72,23 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 
 # The Protocol
 
-## API Specifications
+Orv is, fundamentally, a protocol. As long as a machine or language can speak Orv, Orv will work on it.
+
+This section covers Orv's interaction models but if you just want to read about the packet types, take a look at their implementation in the [Go VaultKeeper prototype](pkg/orv/packets.go).
+
+> [!NOTE]
+> Orv is implemented as a Layer 5 protocol (in the form of HTTP API) in the prototype contained within this repo.
+> While some tweaks have been made to support the Client-Server nature of a REST API, it can still be considered a representative Orv implementation.
 
 > [!TIP]
 > You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
 
-### Standard Joining
+## Initiating and Joining a Vault
+
+All new nodes must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
+
+You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted. If you receive a `JOIN_DENY`... TODO (this probably needs to enumerate reasons for JOIN_DENY, such as bad height).
+
 
 ```mermaid
 sequenceDiagram
@@ -89,7 +100,7 @@ sequenceDiagram
     VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
 ```
 
-### root-root joins (merging)
+## Merging (Root-Root joins)
 
 ```mermaid
 sequenceDiagram
@@ -104,17 +115,7 @@ sequenceDiagram
     Node-->>Children: INCR{Id:123}
 ```
 
-### Initiating and Joining a Vault
-
-All new nodes must first introduce themselves with `HELLO` messages that includes your unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be tried as a [witch](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYjg2YzRjMXFmbXA1b3Z6dDJzZGZxd3p6eHp2OXpyam9xYWpvM2Q4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/enzPQyHVWMfx6/giphy.gif) (or a duck, whichever the crowd prefers).
-
-You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_CONFIRM` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper they contacted. If you receive a `JOIN_DENY`... TODO (this probably needs to enumerate reasons for JOIN_DENY, such as bad height).
-
-#### ROOT-ROOT Joins
-
-TODO
-
-### Heartbeats
+## Heartbeats
 
 TODO
 
@@ -124,11 +125,11 @@ For example:
 - An IoT device probably has a single driver program that handles all "services" (thermistor, barometer, etc) and therefore wants to send a single HB that refreshes the staleness of each.
 - A server probably has a number of different programs running independently (DNS, NAT, etc) and wants each to be able to refresh its staleness individually (per interface). If all services from a single leaf/VK had to be updated together, the developer would need to write a service to encapsulate each existing service which is unacceptable.
 
-### Status Requests
+## Status Requests
 
 The only exception to the `HELLO` introduction is `STATUS` messages, which can be issued by anyone, including nodes not part of the vault.
 
-### Dragon's Hoard (Tree-Seeding)
+## Dragon's Hoard (Tree-Seeding)
 
 **Not Implemented**
 
@@ -141,7 +142,7 @@ Rather than starting a vault by creating a vk with height 0, start the node with
 
 ## Layer 5 vs Layer 4 (vs Layer 3?!?)
 
-The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets.
+The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of impleemnting a 
 
 You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
 

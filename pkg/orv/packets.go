@@ -1,5 +1,8 @@
 package orv
 
+// Representations of each packet type used by Orv along with their functions and related packets.
+// As the prototype is implemented as an API, these packet types are somewhat secondary to the go structs.
+// For consistency's sake, every request and response issued by the API includes the corresponding packet type as a http header.
 type PacketType = string
 
 // connection initialization
@@ -12,6 +15,11 @@ const (
 	PT_HELLO PacketType = "HELLO"
 	// Sent by VKs in response to a node's HELLO in order to relay basic information to the requester node.
 	PT_HELLO_ACK PacketType = "HELLO_ACK"
+)
+
+const (
+	// Sent by a child node to refresh the lifetimes of all services named in the HB.
+	PT_HEARTBEAT PacketType = "HEARTBEAT"
 )
 
 // special commands that do not necessarily need to follow a HELLO
@@ -45,13 +53,19 @@ const (
 
 // service requests
 const (
-	// Send by a child node to learn what services are available.
+	// Sent by a child node to learn what services are available.
+	// Use hop count to enforce locality. A hop count of 1 means the request will only query the node's immediate parent. Hop count is limited by vault height.
+	// While a LIST with a hop count of 0 is technically an error, hop counts of 0 and 1 are treated the same.
 	PT_LIST PacketType = "LIST"
-	// Send by a VK when it receives a LIST request to ackolwedge it while it
-	PT_LIST_ACK      PacketType = "LIST_ACK"
+	// Sent by a VK when it receives a LIST request to acknowledge it while the VK propagates it up the vault.
+	// Only sent if the hop count is greater than 1 when it was received (because otherwise it will be decremented to 0 and answered by LIST_RESPONSE.
+	PT_LIST_ACK PacketType = "LIST_ACK"
+	// Sent by a VK when it receives a LIST request and the hop count decrements to 0 OR it is the root of the vault.
 	PT_LIST_RESPONSE PacketType = "LIST_RESPONSE"
-	PT_GET           PacketType = "GET"
-	PT_GET_RESPONSE  PacketType = "GET_RESPONSE"
+	// TODO
+	PT_GET PacketType = "GET"
+	// TODO
+	PT_GET_RESPONSE PacketType = "GET_RESPONSE"
 )
 
 // root-root merging
