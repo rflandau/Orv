@@ -137,6 +137,7 @@ Rather than starting a vault by creating a vk with height 0, start the node with
 
 TODO
 
+```mermaid
 sequenceDiagram
     participant C as Child<br>(55)
     participant VK as Root VaultKeeper<br>(7)
@@ -155,6 +156,7 @@ sequenceDiagram
     P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"Web Server"}
     P->>GP: REGISTER{<br>Id:12,<br>Service:"SSH"}
     GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"Web Server"}
+```
 
 ### Service Expiration
 
