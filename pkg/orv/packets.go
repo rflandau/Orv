@@ -2,6 +2,7 @@ package orv
 
 type PacketType = string
 
+// connection initialization
 const (
 	// Sent by a node not part of the vault to introduce itself.
 	// VKs respond to HELLOs with HELLO_ACK or not at all.
@@ -11,7 +12,15 @@ const (
 	PT_HELLO PacketType = "HELLO"
 	// Sent by VKs in response to a node's HELLO in order to relay basic information to the requester node.
 	PT_HELLO_ACK PacketType = "HELLO_ACK"
+)
 
+// special commands
+const (
+	PT_STATUS PacketType = "STATUS"
+)
+
+// new node joining as leaf or VK
+const (
 	// Sent by a node not part of the vault to request to join under the receiver VK.
 	PT_JOIN PacketType = "JOIN"
 	// Sent by VKs in response to a node's JOIN request to accept the request.
@@ -22,10 +31,20 @@ const (
 	//
 	// Once received by a node, that node must resend a HELLO if it wishes to continue interacting with this VK.
 	PT_JOIN_DENY PacketType = "JOIN_DENY"
+)
+
+// root-root merging
+const (
 	// Sent by a node to indicate that the VK should become one of its children.
-	// Ony used in root-root interactions.
+	// Only used in root-root interactions.
 	//
 	// Must be followed up by a MERGE_ACCEPT to confirm.
-	PT_MERGE        PacketType = "MERGE"
+	PT_MERGE PacketType = "MERGE"
+	// Sent by a VK to accept a node's request to merge.
+	// Only used in root-root interactions.
+	//
+	// Once received by the requester node, that node can safely consider itself to be the new root.
+	// The requester node must then update its height and send an INCR to its pre-existing children.
 	PT_MERGE_ACCEPT PacketType = "MERGE_ACCEPT"
+	PT_INCR         PacketType = "INCR"
 )
