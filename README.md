@@ -97,6 +97,8 @@ Nodes who wish to join the vault must first introduce themselves with `HELLO` me
 
 You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted.
 
+After a receiving a `JOIN_ACCEPT`, the new child node must register a service or they will be pruned and have to re-join. See [Registering A Service](#registering-a-service) below.
+
 ```mermaid
 sequenceDiagram
     Child->>VaultKeeper: HELLO{Id:123}
@@ -107,7 +109,7 @@ sequenceDiagram
     VaultKeeper->>+Child: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
 ```
 
-## Merging (Root-Root joins)
+### Merging (Root-Root joins)
 
 
 ```mermaid
@@ -123,7 +125,7 @@ sequenceDiagram
     Node-->>Children: INCR{Id:123}
 ```
 
-### Dragon's Hoard (Tree-Seeding)
+#### Dragon's Hoard (Tree-Seeding)
 
 **Not Implemented**
 
@@ -131,6 +133,29 @@ As height adjustments only happen when root-root joins occur, small trees can ra
 
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
 Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
+
+### Registering a Service
+
+TODO
+
+sequenceDiagram
+    participant C as Child<br>(55)
+    participant VK as Root VaultKeeper<br>(7)
+    participant P as VaultKeeper's Parent<br>(12)
+    participant GP as ...<br>(176)
+    VK->>C: JOIN_ACCEPT{Id:7}
+    C->>+VK: REGISTER{<br>Id:55,<br>Service:"Web Server",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
+    VK->>-C: REGISTER_ACCEPT{Id:7,<br>Service:"Web Server"}
+    VK->>P: REGISTER{<br>Id:7,<br>Service:"Web Server"}
+    C->>+VK: REGISTER{<br>Id:55,<br>Service:"SSH",<br>Address:"111.111.111.111:22",<br>Stale:"15s"}
+    P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"Web Server"}
+    P->>GP: REGISTER{<br>Id:12,<br>Service:"Web Server"}
+    GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"Web Server"}
+    VK->>-C: REGISTER_ACCEPT{Id:7,<br>Service:"SSH"}
+    VK->>P: REGISTER{<br>Id:7,<br>Service:"SSH"}
+    P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"Web Server"}
+    P->>GP: REGISTER{<br>Id:12,<br>Service:"SSH"}
+    GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"Web Server"}
 
 ## Heartbeats
 
