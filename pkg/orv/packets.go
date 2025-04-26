@@ -14,7 +14,7 @@ const (
 	PT_HELLO_ACK PacketType = "HELLO_ACK"
 )
 
-// special commands
+// special commands that do not necessarily need to follow a HELLO
 const (
 	PT_STATUS PacketType = "STATUS"
 )
@@ -31,6 +31,14 @@ const (
 	//
 	// Once received by a node, that node must resend a HELLO if it wishes to continue interacting with this VK.
 	PT_JOIN_DENY PacketType = "JOIN_DENY"
+)
+
+// service registration
+const (
+	// Sent by a child node already part of a vault to tell its parent about a new service.
+	PT_REGISTER PacketType = "REGISTER"
+	// Sent by a parent VK to confirm registration of the service offered by the child.
+	PT_REGISTER_ACCEPT PacketType = "REGISTER_ACCEPT"
 )
 
 // root-root merging

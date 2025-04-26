@@ -85,8 +85,8 @@ sequenceDiagram
     VaultKeeper->>Node: HELLO_ACK{Id:456, Height:3, Error:nil}
     Node->>VaultKeeper: JOIN{Id:123, Height:2}
     VaultKeeper->>+Node: JOIN_ACCEPT{Id:456}
-    Node->>VaultKeeper: REGISTER{<br>Id:123<br>Service:"ServiceA"<br>Address:"111.111.111.111:80"<br>Stale:"5s"}
-    VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456}
+    Node->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
+    VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
 ```
 
 ### root-root joins (merging)
