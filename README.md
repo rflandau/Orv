@@ -77,6 +77,8 @@ Building off the desired support for IoT, a natural "bubble-up" paradigm emerged
 > [!TIP]
 > You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
 
+### Standard Joining
+
 ```mermaid
 sequenceDiagram
     Node->>VaultKeeper: HELLO{Id:123}
@@ -85,6 +87,21 @@ sequenceDiagram
     VaultKeeper->>+Node: JOIN_ACCEPT{Id:456}
     Node->>VaultKeeper: REGISTER{<br>Id:123<br>Service:"ServiceA"<br>Address:"111.111.111.111:80"<br>Stale:"5s"}
     VaultKeeper->>+Node: REGISTER_ACCEPT{Id:456}
+```
+
+### root-root joins (merging)
+
+```mermaid
+sequenceDiagram
+    participant Children
+    participant Node
+    participant VaultKeeper as Root VaultKeeper
+    Node->>+VaultKeeper: HELLO{Id:123}
+    VaultKeeper->>-Node: HELLO_ACK{Id:456, Height:3, Error:nil}
+    Node->>+VaultKeeper: MERGE{Id:123, Height:3}
+    VaultKeeper->>-Node: MERGE_ACCEPT{Id:456}
+    Node->>Node: increment height
+    Node-->>Children: INCR{Id:123}
 ```
 
 ### Initiating and Joining a Vault
