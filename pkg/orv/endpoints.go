@@ -3,6 +3,7 @@ package orv
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -148,7 +149,8 @@ type JoinAcceptResp struct {
 // Handle requests against the JOIN endpoint
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
-	if req.Body.Id == 0 {
+	var cid uint64 = req.Body.Id
+	if cid == 0 {
 		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
 	}
 	vk.structureRWMu.RLock()
@@ -162,9 +164,34 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 		return nil, HErrMustHello(PT_JOIN_DENY)
 	}
 
-	// we can accept this node as a child
-	// add them to our list of children and start the timer for their removal if they do not register a service after enough time
-	// TODO
+	// accept node as a child
+	// acquire the child lock
+	vk.childrenMu.Lock()
+	if _, existed := vk.children[cid]; !existed {
+		vk.children[cid] = make(map[string]netip.AddrPort)
+		// prune the child if they do not register a service fast enough
+		time.AfterFunc(vk.pt.servicelessChild, func() {
+			vk.childrenMu.Lock()
+			defer vk.childrenMu.Unlock()
+			// check if there are any services associated to the child
+			m, exists := vk.children[cid]
+			if !exists {
+				vk.log.Debug().Str("actor", "prune").Uint64("child", cid).Msg("child has already been pruned")
+				// the child has already been pruned; not our problem
+				return
+			}
+			// if there are not, prune them
+			if len(m) == 0 {
+				vk.log.Debug().Str("actor", "prune").Uint64("child", cid).Msg("child has no services after deadline; pruning...")
+				delete(vk.children, cid)
+			}
+
+			// NOTE this time is a one-time check; when a child's last service dies, this should be re-triggered
+		})
+	} else {
+		// this is a known child rejoining, do nothing
+	}
+	vk.childrenMu.Unlock()
 
 	resp := &JoinAcceptResp{
 		PktType: "JOIN_ACCEPT",

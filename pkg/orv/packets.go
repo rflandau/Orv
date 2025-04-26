@@ -31,6 +31,7 @@ const (
 // new node joining as leaf or VK
 const (
 	// Sent by a node not part of the vault to request to join under the receiver VK.
+	// Repeated or duplicate joins for a node already registered as a child of the VK are thrown away.
 	PT_JOIN PacketType = "JOIN"
 	// Sent by VKs in response to a node's JOIN request to accept the request.
 	//
