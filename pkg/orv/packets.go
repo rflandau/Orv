@@ -36,9 +36,22 @@ const (
 // service registration
 const (
 	// Sent by a child node already part of a vault to tell its parent about a new service.
+	// Initially proc'd by a new service at a leaf or VK, the REGISTER echoes up the tree until it has reached root.
+	// Echoing responsibility falls to each parent VK to pass the message iteratively.
 	PT_REGISTER PacketType = "REGISTER"
 	// Sent by a parent VK to confirm registration of the service offered by the child.
 	PT_REGISTER_ACCEPT PacketType = "REGISTER_ACCEPT"
+)
+
+// service requests
+const (
+	// Send by a child node to learn what services are available.
+	PT_LIST PacketType = "LIST"
+	// Send by a VK when it receives a LIST request to ackolwedge it while it
+	PT_LIST_ACK      PacketType = "LIST_ACK"
+	PT_LIST_RESPONSE PacketType = "LIST_RESPONSE"
+	PT_GET           PacketType = "GET"
+	PT_GET_RESPONSE  PacketType = "GET_RESPONSE"
 )
 
 // root-root merging
