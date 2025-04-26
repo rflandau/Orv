@@ -33,6 +33,11 @@ type PruneTimes struct {
 	servicelessChild time.Duration
 }
 
+type srv struct {
+	address   netip.AddrPort
+	staleness time.Duration
+}
+
 /*
 A single instance of a Vault Keeper.
 Able to provide services, route & answer requests, and facilitate vault growth.
@@ -43,13 +48,19 @@ type VaultKeeper struct {
 	id   uint64         // unique identifier
 	addr netip.AddrPort
 	// services
-	childrenMu sync.Mutex
-	children   map[childID]map[string]netip.AddrPort // cID -> (service name -> address)
-	endpoint   struct {
+	childrenMu sync.Mutex                 // locker for leaves+childVKs
+	leaves     map[childID]map[string]srv // cID -> (service name -> address&staleness)
+	childVKs   map[childID]struct {
+		lastHeartbeat time.Time
+		services      map[string]bool //service name --> 1
+	}
+
+	endpoint struct {
 		api  huma.API
 		mux  *http.ServeMux
 		http http.Server
 	}
+
 	structureRWMu sync.RWMutex // locker for height+parent
 	height        uint16       // current height of this vk
 	parent        struct {
@@ -101,10 +112,14 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// set defaults
 	vk := &VaultKeeper{
-		log:      logger,
-		id:       id,
-		addr:     addr,
-		children: map[childID]map[string]netip.AddrPort{},
+		log:    logger,
+		id:     id,
+		addr:   addr,
+		leaves: map[childID]map[string]srv{},
+		childVKs: map[childID]struct {
+			lastHeartbeat time.Time
+			services      map[string]bool //service name --> 1
+		}{},
 		endpoint: struct {
 			api  huma.API
 			mux  *http.ServeMux
@@ -121,7 +136,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 		},
 	}
 
-	vk.buildRoutes()
+	vk.buildEndpoints()
 
 	// apply the given options
 	for _, opt := range opts {
@@ -186,10 +201,10 @@ func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
 	// e.Uint64(vk.id) // assumed to exist
 	e.Uint16("height", vk.height)
 	// iterate through your children
-	for cid, services := range vk.children {
+	for cid, services := range vk.leaves {
 		m := zerolog.Dict()
 		for sn, srv := range services {
-			m.Str(sn, srv.String())
+			m.Any(sn, srv)
 		}
 
 		e.Dict(fmt.Sprintf("child %d", cid), m)

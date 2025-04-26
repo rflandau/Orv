@@ -51,6 +51,7 @@ const (
 	PT_REGISTER PacketType = "REGISTER"
 	// Sent by a parent VK to confirm registration of the service offered by the child.
 	PT_REGISTER_ACCEPT PacketType = "REGISTER_ACCEPT"
+	PT_REGISTER_DENY   PacketType = "REGISTER_DENY"
 )
 
 // service requests
