@@ -134,7 +134,7 @@ As height adjustments only happen when root-root joins occur, small trees can ra
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
 Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
 
-### Registering a Service
+## Registering a Service
 
 TODO
 
@@ -156,6 +156,10 @@ sequenceDiagram
     P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"Web Server"}
     P->>GP: REGISTER{<br>Id:12,<br>Service:"SSH"}
     GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"Web Server"}
+
+### Service Expiration
+
+TODO
 
 ## Heartbeats
 
