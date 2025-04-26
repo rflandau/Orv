@@ -168,6 +168,11 @@ func (vk *VaultKeeper) isRoot() bool {
 	return vk.parent.id != 0
 }
 
+// Used to register a new service that this VK offers locally.
+func (vk *VaultKeeper) RegisterLocalService() {
+	// TODO
+}
+
 // Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
 func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
