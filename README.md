@@ -102,7 +102,7 @@ After a receiving a `JOIN_ACCEPT`, the new child node must register a service or
 sequenceDiagram
     Child->>VaultKeeper: HELLO{Id:123}
     VaultKeeper->>Child: HELLO_ACK{Id:456, Height:3, Root:False}
-    Child->>VaultKeeper: JOIN{Id:123, Height:2}
+    Child->>VaultKeeper: JOIN{Id:123, Height:2, is-vk:False}
     VaultKeeper->>+Child: JOIN_ACCEPT{Id:456}
     Child->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
     VaultKeeper->>+Child: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
