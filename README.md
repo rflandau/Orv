@@ -281,9 +281,8 @@ As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototype is implemented a
 
 ## Rough Around The Edges
 
-The prototype is missing QoL features that would make it more comfortable to import.
-
-For example, Vault Keepers do not take in the logger you want them to use and, as such, the logger is not terribly configurable. This is illustrative of the slapdash nature of the prototype.
+The prototype is missing QoL features and few considerations have been made for efficiency. The bread and butter of the Orv package (the VaultKeeper struct) is not overly configurable and uses coarse-grained locks.
+It should be considered a proof of concept and nothing more.
 
 ## API Docs
 
