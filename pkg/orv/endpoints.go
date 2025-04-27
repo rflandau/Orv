@@ -83,8 +83,11 @@ func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloRe
 		return nil, HErrBadID(req.Body.Id, PT_HELLO_ACK)
 	}
 
+	vk.log.Debug().Uint64("node id", req.Body.Id).Msg("greeted by node")
+
 	// register the id in the HELLO map
-	vk.pendingHellos.Store(vk.id, time.Now())
+	// each HELLO refreshes the timestamp the pruner uses
+	vk.pendingHellos.Store(req.Body.Id, time.Now())
 
 	vk.structureRWMu.RLock()
 	resp := &HelloResp{PktType: PT_HELLO_ACK,
