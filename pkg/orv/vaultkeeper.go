@@ -124,6 +124,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
 			CVK:              DEFAULT_PRUNE_TIME_CVK,
 		},
+		pchDone: make(chan bool),
 	}
 
 	vk.buildEndpoints()
@@ -196,6 +197,8 @@ func (vk *VaultKeeper) Start() error {
 
 // Terminates the vaultkeeper, cleaning up all resources and closing the API server.
 func (vk *VaultKeeper) Terminate() {
+	// kill the pruner
+	close(vk.pchDone)
 	// TODO clean up resources
 	err := vk.endpoint.http.Close()
 	vk.log.Info().Str("address", vk.addr.String()).AnErr("close error", err).Msg("killed http server")
