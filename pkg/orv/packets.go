@@ -18,8 +18,10 @@ const (
 )
 
 const (
-	// Sent by a child node to refresh the lifetimes of all services named in the HB.
-	PT_HEARTBEAT PacketType = "HEARTBEAT"
+	// Sent by a leaf to refresh the lifetimes of all services named in the HB.
+	PT_SERVICE_HEARTBEAT PacketType = "SERVICE_HEARTBEAT"
+	// Sent by a child VK to refresh the time until it is considered dead.
+	PT_VK_HEARTBEAT PacketType = "VK_HEARTBEAT"
 )
 
 // special commands that do not necessarily need to follow a HELLO
@@ -48,6 +50,7 @@ const (
 	// Sent by a child node already part of a vault to tell its parent about a new service.
 	// Initially proc'd by a new service at a leaf or VK, the REGISTER echoes up the tree until it has reached root.
 	// Echoing responsibility falls to each parent VK to pass the message iteratively.
+	// If an existing service is registered to the same child node, the new information will supplant the existing information.
 	PT_REGISTER PacketType = "REGISTER"
 	// Sent by a parent VK to confirm registration of the service offered by the child.
 	PT_REGISTER_ACCEPT PacketType = "REGISTER_ACCEPT"
