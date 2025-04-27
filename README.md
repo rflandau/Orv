@@ -6,8 +6,6 @@ R Landau | rlandau@andrew.cmu.edu <-- the guy writing this README
 
 # Orv: the Decentralized, Hierarchical (Height-Aware), Self-Organizing, Service Discovery Tree
 
-(*OR*ganized *V*aults)
-
 Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
 
 Orv does not actually interact with services, it just finds other nodes that purport to provide the service. Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
@@ -18,15 +16,11 @@ TODO possible two diagrams, one of just the vault in operation and a more advanc
 
 ## The Name 
 
-We couldn't land on a name and I needed something to call it. Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel.
+**O**rganically **R**estructing **V**aults
 
-If we come up with something better, outstanding. If not, life goes on.
+Or, if you prefer something recursive: **O**rv **R**uns **V**aults
 
-### Other names
-
-DSOD (Decentralized, Self-Organizing Discovery)
-
-SOSD (pronounced "sauced") (Self-Organizing Service Discovery)
+Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel.
 
 # Terminology
 
