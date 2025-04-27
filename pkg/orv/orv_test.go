@@ -548,6 +548,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	if err := vk.Start(); err != nil {
 		t.Fatal("failed to start VK: ", err)
 	}
+	defer vk.Stop()
 
 	// TODO
 

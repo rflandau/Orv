@@ -2,7 +2,7 @@
 VaultKeeper instance.
 Functionally a wrapper around the orv.VaultKeeper type.
 
-Companion to the leaf implementation in leaf/main.go.
+Companion to the leaf implementation in leaf/main.py.
 */
 package main
 
@@ -37,6 +37,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer vk.Stop()
 
 	vk.Start()
 }
