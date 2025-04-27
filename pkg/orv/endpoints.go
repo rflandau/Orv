@@ -3,6 +3,7 @@ package orv
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -140,7 +141,8 @@ type JoinReq struct {
 	Body    struct {
 		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
 		Height uint16 `json:"height,omitempty" dependentRequired:"is-vk" example:"3" doc:"height of the vk attempting to join the vault"`
-		IsVK   bool   `json:"is-vk,omitempty" example:"false" doc:"is this node a vaultkeeper or a leaf? If true, height is required"`
+		VKAddr string `json:"vk-addr,omitempty" dependentRequired:"is-vk" example:"174.1.3.4:8080" doc:"address of the listening VK service that can receive INCRs"`
+		IsVK   bool   `json:"is-vk,omitempty" example:"false" doc:"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required"`
 	}
 }
 
@@ -172,12 +174,21 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 
 	// check if the node is attempting to join as a vk or a leaf
 	if req.Body.IsVK { // is a VK
-		//validate height
+		//validate VK-specific parameters
 		if req.Body.Height != vk.height-1 {
 			return nil, HErrBadHeight(vk.height, req.Body.Height, PT_JOIN_DENY)
 		}
+		addr, err := netip.ParseAddrPort(req.Body.VKAddr)
+		if err != nil {
+			return nil, HErrBadAddr(req.Body.VKAddr, PT_JOIN_DENY)
+		}
 
-		// TODO addCVK
+		if wasVK, wasLeaf := vk.children.addVK(cid, addr); wasLeaf {
+			// if we already have a leaf with the given ID, return failure
+			return nil, HErrIDInUse(cid, PT_JOIN_DENY)
+		} else if wasVK {
+			vk.log.Debug().Uint64("child id", cid).Msg("duplicate join")
+		}
 	} else { // is a leaf
 		if wasVk, wasLeaf := vk.children.addLeaf(cid); wasLeaf {
 			// if it was already a leaf, then throw out the join and act like it work because... well... it did
