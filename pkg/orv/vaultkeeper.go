@@ -21,7 +21,7 @@ type (
 // Default durations after the K/V may be pruned
 // (it is not guaranteed to be pruned at exactly this time, but its survival cannot guarantee after this point)
 const (
-	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 20
+	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 5
 	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 20
 	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 20
 )
@@ -61,9 +61,9 @@ type VaultKeeper struct {
 		id   uint64 // 0 if we are root
 		addr netip.AddrPort
 	}
-	pt PruneTimes
+	pt      PruneTimes
+	pchDone chan bool // used to notify the pruner goro that it is time to shut down
 
-	// TODO potentially convert to id -> time.Timer and have the pruner select on the timer channels
 	pendingHellos sync.Map // id -> timestamp
 }
 
@@ -136,21 +136,40 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	// generate child handling
 	vk.children = newChildren(&vk.log, vk.pt.ServicelessChild, vk.pt.CVK)
 
-	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
+	// spawn a pruner service to clean up pieces of VK that are not self-pruning
 	go func() {
-		for {
-			/*select {
-				// some cancellable channel
-			}*/
-			vk.pendingHellos.Range(func(key, value any) bool {
-				// cast value to time.Time
-				// TODO
-				return false
-			})
+		// generate a sublogger for the pruner to use
+		l := vk.log.With().Str("sublogger", "pruner").Logger()
+		helloPruneDur := vk.pt.PendingHello
 
-			// TODO check that each child has at least one service associated to it
-			// if it does not, check if its join-grace period has elapsed
-			// if it has, prune it
+		l.Debug().Msg("pruner online")
+		for {
+			select {
+			case <-vk.pchDone:
+				l.Debug().Msg("pruner shutting down...")
+				return
+			default:
+				// check if any HELLOs need to be pruned
+				vk.pendingHellos.Range(func(key, value any) bool {
+					// cast key to id
+					id, ok := key.(childID)
+					if !ok {
+						l.Error().Any("raw key", key).Any("raw value", value).Msg("failed to type assert key as uint64")
+						return true
+					}
+					// cast value to time.Time
+					ts, ok := value.(time.Time)
+					if !ok {
+						l.Error().Uint64("id", id).Any("raw value", value).Msg("failed to type assert value as timestamp")
+						return true
+					}
+					if time.Since(ts) >= helloPruneDur {
+						vk.pendingHellos.Delete(id)
+						l.Debug().Uint64("id", id).Msg("pruned hello")
+					}
+					return true // also continue, until we have visited every key
+				})
+			}
 		}
 	}()
 
