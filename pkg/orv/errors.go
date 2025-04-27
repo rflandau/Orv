@@ -48,6 +48,7 @@ func HErrMustJoin(pkt_t PacketType) error {
 		})
 }
 
+// Failed to parse a valid netip.AddrPort from the given string.
 func HErrBadAddr(addr_s string, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
 		huma.Error400BadRequest("failed to parse "+addr_s+" in the form <ip>:<port>"), http.Header{
@@ -55,9 +56,18 @@ func HErrBadAddr(addr_s string, pkt_t PacketType) error {
 		})
 }
 
+// Failed to parse a valid Go duration from the given string.
 func HErrBadStaleness(stale_s string, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
 		huma.Error400BadRequest("failed to parse "+stale_s+" as a duration. Must follow Go's rules for time parsing."), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+// The given child id is already in use by a different child.
+func HErrIDInUse(id childID, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error409Conflict(fmt.Sprintf("id %d is already in use by a child of a different type", id)), http.Header{
 			hdrPkt_t: {pkt_t},
 		})
 }

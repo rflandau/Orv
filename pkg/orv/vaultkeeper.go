@@ -112,8 +112,6 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 		id:   id,
 		addr: addr,
 
-		children: newChildren(),
-
 		endpoint: struct {
 			api  huma.API
 			mux  *http.ServeMux
@@ -136,6 +134,9 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	for _, opt := range opts {
 		opt(vk)
 	}
+
+	// generate child handling
+	vk.children = newChildren(&vk.log, vk.pt.servicelessChild)
 
 	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
 	go func() {
