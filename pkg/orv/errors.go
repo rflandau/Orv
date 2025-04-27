@@ -1,12 +1,34 @@
 package orv
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
 
 	"github.com/danielgtaylor/huma/v2"
 )
+
+//#region Errors
+
+// invalid stale time
+func ErrBadStaleTime() error {
+	return errors.New("stale time must be a valid Go time greater than 0")
+}
+
+// invalid addrport
+func ErrBadAddr(ap netip.AddrPort) error {
+	return fmt.Errorf("address %v is not a valid ip:port", ap)
+}
+
+// given cID does not correspond to a known child
+func ErrUnknownCID(cID childID) error {
+	return fmt.Errorf("id %d does not correspond to any known child", cID)
+}
+
+//#endregion Errors
+
+//#region Huma Errors (with Hdrs)
 
 const hdrPkt_t string = "Pkt-Type"
 
@@ -17,10 +39,6 @@ func HErrBadID(id uint64, pkt_t PacketType) error {
 		http.Header{
 			hdrPkt_t: {pkt_t},
 		})
-}
-
-func ErrBadAddr(ap netip.AddrPort) error {
-	return fmt.Errorf("address %v is not a valid ip:port", ap)
 }
 
 func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
@@ -48,6 +66,7 @@ func HErrMustJoin(pkt_t PacketType) error {
 		})
 }
 
+// Failed to parse a valid netip.AddrPort from the given string.
 func HErrBadAddr(addr_s string, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
 		huma.Error400BadRequest("failed to parse "+addr_s+" in the form <ip>:<port>"), http.Header{
@@ -55,9 +74,20 @@ func HErrBadAddr(addr_s string, pkt_t PacketType) error {
 		})
 }
 
+// Failed to parse a valid Go duration from the given string.
 func HErrBadStaleness(stale_s string, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
 		huma.Error400BadRequest("failed to parse "+stale_s+" as a duration. Must follow Go's rules for time parsing."), http.Header{
 			hdrPkt_t: {pkt_t},
 		})
 }
+
+// The given child id is already in use by a different child.
+func HErrIDInUse(id childID, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error409Conflict(fmt.Sprintf("id %d is already in use by a child of a different type", id)), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+//#endregion Huma Errors (with Hdrs)

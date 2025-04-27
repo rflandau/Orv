@@ -14,7 +14,8 @@ import (
 
 // type aliases for readability
 type (
-	childID = uint64
+	childID     = uint64 // id of a child (may be a leaf or a cVK)
+	serviceName = string
 )
 
 // Default durations after the K/V may be pruned
@@ -22,20 +23,18 @@ type (
 const (
 	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 20
 	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 20
+	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 20
 )
 
 //#region types
 
 // The amount of time before values in each table are prune-able.
 type PruneTimes struct {
-	pendingHello time.Duration
+	PendingHello time.Duration
 	// after a child joins, how long do they have to register a service before getting pruned?
-	servicelessChild time.Duration
-}
-
-type srv struct {
-	address   netip.AddrPort
-	staleness time.Duration
+	ServicelessChild time.Duration
+	// how long can a child CVK survive without sending a heartbeat
+	CVK time.Duration
 }
 
 /*
@@ -48,12 +47,7 @@ type VaultKeeper struct {
 	id   uint64         // unique identifier
 	addr netip.AddrPort
 	// services
-	childrenMu sync.Mutex                 // locker for leaves+childVKs
-	leaves     map[childID]map[string]srv // cID -> (service name -> address&staleness)
-	childVKs   map[childID]struct {
-		lastHeartbeat time.Time
-		services      map[string]bool //service name --> 1
-	}
+	children *children
 
 	endpoint struct {
 		api  huma.API
@@ -111,14 +105,10 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// set defaults
 	vk := &VaultKeeper{
-		log:    logger,
-		id:     id,
-		addr:   addr,
-		leaves: map[childID]map[string]srv{},
-		childVKs: map[childID]struct {
-			lastHeartbeat time.Time
-			services      map[string]bool //service name --> 1
-		}{},
+		log:  logger,
+		id:   id,
+		addr: addr,
+
 		endpoint: struct {
 			api  huma.API
 			mux  *http.ServeMux
@@ -130,8 +120,9 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 		height: 0,
 
 		pt: PruneTimes{
-			pendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
-			servicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
+			PendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
+			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
+			CVK:              DEFAULT_PRUNE_TIME_CVK,
 		},
 	}
 
@@ -141,6 +132,9 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	for _, opt := range opts {
 		opt(vk)
 	}
+
+	// generate child handling
+	vk.children = newChildren(&vk.log, vk.pt.ServicelessChild, vk.pt.CVK)
 
 	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
 	go func() {
@@ -204,16 +198,26 @@ func (vk *VaultKeeper) RegisterLocalService() {
 // Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
 func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
-	// e.Uint64(vk.id) // assumed to exist
 	e.Uint16("height", vk.height)
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
 	// iterate through your children
-	for cid, services := range vk.leaves {
-		m := zerolog.Dict()
-		for sn, srv := range services {
-			m.Any(sn, srv)
+	for cid, srvMap := range vk.children.leaves { // leaves
+		a := zerolog.Arr()
+		for sn, _ := range srvMap {
+			a.Str(sn)
 		}
 
-		e.Dict(fmt.Sprintf("child %d", cid), m)
+		e.Array(fmt.Sprintf("leaf %d", cid), a)
+	}
+
+	for cid, v := range vk.children.vks { // child VKs
+		a := zerolog.Arr()
+		for sn, _ := range v.services {
+			a.Str(sn)
+		}
+
+		e.Array(fmt.Sprintf("cVK %d", cid), a)
 	}
 }
 
