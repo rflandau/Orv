@@ -3,6 +3,7 @@ package orv
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -20,7 +21,7 @@ const (
 // Generates endpoint handling on the given api instance.
 // Directly alters a shared pointer within the parameter
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
-func (vk *VaultKeeper) buildRoutes() {
+func (vk *VaultKeeper) buildEndpoints() {
 	// Handle POST requests on /hello
 	huma.Post(vk.endpoint.api, HELLO, vk.handleHello)
 
@@ -43,6 +44,14 @@ func (vk *VaultKeeper) buildRoutes() {
 		DefaultStatus: http.StatusAccepted,
 	}, vk.handleJoin)
 
+	// handle POST requests on /register
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   REGISTER[1:],
+		Method:        http.MethodPost,
+		Path:          REGISTER,
+		Summary:       REGISTER[1:],
+		DefaultStatus: http.StatusAccepted,
+	}, vk.handleRegister)
 }
 
 //#region HELLO
@@ -131,7 +140,8 @@ type JoinReq struct {
 	PktType PacketType `header:"Packet-Type"` // JOIN
 	Body    struct {
 		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
-		Height uint16 `json:"height" required:"true" example:"3" doc:"height of the node attempting to join the vault"`
+		Height uint16 `json:"height,omitempty" dependentRequired:"is-vk" example:"3" doc:"height of the vk attempting to join the vault"`
+		IsVK   bool   `json:"is-vk,omitempty" example:"false" doc:"is this node a vaultkeeper or a leaf? If true, height is required"`
 	}
 }
 
@@ -148,13 +158,9 @@ type JoinAcceptResp struct {
 // Handle requests against the JOIN endpoint
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
-	if req.Body.Id == 0 {
+	var cid uint64 = req.Body.Id
+	if cid == 0 {
 		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
-	}
-	vk.structureRWMu.RLock()
-	defer vk.structureRWMu.RUnlock()
-	if req.Body.Height != vk.height-1 {
-		return nil, HErrBadHeight(vk.height, req.Body.Height, PT_JOIN_DENY)
 	}
 
 	// check the pendingHello table for this id
@@ -162,9 +168,45 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 		return nil, HErrMustHello(PT_JOIN_DENY)
 	}
 
-	// we can accept this node as a child
-	// add them to our list of children and start the timer for their removal if they do not register a service after enough time
-	// TODO
+	vk.structureRWMu.RLock()
+	defer vk.structureRWMu.RUnlock()
+
+	// check if the node is attempting to join as a vk or a leaf
+	if req.Body.IsVK {
+		//validate height
+		if req.Body.Height != vk.height-1 {
+			return nil, HErrBadHeight(vk.height, req.Body.Height, PT_JOIN_DENY)
+		}
+	}
+
+	// accept node as a child
+	// acquire the child lock
+	vk.childrenMu.Lock()
+	if _, existed := vk.leaves[cid]; !existed {
+		vk.leaves[cid] = make(map[string]srv)
+		// prune the child if they do not register a service fast enough
+		time.AfterFunc(vk.pt.servicelessChild, func() {
+			vk.childrenMu.Lock()
+			defer vk.childrenMu.Unlock()
+			// check if there are any services associated to the child
+			m, exists := vk.leaves[cid]
+			if !exists {
+				vk.log.Debug().Str("actor", "prune").Uint64("child", cid).Msg("child has already been pruned")
+				// the child has already been pruned; not our problem
+				return
+			}
+			// if there are not, prune them
+			if len(m) == 0 {
+				vk.log.Debug().Str("actor", "prune").Uint64("child", cid).Msg("child has no services after deadline; pruning...")
+				delete(vk.leaves, cid)
+			}
+
+			// NOTE this time is a one-time check; when a child's last service dies, this should be re-triggered
+		})
+	} else {
+		// this is a known child rejoining, do nothing
+	}
+	vk.childrenMu.Unlock()
 
 	resp := &JoinAcceptResp{
 		PktType: "JOIN_ACCEPT",
@@ -175,6 +217,72 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 			vk.id,
 			vk.height,
 		}}
+
+	return resp, nil
+}
+
+//#endregion JOIN
+
+//#region REGISTER
+
+// Request for /register.
+// Used by leaves to tell their parent about a new service
+type RegisterReq struct {
+	PktType PacketType `header:"Packet-Type"` // REGISTER
+	Body    struct {
+		Id      uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
+		Service string `json:"service" required:"true" example:"SSH" doc:"the name of the service to be registered"`
+		Address string `json:"address" example:"172.1.1.54:22" doc:"the address the service is bound to. Only populated from leaf to parent."`
+		Stale   string `json:"stale" example:"1m5s45ms" doc:"after how much time without a heartbeat is this service eligible for pruning"`
+	}
+}
+
+// Response for /join
+type RegisterAcceptResp struct {
+	PktType PacketType `header:"Packet-Type"` // REGISTER_ACCEPT
+	Body    struct {
+		Id      uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
+		Service string `json:"service" required:"true" example:"SSH" doc:"the name of the service to be registered"`
+	}
+}
+
+// Handle requests against the JOIN endpoint
+func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*RegisterAcceptResp, error) {
+	// validate parameters
+	var cid uint64 = req.Body.Id
+	if cid == 0 {
+		return nil, HErrBadID(req.Body.Id, PT_REGISTER_DENY)
+	}
+	// do we know this child?
+	vk.childrenMu.Lock()
+	defer vk.childrenMu.Unlock()
+	if _, exists := vk.leaves[cid]; !exists {
+		return nil, HErrMustJoin(PT_REGISTER_DENY)
+	}
+	// HUMA should reject empty services for us
+	// ensure we can parse the address and staleness
+	serviceAddr, err := netip.ParseAddrPort(req.Body.Address)
+	if err != nil {
+		return nil, HErrBadAddr(req.Body.Address, PT_REGISTER_DENY)
+	}
+	staleness, err := time.ParseDuration(req.Body.Stale)
+	if err != nil {
+		return nil, HErrBadStaleness(req.Body.Stale, PT_REGISTER_DENY)
+	}
+
+	// now that we have validated the registration, add this service to the child
+	vk.leaves[cid][req.Body.Service] = srv{serviceAddr, staleness}
+
+	resp := &RegisterAcceptResp{
+		PktType: PT_REGISTER_ACCEPT,
+		Body: struct {
+			Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+		}{
+			Id:      vk.id,
+			Service: req.Body.Service,
+		},
+	}
 
 	return resp, nil
 }

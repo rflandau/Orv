@@ -40,14 +40,25 @@ SOSD (pronounced "sauced") (Self-Organizing Service Discovery)
 
 # Core Design Goals
 
+## Bubble-Up Paradigm
+
+Vaults are designed to only ferry information *up* the tree (with [one, key exception](#the-exception)); a message should never need to walk down a branch. Heartbeats are driven by children; service registrations propagate leaf -> vk -> vk parent -> ... -> vk root; service requests are processed as locally as possible, only walking up the tree if the service is not offered by a lower node, and so on.
+
+The root of the tree is expected to know all services offered by the vault.
+
+> [!TIP]
+> Orv is highly flexible and could be tweaked to alter the traffic pattern (for example, by making the root contain less information and allowing some requests to travel down the vault). See Other Designs below for more information.
+
+### The Exception
+
+Precisely one case sends information *down* a branch: [merging](#merging-root-root-joins).
+
 ## IoT Support
-The single largest design influence was the desire to support IoT networks effectively. This provides strong boundaries to design within and led to the bubble-up paradigm early.
+
+A major design influence was the desire to support IoT networks effectively. This provides strong boundaries to design within and led to the bubble-up paradigm early.
 
 A multi-level vault will naturally begin to resemble a distributed cloud architecture (mist < fog < cloud), with more data, responsibility, and power being found at the top.
 
-## Bubble-Up Paradigm
-
-Building off the desired support for IoT, a natural "bubble-up" paradigm emerged. Heartbeats are necessarily leaf-driven. Registrations walk leaf -> vk -> vk parent -> ... -> vk root. Requests are localized until they cannot be serviced at which point they "bubble-up" the tree until a vault manager knows where to locate a specific service (or we hit the root and thus know the service does not exist).
 
 # Core Assumptions
 
@@ -102,7 +113,7 @@ After a receiving a `JOIN_ACCEPT`, the new child node must register a service or
 sequenceDiagram
     Child->>VaultKeeper: HELLO{Id:123}
     VaultKeeper->>Child: HELLO_ACK{Id:456, Height:3, Root:False}
-    Child->>VaultKeeper: JOIN{Id:123, Height:2}
+    Child->>VaultKeeper: JOIN{Id:123, Height:2, is-vk:False}
     VaultKeeper->>+Child: JOIN_ACCEPT{Id:456}
     Child->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
     VaultKeeper->>+Child: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
@@ -110,6 +121,7 @@ sequenceDiagram
 
 ### Merging (Root-Root joins)
 
+TODO
 
 ```mermaid
 sequenceDiagram
@@ -196,13 +208,41 @@ The only exception to the `HELLO` introduction is `STATUS` messages, which can b
 
 TODO discuss GET and LIST requests
 
+## "Rivering" VaultKeepers
+
+**Not Implemented**
+
+For partition resiliency and load balancing, Orv could support a lateral connection between VKs of the same height. We call this functionality "rivering", as it creates a gossip stream between VKs *of the same height*.
+Rivered VKs are VKs that duplicate information across one another. This allows a vault to not splinter completely at the loss of the root and potentially reduces the hotspot that forms around root.
+
+> [!WARNING]
+> Only VKs of the same height can be rivered and a VK that merges and therefore increases its height must leave the river.
+
+![Paired VKs](img/pairedVKs.drawio.svg)
+
+Rivered VKs do not query each other like children do of their parents; instead, they gossip information back and forth and act as if information from a paired node is always up to date (we cannot allow querying as it could create cycles and count-to-infinite problems). Recurrent heartbeats keep pairs up to date with one another, allowing them to know about services offered by their pairs' children without querying their root.
+
+This function would also allow multiple trees to share services without merging, easing the cost of sending INCRs down a heavily populated branch.
+
+> [!WARNING]
+> This idea should be further explored prior to implementation.
+> It must not be allowed to create cycles or generate confusion about the route to a service.
+
 # Other Design Decisions
+
+This section details design trade-offs we considered as part of developing Orv. Some sections provide supporting thought for our design patterns while others consider valid, alternative approaches/ways to tweak Orv to suit different needs.
 
 ## Layer 5 vs Layer 4 (vs Layer 3?!?)
 
-The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of impleemnting a 
+The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a ...
 
 You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
+
+### Sequence Numbers
+
+Orv would likely benefit from sequence numbers. However, coordinating sequence numbers within a node will take some fine-grain efforts as we cannot assume that a single child has a single sequence number. If we did, multiple services on that child would have to coordinate the seqNum, which is unacceptable.
+
+For the prototype, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
 
 ## Depth-less Hierarchy and Cycles
 
@@ -216,25 +256,20 @@ A key trade-off is whether we measure a node's depth (its distance from the root
 
 ### Asking to increase the height on vk join
 
-.
+We considered allowing nodes to request that a root increment its height (thus allowing a child of the same former height to join under it).
 
-### Lazy Depth/Height Knowledge
+The current design disallows this due to the cost of echoing an INCR down the tree; we want to avoid additional instances of this expense. However, other implementations of Orv could allow it to make increasing the tree height easier and thus reduce the impact from a stout tree.
 
-Our current design broadcasts height changes down the branch with the root that took over as total root. This is some degree of antithetical to our bubble-up philosophy.
+#### Lazy Depth/Height Knowledge
 
 Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height.
 
-## A note on security
+## A note on security and PKI
 
-One of our core assumptions is cooperation. This, of course, is not in anyway realistic
+One of our core assumptions is cooperation. This, of course, is not in any way realistic.
 
-... after discovery, key exchange. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
+A side effect of this protocol is the ability to act as a second source of truth. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
 
-## Sequence Numbers
-
-This protocol needs sequence numbers. However, we cannot assume that a single node has a single sequence number. If we did, multiple services on that node would have to coordinate the seqNum, which is unacceptable.
-
-For now, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
 
 # The Prototype 
 

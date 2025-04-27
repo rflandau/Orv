@@ -26,7 +26,7 @@ func ErrBadAddr(ap netip.AddrPort) error {
 func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
 	// TODO if a parent is available, tell the requester to try the parent
 	return huma.ErrorWithHeaders(
-		huma.Error400BadRequest(fmt.Sprintf("to join this VK, height (%d) must be VK height (%d)-1", CurVKHeight, RequesterHeight)),
+		huma.Error400BadRequest(fmt.Sprintf("to join as a child VK to this VK, height (%d) must be parent VK height (%d)-1", CurVKHeight, RequesterHeight)),
 		http.Header{
 			hdrPkt_t: {pkt_t},
 		})
@@ -36,6 +36,28 @@ func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error 
 func HErrMustHello(pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
 		huma.Error400BadRequest("must send HELLO first"), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+// The requester was not found in the children table and therefore did not first JOIN (or their JOIN was pruned).
+func HErrMustJoin(pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest("must first JOIN the vault"), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+func HErrBadAddr(addr_s string, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest("failed to parse "+addr_s+" in the form <ip>:<port>"), http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
+func HErrBadStaleness(stale_s string, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest("failed to parse "+stale_s+" as a duration. Must follow Go's rules for time parsing."), http.Header{
 			hdrPkt_t: {pkt_t},
 		})
 }
