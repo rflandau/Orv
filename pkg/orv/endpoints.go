@@ -121,22 +121,61 @@ type StatusReq struct {
 
 // Response for GET /status commands.
 // Returns the status of the current node.
-// Used query node info for some tests.
+// All fields (other than Id) are optional and may be omitted at the VK's discretion.
 type StatusResp struct {
 	PktType PacketType `header:"Packet-Type"` // STATUS_RESPONSE
 	Body    struct {
-		Message string `json:"message" example:"Hello, world!" doc:"Greeting message"`
+		Id            childID          `json:"id" required:"true" example:"123" doc:"unique identifier for the VK"`
+		Height        uint16           `json:"height" example:"8" doc:"the height of the queried VK"`
+		Children      ChildrenSnapshot `json:"children" example:"" doc:"the children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation"`
+		ParentID      uint64           `json:"parent-id" example:"789" doc:"unique identifier for the VK's parent. 0 if VK is root."`
+		ParentAddress string           `json:"parent-address" example:"111.111.111.111:8080" doc:"address and port of the VK parent's process"`
+		PruneTimes    struct {
+			PendingHello     string `json:"pending-hello"`
+			ServicelessChild string `json:"serviceless-child"`
+			CVK              string `json:"child-vault-keeper"`
+		} `json:"prune-times" example:"" doc:"this VK's timings for considering associated data to be stale"`
 	}
 }
 
-// Handle requests against the status endpoint
+// Handle requests against the status endpoint.
+// Returns a bunch of information about the queried VK.
 func (vk *VaultKeeper) handleStatus(ctx context.Context, req *StatusReq) (*StatusResp, error) {
-	resp := &StatusResp{PktType: PT_STATUS_RESPONSE}
+	vk.structureRWMu.RLock()
+	height := vk.height
+	parentID := vk.parent.id
+	var parentAddress string
+	if vk.parent.addr.IsValid() {
+		parentAddress = vk.parent.addr.String()
+	}
+	vk.structureRWMu.RUnlock()
 
-	resp.Body.Message = "TODO"
-	// TODO
-
-	return resp, nil
+	return &StatusResp{
+		PktType: PT_STATUS_RESPONSE,
+		Body: struct {
+			Id            childID          "json:\"id\" required:\"true\" example:\"123\" doc:\"unique identifier for the VK\""
+			Height        uint16           "json:\"height\" example:\"8\" doc:\"the height of the queried VK\""
+			Children      ChildrenSnapshot "json:\"children\" example:\"\" doc:\"the children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation\""
+			ParentID      uint64           "json:\"parent-id\" example:\"789\" doc:\"unique identifier for the VK's parent. 0 if VK is root.\""
+			ParentAddress string           "json:\"parent-address\" example:\"111.111.111.111:8080\" doc:\"address and port of the VK parent's process\""
+			PruneTimes    struct {
+				PendingHello     string `json:"pending-hello"`
+				ServicelessChild string `json:"serviceless-child"`
+				CVK              string `json:"child-vault-keeper"`
+			} `json:"prune-times" example:"" doc:"this VK's timings for considering associated data to be stale"`
+		}{
+			Id:            vk.id,
+			Height:        height,
+			Children:      vk.children.Snapshot(),
+			ParentID:      parentID,
+			ParentAddress: parentAddress,
+			PruneTimes: struct {
+				PendingHello     string `json:"pending-hello"`
+				ServicelessChild string `json:"serviceless-child"`
+				CVK              string `json:"child-vault-keeper"`
+			}{vk.pt.PendingHello.String(), vk.pt.ServicelessChild.String(), vk.pt.CVK.String()},
+		},
+	}, nil
 }
 
 //#endregion STATUS

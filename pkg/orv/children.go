@@ -3,6 +3,7 @@ package orv
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"slices"
 	"sync"
@@ -341,4 +342,49 @@ func (c *children) addServiceToVK(cID childID, svc serviceName) (newService bool
 	// new service for this cVK
 	c.vks[cID].services[svc] = true
 	return true, nil
+}
+
+// Used by Snapshot to take a point-in-time snapshot of the children and their services.
+type ChildrenSnapshot struct {
+	// cID -> (service -> ip:addr)
+	Leaves map[childID]map[serviceName]string `json:"leaves"`
+	// cID -> [services]
+	CVKs map[childID][]string `json:"child-VKs"`
+	// service -> ["cID(ip:port)"]
+	Services map[serviceName][]string `json:"services"`
+}
+
+// Returns a JSON-encodable struct of the child nodes and their services.
+// It is a point-in-time snapshot and requires locking the children struct.
+func (c *children) Snapshot() ChildrenSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	snap := ChildrenSnapshot{
+		Leaves:   make(map[childID]map[serviceName]string),
+		CVKs:     make(map[childID][]string),
+		Services: make(map[serviceName][]string),
+	}
+
+	// copy the leaves
+	for cid, svcs := range c.leaves {
+		snap.Leaves[cid] = make(map[serviceName]string)
+		for sn, v := range svcs {
+			snap.Leaves[cid][sn] = v.addr.String()
+		}
+	}
+	// copy the child VKs
+	for cid, cvk := range c.vks {
+		snap.CVKs[cid] = slices.Collect(maps.Keys(cvk.services))
+	}
+
+	// copy the services
+	for sn, providers := range c.services {
+		snap.Services[sn] = []string{}
+		for _, p := range providers {
+			// collect each provider
+			snap.Services[sn] = append(snap.Services[sn], fmt.Sprintf("%v(%s)", p.cID, p.addr.String()))
+		}
+	}
+	return snap
 }
