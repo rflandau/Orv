@@ -23,9 +23,15 @@ const (
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
 func (vk *VaultKeeper) buildEndpoints() {
 	// Handle POST requests on /hello
-	huma.Post(vk.endpoint.api, HELLO, vk.handleHello)
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   HELLO[1:],
+		Method:        http.MethodPost,
+		Path:          HELLO,
+		Summary:       HELLO[1:],
+		DefaultStatus: http.StatusOK,
+	}, vk.handleHello)
 
-	// Handle GET requests on /status (using the more advanced .Register() method)
+	// Handle GET requests on /status
 	huma.Register(vk.endpoint.api, huma.Operation{
 		OperationID:   STATUS[1:],
 		Method:        http.MethodGet,
