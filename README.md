@@ -269,20 +269,45 @@ A side effect of this protocol is the ability to act as a second source of truth
 
 # The Prototype 
 
-(some description of what the prototype is)
+To test and showcase the protocol, this repo comes with a [VaultKeeper library](pkg/orv/orv.go), an implementation of the [same](vk/main.go), and a [leaf implementation](leaf/main.py).
 
-The prototype comes with the [VaultKeeper library](pkg/orv/orv.go), an implementation of the same (NYI), and a leaf implementation (NYI).
+As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototypes included herein are implemented via a REST API. Not how we envision a production-level implementation, but it is... you know... a prototype. ¯\\_(ツ)_/¯
 
-As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototype is implemented as a REST API. Not how we envision a production-level implementation, but it is... you know... a prototype. ¯\\_(ツ)_/¯
+## The VaultKeeper Library
 
-## Rough Around The Edges
+The meat of the prototype is the `Orv` package and its VaultKeeper struct. This struct is a multithreaded, self-managing implementation of a VK. It contains the aforementioned HTTP server for processing packets, [packets.go](pkg/orv/packets.go) for declaring and describing packet types, a series of [tests](pkg/orv/orv_test.go) to ensure it meets the basic spec, and an internal [service](pkg/orv/children.go) for managing the VK's children.
 
-The prototype is missing QoL features and few considerations have been made for efficiency. The bread and butter of the Orv package (the VaultKeeper struct) is not overly configurable and uses coarse-grained locks.
-It should be considered a proof of concept and nothing more.
+From a design standpoint, the VK class is not insignificant. While performance was not our goal, a protocol of this kind requires at least a baseline level of parallelism. As such, the class is a strange amalgam of mutexes, self-destructing data (driven by `*time.Timers`), and a pruner service for cleaning up what cannot self-destruct. VKs are spun up via `NewVaultKeeper()` and can be driven in code by the exported subroutines. After `.Start()` is called, the VK's HTTP server is available for processing requests from external entities. Remember to kill the VK with `.Terminate()` when you are done.
 
-## API Docs
+> [!WARNING]
+> The VK prototype is missing QoL features and few considerations have been made for efficiency. The bread and butter of the Orv package (the VaultKeeper struct) is not overly configurable and uses coarse-grained locks.
+> It should be considered a proof of concept and *nothing more*.
 
-API docs can be accessed by running the server application (currently just `go run main.go`) and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
+### API Docs
+
+API docs can be accessed by running the server application (currently just `go run vk/main.go`) and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
+
+## The VaultKeeper Implementation
+
+The implementation in [vk/main.go](vk/main.go) is really just an invocation of the library and showcases how simple it is for users to incorporate Orv into their existing Go code.
+
+## The Leaf Implementation
+
+To show that Orv is language agnostic, Shrivyas wrote up a [simple Python script](leaf/main.py) that connects to a VK as a leaf and registers a single service. Again, as long as a device or program can speak Orv, it can join a vault.
+
+## Making and Running The Prototype
+
+Being a Go project, it should manage all of its own dependencies.
+
+Each test contains a comment describing what it is testing and how, available in [orv_test.go](pkg/orv/orv_test.go).
+
+TODO
+
+1. Test for...
+
+```
+make test
+```
 
 ## Resources Used
 
@@ -292,36 +317,8 @@ Logging is serviced by [Zerolog](github.com/rs/zerolog).
 
 Our API endpoints are handled by [Huma](https://huma.rocks/).
 
-## Description of project topic, goals, and tasks
-
-### Distributed concepts
-
-- Staleness and gossip-based knowledge
-- heartbeats
-
-### Goals
-
-- bubble-up paradigm
-    - messages originate from the leaves of the tree and bubble up as necessary
-    - heartbeats are child-oriented, allowing children to set their own schedule
-- flexible staleness and heartbeats (related to the bubble-up paradigm)
-
-...
-
-## Dependencies to run this code
-
-...
-
-## Description of tests and how to run them
-
-1. Test for...
-
-```
-make test
-```
-
 # Special Thanks
 
-- Professors Patrick Tague and Pedro Bustamante, for all of your assistance, advice, support, and just general pleasantness to be around
+- Professors Patrick Tague and Pedro Bustamante, for all of your assistance, advice, support, and just general pleasantness to be around.
 - My cats: Bee (the pretty tortie) and Coconut (the idiot stuck under a drawer), the rubber duck stand-ins
 ![the babies](img/idiot_under_a_drawer.jpeg)
