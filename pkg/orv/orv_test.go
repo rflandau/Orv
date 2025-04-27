@@ -509,3 +509,58 @@ func TestEndpointArgs(t *testing.T) {
 	*/
 
 }
+
+// Tests that a single VK can support multiple leaves and multiple services on each leaf simultaneously.
+// Each leaf will HELLO -> JOIN and then submit multiple REGISTERS. Each service will need to send heartbeats to the VK.
+// After a short detail, the test checks if the VK still believe that all services are active.
+func TestMultiLeafMultiService(t *testing.T) {
+	// TODO
+	t.Fatal("NYI")
+}
+
+// Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
+// services that fail to heartbeat are properly pruned out (without pruning out correctly heartbeating services).
+//
+// Spins up one VK and two leaves (A and B). Both leaves should successfully HELLO -> JOIN. Leaf B then REGISTERs two services and begins heartbeating them.
+// Leaf A should be pruned after a short delay, as it did not register any services.
+// Leaf B stops heartbeating one service. After a short detail, only that service should be pruned.
+//
+// By the end, the VK should have a single child (leaf B) and a single service (leaf B's service that is still sending heartbeats).
+func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
+	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// spawn a VK
+	vk, err := orv.NewVaultKeeper(1, zerolog.New(zerolog.ConsoleWriter{
+		Out:         os.Stdout,
+		FieldsOrder: []string{"vkid"},
+		TimeFormat:  "15:04:05",
+	}).With().
+		Uint64("vk", 1).
+		Timestamp().
+		Caller().
+		Logger().Level(zerolog.DebugLevel), vkAddr)
+	if err != nil {
+		t.Fatal("failed to construct VK: ", err)
+	}
+	// start the VK
+	if err := vk.Start(); err != nil {
+		t.Fatal("failed to start VK: ", err)
+	}
+
+	// TODO
+
+}
+
+// Tests that VKs can successfully take each other on as children and that two, equal-height, root VKs can successfully merge.
+//
+// Three VKs are created: A, B, and C.
+// A and B are given starting heights of 1.
+// C joins under B.
+// B then sends a MERGE to A, which A should accept.
+// Upon receiving MERGE_ACCEPT, B must increment its height to 2 and send an INCR to C, which should increment its height to 1.
+func TestVKJoinMerge(t *testing.T) {
+	// TODO
+	t.Fatal("NYI")
+}
