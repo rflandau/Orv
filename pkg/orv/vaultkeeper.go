@@ -14,7 +14,8 @@ import (
 
 // type aliases for readability
 type (
-	childID = uint64
+	childID     = uint64 // id of a child (may be a leaf or a cVK)
+	serviceName = string
 )
 
 // Default durations after the K/V may be pruned
@@ -48,12 +49,7 @@ type VaultKeeper struct {
 	id   uint64         // unique identifier
 	addr netip.AddrPort
 	// services
-	childrenMu sync.Mutex                 // locker for leaves+childVKs
-	leaves     map[childID]map[string]srv // cID -> (service name -> address&staleness)
-	childVKs   map[childID]struct {
-		lastHeartbeat time.Time
-		services      map[string]bool //service name --> 1
-	}
+	children *children
 
 	endpoint struct {
 		api  huma.API
@@ -112,14 +108,12 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// set defaults
 	vk := &VaultKeeper{
-		log:    logger,
-		id:     id,
-		addr:   addr,
-		leaves: map[childID]map[string]srv{},
-		childVKs: map[childID]struct {
-			lastHeartbeat time.Time
-			services      map[string]bool //service name --> 1
-		}{},
+		log:  logger,
+		id:   id,
+		addr: addr,
+
+		children: newChildren(),
+
 		endpoint: struct {
 			api  huma.API
 			mux  *http.ServeMux
@@ -198,16 +192,26 @@ func (vk *VaultKeeper) RegisterLocalService() {
 // Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
 func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
-	// e.Uint64(vk.id) // assumed to exist
 	e.Uint16("height", vk.height)
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
 	// iterate through your children
-	for cid, services := range vk.leaves {
-		m := zerolog.Dict()
-		for sn, srv := range services {
-			m.Any(sn, srv)
+	for cid, srvMap := range vk.children.leaves { // leaves
+		a := zerolog.Arr()
+		for sn, _ := range srvMap {
+			a.Str(sn)
 		}
 
-		e.Dict(fmt.Sprintf("child %d", cid), m)
+		e.Array(fmt.Sprintf("leaf %d", cid), a)
+	}
+
+	for cid, v := range vk.children.vks { // child VKs
+		a := zerolog.Arr()
+		for sn, _ := range v.services {
+			a.Str(sn)
+		}
+
+		e.Array(fmt.Sprintf("cVK %d", cid), a)
 	}
 }
 
