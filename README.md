@@ -74,6 +74,8 @@ A multi-level vault will naturally begin to resemble a distributed cloud archite
 
 # Distributed Concepts
 
+Orv as a protocol is based heavily around the idea of redundancy, partial replication of data, dynamic cooperation, and segregation of duties. The prototype relies on numerous timers and a high degree of parallelism. We believe Orv is deeply intertwined with the ideals of a distributed, resilient system because it can operate autonomously and opaquely to the user, masking faults that can be papered over and only propagating faults that cannot be.
+
 - Staleness
 - Gossip-based knowledge
 - Heartbeats
