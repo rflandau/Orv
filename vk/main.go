@@ -7,9 +7,11 @@ Companion to the leaf implementation in leaf/main.py.
 package main
 
 import (
+	"fmt"
 	"net/netip"
 	"network-bois-orv/pkg/orv"
 	"os"
+	"os/signal"
 
 	"github.com/rs/zerolog"
 )
@@ -37,7 +39,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer vk.Terminate()
 
-	vk.Start()
+	if err := vk.Start(); err != nil {
+		panic(err)
+	}
+	fmt.Println("Send a SIGINT to kill the program")
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+	<-done
+
+	fmt.Println("SIGINT captured. Cleaning up....")
+	vk.Terminate()
 }
