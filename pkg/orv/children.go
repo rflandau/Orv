@@ -66,8 +66,11 @@ func newChildren(parentLogger *zerolog.Logger, leafPruneTime, cvkPruneTime time.
 }
 
 // Adds a new leaf if the leaf does not already exist (as a leaf or VK).
-// Returns what the leaf already existed as. Both returns will be false if a new leaf was actually added.
+// Returns what the cID already existed as. Both returns will be false if a new leaf was actually added.
 // It should not be possible for both to return true; if they do, something has gone horribly wrong prior to this call.
+//
+// NOTE(rlandau): When the leaf is added, a timer is started that attempts to prune the leaf (if it has no services) when it fires.
+// This is a one-shot timer; you must manually test for a lack of remaining services whenever a service is deregistered from a leaf.
 func (c *children) addLeaf(cID childID) (wasVK, wasLeaf bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -101,49 +104,74 @@ func (c *children) addLeaf(cID childID) (wasVK, wasLeaf bool) {
 	return
 }
 
-// Adds a new chuld VK if the cID does not already exist (as a leaf or VK).
-// Returns what the leaf already existed as. Both returns will be false if a new leaf was actually added.
+// Adds a new child VK if the cID does not already exist (as a leaf or VK).
+// Expects addr to be the port that the VK service is bound to on the child so we can send them INCRs.
+// Returns what the cID already existed as. Both returns will be false if a new cVK was actually added.
 // It should not be possible for both to return true; if they do, something has gone horribly wrong prior to this call.
-func (c *children) addVK(cID childID) (wasVK, wasLeaf bool) {
-	cvk := childVK{pruneTimer: time.AfterFunc(c.cvkPruneTime, func() {
-		// acquire children lock
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.log.Debug().
-			Uint64("child VK", cID).
-			Msg("child VK timed out")
-		// check that the child still exists
-		if childVK, exists := c.vks[cID]; exists {
-			// deregister all services associated to this child VK
-			for sn, _ := range childVK.services {
-				providers, exists := c.services[sn]
-				if exists {
+func (c *children) addVK(cID childID, addr netip.AddrPort) (wasVK, wasLeaf bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, exists := c.leaves[cID]; exists {
+		wasLeaf = true
+	}
+	if _, exists := c.vks[cID]; exists {
+		wasVK = true
+	}
+	if !wasLeaf && !wasVK {
+		c.log.Info().Uint64("child ID", cID).Str("VK address", addr.String()).Msg("adding new child VK")
+		c.vks[cID] = childVK{
+			pruneTimer: time.AfterFunc(
+				c.cvkPruneTime,
+				func() {
+					// acquire children lock
+					c.mu.Lock()
+					defer c.mu.Unlock()
 					c.log.Debug().
 						Uint64("child VK", cID).
-						Str("service", sn).
-						Msg("removing service provider")
-					c.services[sn] = slices.DeleteFunc(providers, func(s struct {
-						cID  childID
-						addr netip.AddrPort
-					}) bool {
-						return s.cID == cID
-					})
-					// if this service now has no providers, send a DEREGISTER up the tree and remove it from the known services
-					if len(c.services[sn]) == 0 {
+						Msg("child VK timed out")
+					// check that the child still exists
+					if childVK, exists := c.vks[cID]; exists {
+						// deregister all services associated to this child VK
+						for sn := range childVK.services {
+							providers, exists := c.services[sn]
+							if exists {
+								c.log.Debug().
+									Uint64("child VK", cID).
+									Str("service", sn).
+									Msg("removing service provider")
+								c.services[sn] = slices.DeleteFunc(providers, func(s struct {
+									cID  childID
+									addr netip.AddrPort
+								}) bool {
+									return s.cID == cID
+								})
+								// if this service now has no providers, send a DEREGISTER up the tree and remove it from the known services
+								if len(c.services[sn]) == 0 {
+									c.log.Debug().
+										Uint64("child VK", cID).
+										Str("service", sn).
+										Msg("no remaining service providers. Sending DEREGISTER...")
+									// TODO send DEREGISTER
+									delete(c.services, sn)
+								}
+							}
+						}
+						// remove self from map
+						delete(c.vks, cID)
+					} else {
 						c.log.Debug().
 							Uint64("child VK", cID).
-							Str("service", sn).
-							Msg("no remaining service providers. Sending DEREGISTER...")
-						// TODO send DEREGISTER
-						delete(c.services, sn)
+							Msg("failed to prune dead cVK: DNE")
 					}
-				}
-			}
-			// remove self from map
-			delete(c.vks, cID)
-		}
-	})}
-	// TODO
+
+				},
+			),
+			services: make(map[serviceName]bool),
+			addr:     addr}
+	}
+
+	return
+
 }
 
 // Adds a new service under the given child.
