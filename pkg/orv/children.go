@@ -133,6 +133,7 @@ func (c *children) addVK(cID childID, addr netip.AddrPort) (wasVK, wasLeaf bool)
 					if childVK, exists := c.vks[cID]; exists {
 						// deregister all services associated to this child VK
 						for sn := range childVK.services {
+							// if this child is a provider of a given service, remove it
 							providers, exists := c.services[sn]
 							if exists {
 								c.log.Debug().
@@ -145,7 +146,7 @@ func (c *children) addVK(cID childID, addr netip.AddrPort) (wasVK, wasLeaf bool)
 								}) bool {
 									return s.cID == cID
 								})
-								// if this service now has no providers, send a DEREGISTER up the tree and remove it from the known services
+								// if this service now has no providers remaining, send a DEREGISTER up the tree and remove it from the known services
 								if len(c.services[sn]) == 0 {
 									c.log.Debug().
 										Uint64("child VK", cID).
@@ -235,10 +236,7 @@ func (c *children) addService(cID childID, svc serviceName, addr netip.AddrPort,
 			cID  childID
 			addr netip.AddrPort
 		}{
-			struct {
-				cID  childID
-				addr netip.AddrPort
-			}{cID: cID, addr: addr},
+			{cID: cID, addr: addr},
 		}
 	}
 
