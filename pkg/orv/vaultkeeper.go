@@ -37,11 +37,6 @@ type PruneTimes struct {
 	CVK time.Duration
 }
 
-type srv struct {
-	address   netip.AddrPort
-	staleness time.Duration
-}
-
 /*
 A single instance of a Vault Keeper.
 Able to provide services, route & answer requests, and facilitate vault growth.
