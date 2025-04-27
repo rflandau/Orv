@@ -175,11 +175,11 @@ func (vk *VaultKeeper) Start() error {
 	return nil
 }
 
-// Stops the http api listener.
-// Currently ineffectual until we switch to a real http.Server
+// Terminates the vaultkeeper, cleaning up all resources and closing the API server.
 func (vk *VaultKeeper) Terminate() {
-	vk.log.Info().Str("address", vk.addr.String()).Msg("killing http server...")
-	vk.endpoint.http.Close()
+	// TODO clean up resources
+	err := vk.endpoint.http.Close()
+	vk.log.Info().Str("address", vk.addr.String()).AnErr("close error", err).Msg("killed http server")
 }
 
 func (vk *VaultKeeper) isRoot() bool {
