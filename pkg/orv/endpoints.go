@@ -184,7 +184,6 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 			vk.log.Debug().Uint64("child id", cid).Msg("duplicate join")
 		} else if wasVk {
 			// if we already have a vk with the given ID, return failure
-			// TODO
 			return nil, HErrIDInUse(cid, PT_JOIN_DENY)
 		}
 	}
@@ -269,6 +268,10 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 			},
 		}
 	*/
+
+	if !vk.isRoot() {
+		// TODO propagate the request up the tree
+	}
 
 	return resp, nil
 }

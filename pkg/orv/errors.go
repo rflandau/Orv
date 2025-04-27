@@ -1,12 +1,34 @@
 package orv
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
 
 	"github.com/danielgtaylor/huma/v2"
 )
+
+//#region Errors
+
+// invalid stale time
+func ErrBadStaleTime() error {
+	return errors.New("stale time must be a valid Go time greater than 0")
+}
+
+// invalid addrport
+func ErrBadAddr(ap netip.AddrPort) error {
+	return fmt.Errorf("address %v is not a valid ip:port", ap)
+}
+
+// given cID does not correspond to a known child
+func ErrUnknownCID(cID childID) error {
+	return fmt.Errorf("id %d does not correspond to any known child", cID)
+}
+
+//#endregion Errors
+
+//#region Huma Errors (with Hdrs)
 
 const hdrPkt_t string = "Pkt-Type"
 
@@ -17,10 +39,6 @@ func HErrBadID(id uint64, pkt_t PacketType) error {
 		http.Header{
 			hdrPkt_t: {pkt_t},
 		})
-}
-
-func ErrBadAddr(ap netip.AddrPort) error {
-	return fmt.Errorf("address %v is not a valid ip:port", ap)
 }
 
 func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
@@ -71,3 +89,5 @@ func HErrIDInUse(id childID, pkt_t PacketType) error {
 			hdrPkt_t: {pkt_t},
 		})
 }
+
+//#endregion Huma Errors (with Hdrs)

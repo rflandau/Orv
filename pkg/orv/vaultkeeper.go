@@ -23,15 +23,18 @@ type (
 const (
 	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 20
 	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 20
+	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 20
 )
 
 //#region types
 
 // The amount of time before values in each table are prune-able.
 type PruneTimes struct {
-	pendingHello time.Duration
+	PendingHello time.Duration
 	// after a child joins, how long do they have to register a service before getting pruned?
-	servicelessChild time.Duration
+	ServicelessChild time.Duration
+	// how long can a child CVK survive without sending a heartbeat
+	CVK time.Duration
 }
 
 type srv struct {
@@ -123,8 +126,9 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 		height: 0,
 
 		pt: PruneTimes{
-			pendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
-			servicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
+			PendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
+			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
+			CVK:              DEFAULT_PRUNE_TIME_CVK,
 		},
 	}
 
@@ -136,7 +140,7 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 	}
 
 	// generate child handling
-	vk.children = newChildren(&vk.log, vk.pt.servicelessChild)
+	vk.children = newChildren(&vk.log, vk.pt.ServicelessChild, vk.pt.CVK)
 
 	// TODO spawn a goro to prune the state maps (ex: the hello map and child services map)
 	go func() {
