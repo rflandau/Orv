@@ -209,7 +209,7 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 //#region REGISTER
 
 // Request for /register.
-// Used by leaves to tell their parent about a new service
+// Used by nodes to tell their parent about a new service.
 type RegisterReq struct {
 	PktType PacketType `header:"Packet-Type"` // REGISTER
 	Body    struct {
@@ -220,7 +220,7 @@ type RegisterReq struct {
 	}
 }
 
-// Response for /join
+// Response for /register.
 type RegisterAcceptResp struct {
 	PktType PacketType `header:"Packet-Type"` // REGISTER_ACCEPT
 	Body    struct {
