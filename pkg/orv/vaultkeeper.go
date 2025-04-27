@@ -52,7 +52,6 @@ type VaultKeeper struct {
 		id   uint64 // 0 if we are root
 		addr netip.AddrPort
 	}
-
 	pt PruneTimes
 
 	// TODO potentially convert to id -> time.Timer and have the pruner select on the timer channels
@@ -153,7 +152,14 @@ func (vk *VaultKeeper) Start() error {
 	vk.log.Info().Str("address", vk.addr.String()).Msg("listening...")
 
 	// TODO convert this into a real http.Server so we can call .Shutdown on termination
-	return http.ListenAndServe(vk.addr.String(), vk.endpoint.mux)
+	// return http.ListenAndServe(vk.addr.String(), vk.endpoint.mux)
+
+	// Create the HTTP server.
+	vk.endpoint.http = http.Server{
+		Addr:    vk.addr.String(),
+		Handler: vk.endpoint.mux,
+	}
+	return vk.endpoint.http.ListenAndServe()
 }
 
 // Stops the http api listener.
@@ -161,7 +167,7 @@ func (vk *VaultKeeper) Start() error {
 func (vk *VaultKeeper) Stop() {
 	// TODO
 	// TODO include graceful shutdown: https://huma.rocks/how-to/graceful-shutdown/
-
+	vk.endpoint.http.Close()
 }
 
 func (vk *VaultKeeper) isRoot() bool {
