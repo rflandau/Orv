@@ -37,7 +37,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer vk.Stop()
+	defer vk.Terminate()
 
 	vk.Start()
 }

@@ -163,26 +163,22 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 //#region methods
 
 // Starts the http api listener in the vk.
-// Currently blocking. // TODO
 func (vk *VaultKeeper) Start() error {
 	vk.log.Info().Str("address", vk.addr.String()).Msg("listening...")
-
-	// TODO convert this into a real http.Server so we can call .Shutdown on termination
-	// return http.ListenAndServe(vk.addr.String(), vk.endpoint.mux)
 
 	// Create the HTTP server.
 	vk.endpoint.http = http.Server{
 		Addr:    vk.addr.String(),
 		Handler: vk.endpoint.mux,
 	}
-	return vk.endpoint.http.ListenAndServe()
+	go vk.endpoint.http.ListenAndServe()
+	return nil
 }
 
 // Stops the http api listener.
 // Currently ineffectual until we switch to a real http.Server
-func (vk *VaultKeeper) Stop() {
-	// TODO
-	// TODO include graceful shutdown: https://huma.rocks/how-to/graceful-shutdown/
+func (vk *VaultKeeper) Terminate() {
+	vk.log.Info().Str("address", vk.addr.String()).Msg("killing http server...")
 	vk.endpoint.http.Close()
 }
 
