@@ -202,7 +202,7 @@ func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAccep
 		}
 	}
 
-	vk.log.Debug().Uint64("child id", cid).Bool("VK?", req.Body.IsVK).Msg("accepted joined")
+	vk.log.Debug().Uint64("child id", cid).Bool("VK?", req.Body.IsVK).Msg("accepted JOIN")
 
 	resp := &JoinAcceptResp{
 		PktType: "JOIN_ACCEPT",
