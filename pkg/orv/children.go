@@ -383,7 +383,7 @@ func (c *children) HeartbeatCVK(cID childID) error {
 	defer c.mu.Unlock()
 	cvk, exists := c.vks[cID]
 	if !exists {
-		return fmt.Errorf("no child VK associated to ID %d", cID)
+		return huma.Error400BadRequest(fmt.Sprintf("no child VK associated to ID %d", cID))
 	}
 	cvk.pruneTimer.Reset(c.cvkPruneTime)
 	c.log.Debug().Str("child type", "vk").Uint64("child ID", cID).Msg("refreshed prune timer")
