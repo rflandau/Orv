@@ -428,6 +428,14 @@ func (c *children) HeartbeatLeafService(cID childID, svcNames []serviceName) (re
 	return refreshedServices, nil
 }
 
+// Returns the name of every service currently offered.
+func (c *children) Services() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Collect(maps.Keys(c.services))
+}
+
 // Returns a JSON-encodable struct of the child nodes and their services.
 // It is a point-in-time snapshot and requires locking the children struct.
 func (c *children) Snapshot() ChildrenSnapshot {
