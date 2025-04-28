@@ -670,6 +670,14 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
 	// register the service
 	makeRegisterRequest(t, api, 202, leafA.id, leafA.serviceName, leafA.serviceAddr, leafA.serviceStale)
+	// make a status request to check for the service
+	{
+		resp := api.Get(orv.EP_STATUS)
+		if resp.Code != 200 {
+			t.Fatal("valid status request failed: " + ErrBadResponseCode(resp.Code, 200))
+		}
+		fmt.Println(resp.Body.String())
+	}
 
 	time.Sleep(6 * time.Second)
 
