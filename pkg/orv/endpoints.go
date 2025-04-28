@@ -1,6 +1,7 @@
 package orv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -86,9 +87,10 @@ func (vk *VaultKeeper) buildEndpoints() {
 	// handle list requests for listing available services
 	huma.Register(vk.endpoint.api, huma.Operation{
 		OperationID:   EP_LIST[1:],
-		Method:        http.MethodGet,
+		Method:        http.MethodPost,
 		Path:          EP_LIST,
 		Summary:       EP_LIST[1:],
+		Tags:          []string{"client"},
 		DefaultStatus: http.StatusOK,
 	}, vk.handleList)
 }
@@ -463,13 +465,28 @@ type ListResponseResp struct {
 
 // Handle refreshing services offered by leaves.
 func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListResponseResp, error) {
+	vk.log.Debug().Msg("servicing list request")
+
 	vk.structureRWMu.RLock() // conditionally released by the sub-branches
 
 	if req.Body.HopCount > 1 && !vk.isRoot() { // try to forward the request up the vault
 		// cache the parent info in case we need to modify it
 		t_id := vk.parent.id
 		t_addr := vk.parent.addr
-		resp, err := http.Get(vk.parent.addr.String() + EP_LIST)
+
+		// construct a request to pass to parent
+		pReq := ListReq{
+			Body: struct {
+				HopCount uint16 "json:\"hop-count\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
+			}{req.Body.HopCount - 1},
+		}
+		pReqBytes, err := json.Marshal(pReq.Body)
+		if err != nil {
+			panic(err) // should never be able to occur
+		}
+		rd := bytes.NewReader(pReqBytes)
+
+		resp, err := http.Post(vk.parent.addr.String()+EP_LIST, "application/problem+json", rd)
 		vk.structureRWMu.RUnlock()
 		if err == nil {
 			vk.log.Debug().Int("response code", resp.StatusCode).Msg("passed /list up to parent")
