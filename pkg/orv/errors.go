@@ -26,6 +26,11 @@ func ErrUnknownCID(cID childID) error {
 	return fmt.Errorf("id %d does not correspond to any known child", cID)
 }
 
+// given service name is empty
+func ErrEmptyServiceName(sn serviceName) error {
+	return errors.New("service name cannot be empty (given " + sn + ")")
+}
+
 //#endregion Errors
 
 //#region Huma Errors (with Hdrs)
@@ -44,7 +49,7 @@ func HErrBadID(id uint64, pkt_t PacketType) error {
 // service name may not be empty
 func HErrBadServiceName(sn string, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
-		huma.Error400BadRequest("service name cannot be empty (given "+sn+")"),
+		huma.Error400BadRequest(ErrEmptyServiceName(sn).Error()),
 		http.Header{
 			hdrPkt_t: {pkt_t},
 		})
