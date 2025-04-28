@@ -16,6 +16,80 @@ import (
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
+//#region request helper functions
+
+// POSTs a HELLO to the endpoint embedded in the huma api.
+// Only returns if the given status code was matched; Fatal if not
+func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) {
+	resp := api.Post(orv.EP_HELLO,
+		"Packet-Type: "+orv.PT_HELLO,
+		orv.HelloReq{
+			Body: struct {
+				Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			}{
+				Id: id,
+			}}.Body)
+	if resp.Code != expectedCode {
+		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+	}
+}
+
+// POSTs a JOIN to the endpoint embedded in the huma api.
+// Only returns if the given status code was matched; Fatal if not
+func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+	resp = api.Post(orv.EP_JOIN,
+		"Packet-Type: "+orv.PT_JOIN,
+		orv.JoinReq{
+			Body: struct {
+				Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+				Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
+				VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
+				IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
+			}{
+				Id:     id,
+				Height: height,
+				VKAddr: vkaddr,
+				IsVK:   isvk,
+			},
+		}.Body)
+	if resp.Code != expectedCode {
+		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+	}
+
+	return resp
+}
+
+// POSTs a REGISTER to the endpoint embedded in the huma api, registering a new service under the given id.
+// Only returns if the given status code was matched; Fatal if not
+func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, sn string, ap netip.AddrPort, stale time.Duration) (resp *httptest.ResponseRecorder) {
+	resp = api.Post(orv.EP_REGISTER,
+		"Packet-Type: "+orv.PT_REGISTER,
+		orv.RegisterReq{
+			Body: struct {
+				Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+				Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+				Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
+				Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
+			}{
+				Id:      id,
+				Service: sn,
+				Address: ap.String(),
+				Stale:   stale.String(),
+			},
+		}.Body)
+	if resp.Code != expectedCode {
+		s := "valid"
+		if expectedCode-400 >= 0 {
+			s = "invalid"
+		}
+		t.Fatal(s, " register request failed: ", ErrBadResponseCode(resp.Code, expectedCode))
+	}
+
+	return resp
+}
+
+//#endregion
+
 // Humatest is quite verbose by default and has no native way to suppress its logging.
 // To keep the tests readable (while still gaining the functionality of humatest), we wrap the test handler and give it no-op logging.
 // This way, humatest's native output is suppressed, but we can still utilize all the normal features of the test handler
@@ -529,47 +603,6 @@ func TestMultiLeafMultiService(t *testing.T) {
 	t.Fatal("NYI")
 }
 
-// POSTs a HELLO to the endpoint embedded in the huma api.
-// Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) {
-	resp := api.Post(orv.EP_HELLO,
-		"Packet-Type: "+orv.PT_HELLO,
-		orv.HelloReq{
-			Body: struct {
-				Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-			}{
-				Id: id,
-			}}.Body)
-	if resp.Code != expectedCode {
-		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
-	}
-}
-
-// POSTs a JOIN to the endpoint embedded in the huma api.
-// Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
-	resp = api.Post(orv.EP_JOIN,
-		"Packet-Type: "+orv.PT_JOIN,
-		orv.JoinReq{
-			Body: struct {
-				Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-				Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
-				VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
-				IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
-			}{
-				Id:     id,
-				Height: height,
-				VKAddr: vkaddr,
-				IsVK:   isvk,
-			},
-		}.Body)
-	if resp.Code != expectedCode {
-		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
-	}
-
-	return resp
-}
-
 // Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
 // services that fail to heartbeat are properly pruned out (without pruning out correctly heartbeating services).
 //
@@ -599,7 +632,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	t.Cleanup(vk.Terminate)
 
 	// issue a status request after a brief start up window
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 	{
 		resp := api.Get(orv.EP_STATUS)
 		if resp.Code != 200 {
@@ -609,13 +642,15 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 
 	// spin up the first leaf
 	var leafA struct {
-		id          uint64
-		serviceName string
-		serviceAddr netip.AddrPort
+		id           uint64
+		serviceName  string
+		serviceAddr  netip.AddrPort
+		serviceStale time.Duration
 	} = struct {
-		id          uint64
-		serviceName string
-		serviceAddr netip.AddrPort
+		id           uint64
+		serviceName  string
+		serviceAddr  netip.AddrPort
+		serviceStale time.Duration
 	}{
 		id:          100,
 		serviceName: "testServiceA",
@@ -625,10 +660,16 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	leafA.serviceStale, err = time.ParseDuration("3s")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// introduce and join leaf A
 	makeHelloRequest(t, api, 200, leafA.id)
 	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
+	// register the service
+	makeRegisterRequest(t, api, 202, leafA.id, leafA.serviceName, leafA.serviceAddr, leafA.serviceStale)
 
 	time.Sleep(6 * time.Second)
 
