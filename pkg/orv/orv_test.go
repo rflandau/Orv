@@ -77,7 +77,7 @@ func makeJoinRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int,
 
 // POSTs a REGISTER to the endpoint embedded in the huma api, registering a new service under the given id.
 // Only returns if the given status code was matched; Fatal if not
-func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, sn string, ap netip.AddrPort, stale time.Duration) (resp *httptest.ResponseRecorder) {
+func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, sn string, apStr, staleStr string) (resp *httptest.ResponseRecorder) {
 	resp = api.Post(orv.EP_REGISTER,
 		"Packet-Type: "+orv.PT_REGISTER,
 		orv.RegisterReq{
@@ -89,8 +89,8 @@ func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, i
 			}{
 				Id:      id,
 				Service: sn,
-				Address: ap.String(),
-				Stale:   stale.String(),
+				Address: apStr,
+				Stale:   staleStr,
 			},
 		}.Body)
 	if resp.Code != expectedCode {
@@ -102,6 +102,63 @@ func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, i
 	}
 
 	return resp
+}
+
+// Send VK heartbeats (every sleep duration) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
+// The caller must close the done channel.
+func sendVKHeartbeats(targetAPI humatest.TestAPI, sleep time.Duration, cID uint64) (done chan bool, errResp chan *httptest.ResponseRecorder) {
+	// create the channel
+	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(sleep):
+				// submit a heartbeat
+				resp := targetAPI.Post(orv.EP_VK_HEARTBEAT, map[string]any{
+					"id": cID,
+				})
+				if resp.Code != 200 {
+					errResp <- resp
+					return
+				}
+
+			}
+		}
+	}()
+
+	return
+}
+
+// Send service heartbeats (at given frequency) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
+// The caller must close the done channel.
+func sendServiceHeartbeats(targetAPI humatest.TestAPI, frequency time.Duration, cID uint64, services []string) (done chan bool, errResp chan *httptest.ResponseRecorder) {
+	// create the channel
+	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(frequency):
+				// submit a heartbeat
+				resp := targetAPI.Post(orv.EP_SERVICE_HEARTBEAT, map[string]any{
+					"id":       cID,
+					"services": services,
+				})
+				if resp.Code != 200 {
+					errResp <- resp
+					return
+				}
+
+			}
+		}
+	}()
+
+	return
 }
 
 //#endregion
@@ -316,37 +373,35 @@ func TestHopList(t *testing.T) {
 		t.Fatal("cVK A was pruned from B despite no heartbeater errors. Snapshot:", snap)
 	}
 
-	time.Sleep(1 * time.Second)
+	// register a leaf to A
+	leafA := leaf{
+		id: 100,
+		services: map[string]struct {
+			addr  string
+			stale string
+		}{"ssh": {"127.0.0.1:22", "1s"}},
+	}
 
-}
+	makeHelloRequest(t, apiA, HelloSuccessCode, leafA.id)
+	makeJoinRequest(t, apiA, JoinSuccessCode, leafA.id, 0, "", false)
+	makeRegisterRequest(t, apiA, RegisterSuccessCode, leafA.id, "ssh", leafA.services["ssh"].addr, leafA.services["ssh"].stale)
 
-// Send VK heartbeats (every sleep duration) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
-// The caller must close the done channel
-func sendVKHeartbeats(targetAPI humatest.TestAPI, sleep time.Duration, cID uint64) (done chan bool, errResp chan *httptest.ResponseRecorder) {
-	// create the channel
-	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+	leafAServiceHBDone, leafAServiceHBErr := sendServiceHeartbeats(apiA, 500*time.Millisecond, leafA.id, []string{"ssh"})
+	t.Cleanup(func() { close(leafAServiceHBDone) })
 
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case <-time.After(sleep):
-				// submit a heartbeat
-				resp := targetAPI.Post(orv.EP_VK_HEARTBEAT, map[string]any{
-					"id": cID,
-				})
-				if resp.Code != 200 {
-					errResp <- resp
-					return
-				}
+	// sleep long enough for greater than service stale time
+	time.Sleep(1500 * time.Millisecond)
 
-			}
-		}
-	}()
+	// check for any heartbeating errors
+	select {
+	case e := <-leafAServiceHBErr:
+		// an error occurred in the heartbeater
+		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
+	default:
+		// the heartbeater worked as intended
+	}
 
-	return
-
+	time.Sleep(time.Second)
 }
 
 // Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
