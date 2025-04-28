@@ -234,6 +234,12 @@ func (vk *VaultKeeper) Height() uint16 {
 	return vk.height
 }
 
+// Returns the name of each service offered and by whom.
+func (vk *VaultKeeper) ChildrenSnapshot() ChildrenSnapshot {
+	return vk.children.Snapshot()
+
+}
+
 //#region methods
 
 // Starts the http api listener in the vk.
