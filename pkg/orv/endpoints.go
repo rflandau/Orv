@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -273,7 +274,7 @@ type RegisterReq struct {
 	Body    struct {
 		Id      uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier for this specific node"`
 		Service string `json:"service" required:"true" example:"SSH" doc:"the name of the service to be registered"`
-		Address string `json:"address" example:"172.1.1.54:22" doc:"the address the service is bound to. Only populated from leaf to parent."`
+		Address string `json:"address" required:"true" example:"172.1.1.54:22" doc:"the address the service is bound to. Only populated from leaf to parent."`
 		Stale   string `json:"stale" example:"1m5s45ms" doc:"after how much time without a heartbeat is this service eligible for pruning"`
 	}
 }
@@ -289,44 +290,32 @@ type RegisterAcceptResp struct {
 
 // Handle requests against the JOIN endpoint
 func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*RegisterAcceptResp, error) {
-	// validate parameters
-	var cid uint64 = req.Body.Id
+	var (
+		err      error
+		cid      uint64 = req.Body.Id
+		sn       string = strings.TrimSpace(req.Body.Service)
+		addrStr  string = strings.TrimSpace(req.Body.Address)
+		addr     netip.AddrPort
+		staleStr string = strings.TrimSpace(req.Body.Stale)
+	)
+	// validate parameters other than Stale
 	if cid == 0 {
 		return nil, HErrBadID(req.Body.Id, PT_REGISTER_DENY)
+	} else if sn == "" {
+		return nil, HErrBadServiceName(sn, PT_REGISTER_DENY)
+	} else if addr, err = netip.ParseAddrPort(addrStr); err != nil {
+		return nil, HErrBadAddr(addrStr, PT_REGISTER_DENY)
 	}
+
+	err = vk.children.addService(cid, sn, addr, staleStr)
+	if err != nil {
+		return nil, huma.ErrorWithHeaders(err, http.Header{
+			hdrPkt_t: {PT_REGISTER_DENY},
+		})
+	}
+
+	// TODO build accept response
 	resp := &RegisterAcceptResp{}
-	/*
-		// do we know this child?
-		vk.childrenMu.Lock()
-		defer vk.childrenMu.Unlock()
-		if _, exists := vk.leaves[cid]; !exists {
-			return nil, HErrMustJoin(PT_REGISTER_DENY)
-		}
-		// HUMA should reject empty services for us
-		// ensure we can parse the address and staleness
-		serviceAddr, err := netip.ParseAddrPort(req.Body.Address)
-		if err != nil {
-			return nil, HErrBadAddr(req.Body.Address, PT_REGISTER_DENY)
-		}
-		staleness, err := time.ParseDuration(req.Body.Stale)
-		if err != nil {
-			return nil, HErrBadStaleness(req.Body.Stale, PT_REGISTER_DENY)
-		}
-
-		// now that we have validated the registration, add this service to the child
-		vk.leaves[cid][req.Body.Service] = srv{serviceAddr, staleness}
-
-		resp := &RegisterAcceptResp{
-			PktType: PT_REGISTER_ACCEPT,
-			Body: struct {
-				Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-				Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
-			}{
-				Id:      vk.id,
-				Service: req.Body.Service,
-			},
-		}
-	*/
 
 	if !vk.isRoot() {
 		// TODO propagate the request up the tree
