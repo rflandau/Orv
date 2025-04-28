@@ -41,6 +41,15 @@ func HErrBadID(id uint64, pkt_t PacketType) error {
 		})
 }
 
+// service name may not be empty
+func HErrBadServiceName(sn string, pkt_t PacketType) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest("service name cannot be empty (given "+sn+")"),
+		http.Header{
+			hdrPkt_t: {pkt_t},
+		})
+}
+
 func HErrBadHeight(CurVKHeight, RequesterHeight uint16, pkt_t PacketType) error {
 	// TODO if a parent is available, tell the requester to try the parent
 	return huma.ErrorWithHeaders(
