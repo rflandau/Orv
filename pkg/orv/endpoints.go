@@ -2,6 +2,8 @@ package orv
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -19,6 +21,7 @@ const (
 	EP_REGISTER          Endpoint = "/register"
 	EP_VK_HEARTBEAT      Endpoint = "/vk-heartbeat"
 	EP_SERVICE_HEARTBEAT Endpoint = "/service-heartbeat"
+	EP_LIST              Endpoint = "/list"
 )
 
 // Generates endpoint handling on the given api instance.
@@ -79,6 +82,15 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Summary:       EP_SERVICE_HEARTBEAT[1:],
 		DefaultStatus: http.StatusOK,
 	}, vk.handleServiceHeartbeat)
+
+	// handle list requests for listing available services
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   EP_LIST[1:],
+		Method:        http.MethodGet,
+		Path:          EP_LIST,
+		Summary:       EP_LIST[1:],
+		DefaultStatus: http.StatusOK,
+	}, vk.handleList)
 }
 
 //#region HELLO
@@ -427,3 +439,73 @@ func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHea
 }
 
 //#endregion SERVICE_HEARTBEAT
+
+//#region LIST
+
+// Request for /list.
+// The request issued by clients to learn about available services
+type ListReq struct {
+	PktType PacketType `header:"Packet-Type"` // LIST
+	Body    struct {
+		//Id       uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+		HopCount uint16 `json:"hop-count" example:"2" doc:"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)"`
+	}
+}
+
+// Response for /list.
+type ListResponseResp struct {
+	PktType PacketType `header:"Packet-Type"` // LIST_RESPONSE
+	Body    struct {
+		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+		Services []string `json:"services" required:"true" example:"[\"serviceA\"]" doc:"the name of the services known"`
+	}
+}
+
+// Handle refreshing services offered by leaves.
+func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListResponseResp, error) {
+	vk.structureRWMu.RLock() // conditionally released by the sub-branches
+
+	if req.Body.HopCount > 1 && !vk.isRoot() { // try to forward the request up the vault
+		// cache the parent info in case we need to modify it
+		t_id := vk.parent.id
+		t_addr := vk.parent.addr
+		resp, err := http.Get(vk.parent.addr.String() + EP_LIST)
+		vk.structureRWMu.RUnlock()
+		if err == nil {
+			vk.log.Debug().Int("response code", resp.StatusCode).Msg("passed /list up to parent")
+			if (resp.StatusCode - 299) <= 0 { // check for a good response code
+				// return the services we got from the parent
+				b, err := io.ReadAll(resp.Body)
+				if err == nil {
+					// forward the response we got from our parent
+					resp := &ListResponseResp{PktType: PT_LIST_RESPONSE}
+					json.Unmarshal(b, &resp.Body)
+					return resp, nil
+				}
+			}
+			// got a bad response code or failed to read the response body
+			// do nothing, just return our services below
+		} else {
+			vk.log.Debug().Err(err).Msg("failed to contact parent")
+			vk.structureRWMu.Lock()
+			// only drop parent info if it has not changed since we re-acquired the lock
+			if vk.parent.addr == t_addr && vk.parent.id == t_id {
+				vk.parent.id = 0
+				vk.parent.addr = netip.AddrPort{}
+			}
+			vk.structureRWMu.Unlock()
+		}
+	} else {
+		vk.structureRWMu.RUnlock()
+	}
+
+	// If we made it down this far, then we are root, our parent failed, or hop count expired.
+	// Just return our list of services.
+	resp := &ListResponseResp{PktType: PT_LIST_RESPONSE, Body: struct {
+		Id       uint64   "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+		Services []string "json:\"services\" required:\"true\" example:\"[\\\"serviceA\\\"]\" doc:\"the name of the services known\""
+	}{Id: vk.id, Services: vk.children.Services()}}
+	return resp, nil
+}
+
+//#endregion LIST
