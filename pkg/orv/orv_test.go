@@ -145,14 +145,12 @@ func getResponse(ip string, port int, endpoint string, data any) (int, []byte, e
 	return resp.StatusCode, body, nil
 }
 
-func StartVKListener(t *testing.T, api huma.API) (*orv.VaultKeeper, netip.AddrPort) {
+func StartVKListener(t *testing.T, api huma.API, vkid uint64) (*orv.VaultKeeper, netip.AddrPort) {
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// spin up vk
-	var vkid uint64 = 1
 	vk, err := orv.NewVaultKeeper(vkid, vkAddr, orv.SetHumaAPI(api))
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +169,7 @@ func TestEndpointArgs(t *testing.T) {
 	// spawn the huma test API
 	_, api := humatest.New(slt)
 
-	vk, vkAddr := StartVKListener(t, api)
+	vk, vkAddr := StartVKListener(t, api, 1)
 
 	time.Sleep(1 * time.Second) // give the VK time to start up
 
@@ -197,22 +195,27 @@ func TestEndpointArgs(t *testing.T) {
 
 	// submit a REGISTER for an unjoined ID
 	makeHelloRequest(t, api, 200, 3)
-	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr, time.Second)
 
 	fmt.Println("ok")
 
 	// submit a valid REGISTER for vk
-	makeHelloRequest(t, api, 200, 100)
-	makeJoinRequest(t, api, 200, 100, 1, "", true)
-	makeRegisterRequest(t, api, 200, 100, "Horrible Coffee Maker", vkAddr, time.Second)
+	makeHelloRequest(t, api, 4, 100)
+	makeJoinRequest(t, api, 200, 4, 1, "", true)
+	makeRegisterRequest(t, api, 4, 100, "Horrible Coffee Maker", vkAddr, time.Second)
 
 	// submit a valid REGISTER for vk and check if multiple services are allowed
-	makeRegisterRequest(t, api, 200, 100, "Tea Maker - makes sense why I make horrible Coffee", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr, time.Second)
 
 	// submit a invalid REGISTER for vk
-	makeRegisterRequest(t, api, 400, 100, "", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 4, "", vkAddr, time.Second)
 
 	fmt.Println("ok")
+
+	// submit a valid HELLO to the same ID as VK
+	makeHelloRequest(t, api, 400, 1)
+	makeJoinRequest(t, api, 400, 1, 0, "", false)
+	makeRegisterRequest(t, api, 400, 1, "Flopped Coffee", vkAddr, time.Second)
 
 }
 
@@ -220,7 +223,29 @@ func TestEndpointArgs(t *testing.T) {
 // Each leaf will HELLO -> JOIN and then submit multiple REGISTERS. Each service will need to send heartbeats to the VK.
 // After a short detail, the test checks if the VK still believe that all services are active.
 func TestMultiLeafMultiService(t *testing.T) {
-	// TODO
+	slt := SuppressedLogTest{t}
+	// spawn the huma test API
+	_, api := humatest.New(slt)
+
+	vk, vkAddr := StartVKListener(t, api, 1)
+
+	time.Sleep(1 * time.Second) // give the VK time to start up
+
+	t.Cleanup(vk.Terminate)
+
+	// submit a valid REGISTER for vk
+	makeHelloRequest(t, api, 200, 5)
+	makeJoinRequest(t, api, 200, 5, 0, "", false)
+	makeRegisterRequest(t, api, 200, 1, "Cookie Maker - as coffee maker bombed", vkAddr, time.Second)
+
+	makeHelloRequest(t, api, 200, 6)
+	makeJoinRequest(t, api, 200, 6, 0, "", false)
+	makeRegisterRequest(t, api, 200, 1, "Horrible Coffee Maker", vkAddr, time.Second)
+
+	makeHelloRequest(t, api, 200, 7)
+	makeJoinRequest(t, api, 200, 7, 0, "", false)
+	makeRegisterRequest(t, api, 200, 1, "Horrible Coffee Maker", vkAddr, time.Second)
+
 	t.Fatal("NYI")
 }
 
