@@ -21,8 +21,8 @@ import (
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) (resp *httptest.ResponseRecorder) {
-	resp = api.Post(orv.EP_HELLO,
+func makeHelloRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64) (resp *httptest.ResponseRecorder) {
+	resp = targetAPI.Post(orv.EP_HELLO,
 		"Packet-Type: "+orv.PT_HELLO,
 		orv.HelloReq{
 			Body: struct {
@@ -31,15 +31,15 @@ func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id u
 				Id: id,
 			}}.Body)
 	if resp.Code != expectedCode {
-		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
 	}
 	return resp
 }
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
-	resp = api.Post(orv.EP_JOIN,
+func makeJoinRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+	resp = targetAPI.Post(orv.EP_JOIN,
 		"Packet-Type: "+orv.PT_JOIN,
 		orv.JoinReq{
 			Body: struct {
@@ -55,7 +55,7 @@ func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id ui
 			},
 		}.Body)
 	if resp.Code != expectedCode {
-		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+		t.Fatal("join request failed: " + ErrBadResponseCode(resp.Code, expectedCode) + "\n" + resp.Body.String())
 	}
 
 	return resp
