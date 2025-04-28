@@ -61,29 +61,31 @@ func TestEndpointArgs(t *testing.T) {
 
 	time.Sleep(1 * time.Second) // give the VK time to start up
 
-	respStatus, resp, err := getResponse("[::1]", 8080, orv.HELLO, orv.HelloReq{Body: struct {
+	// submit a valid HELLO
+	respStatus, resp, err := getResponse("[::1]", 8080, orv.HELLO, struct {
 		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-	}{Id: 2}})
-	if err != nil {
-		t.Fatalf("valid hello failed (code: %d, err: %v)", respStatus, err)
+	}{Id: 2})
+	if err != nil || resp == nil || respStatus != 200 {
+		t.Fatalf("valid hello failed (code: %d, resp: %s, err: %v)", respStatus, string(resp), err)
 	}
-	if resp == nil {
-		t.Fatal("hello response failed:", resp)
-	}
-	t.Log("hello response:", resp)
 
-	join_req := orv.JoinReq{}
-	join_req.Body.Id = 2
-	join_req.Body.Height = 5
+	// submit a JOIN with an invalid ID
+	req := struct {
+		Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+		Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
+		VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
+		IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
+	}{
+		Id: 55,
+	}
 
-	respStatus, resp, err = getResponse("[::1]", 8080, "/join", join_req)
-	if err != nil {
-		t.Fatal("join failed:", err)
+	respStatus, resp, err = getResponse("[::1]", 8080, "/join", req)
+	if err != nil || resp == nil {
+		t.Fatalf("invalid join errored (code: %d, resp: %s, err: %v)", respStatus, string(resp), err)
 	}
-	if resp == nil {
-		t.Fatal("join response failed:", resp)
+	if respStatus != 400 {
+		t.Fatalf("received incorrect join status from invalid join (expected 400, got %d). Response: %s", respStatus, string(resp))
 	}
-	fmt.Println("join response:", respStatus)
 
 	fmt.Println("Ok")
 
