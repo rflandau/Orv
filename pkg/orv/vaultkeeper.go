@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"os"
 	"sync"
 	"time"
 
@@ -43,8 +44,8 @@ Able to provide services, route & answer requests, and facilitate vault growth.
 Should be constructed via NewVaultKeeper().
 */
 type VaultKeeper struct {
-	log  zerolog.Logger // output logger
-	id   uint64         // unique identifier
+	log  *zerolog.Logger // output logger
+	id   uint64          // unique identifier
 	addr netip.AddrPort
 	// services
 	children *children
@@ -89,13 +90,24 @@ func Height(h uint16) VKOption {
 	}
 }
 
+// Override the default, verbose logger.
+// To disable logging, pass a disabled zerolog logger.
+func SetLogger(l *zerolog.Logger) VKOption {
+	if l == nil {
+		panic("cannot set logger to nil")
+	}
+	return func(vk *VaultKeeper) {
+		vk.log = l
+	}
+}
+
 //#endregion options
 
 // Spawns and returns a new vault keeper instance.
 //
 // Optionally takes additional options to modify the state of the VaultKeeper.
 // Conflicting options prefer options latter.
-func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
+func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
 	mux := http.NewServeMux()
 
 	// validate the given address
@@ -105,7 +117,6 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 
 	// set defaults
 	vk := &VaultKeeper{
-		log:  logger,
 		id:   id,
 		addr: addr,
 
@@ -134,8 +145,22 @@ func NewVaultKeeper(id uint64, logger zerolog.Logger, addr netip.AddrPort, opts 
 		opt(vk)
 	}
 
+	// if logger was not set by the options, use the default logger
+	if vk.log == nil {
+		l := zerolog.New(zerolog.ConsoleWriter{
+			Out:         os.Stdout,
+			FieldsOrder: []string{"vkid"},
+			TimeFormat:  "15:04:05",
+		}).With().
+			Uint64("vk", vk.id).
+			Timestamp().
+			Caller().
+			Logger().Level(zerolog.DebugLevel)
+		vk.log = &l
+	}
+
 	// generate child handling
-	vk.children = newChildren(&vk.log, vk.pt.ServicelessChild, vk.pt.CVK)
+	vk.children = newChildren(vk.log, vk.pt.ServicelessChild, vk.pt.CVK)
 
 	// spawn a pruner service to clean up pieces of VK that are not self-pruning
 	go func() {

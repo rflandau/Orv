@@ -12,8 +12,6 @@ import (
 	"network-bois-orv/pkg/orv"
 	"os"
 	"os/signal"
-
-	"github.com/rs/zerolog"
 )
 
 func main() {
@@ -25,15 +23,6 @@ func main() {
 	var vkid uint64 = 1
 
 	vk, err := orv.NewVaultKeeper(vkid,
-		zerolog.New(zerolog.ConsoleWriter{
-			Out:         os.Stdout,
-			FieldsOrder: []string{"vkid"},
-			TimeFormat:  "15:04:05",
-		}).With().
-			Uint64("vk", vkid).
-			Timestamp().
-			Caller().
-			Logger().Level(zerolog.DebugLevel),
 		addr,
 	)
 	if err != nil {
