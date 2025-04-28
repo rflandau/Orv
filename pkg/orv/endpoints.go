@@ -358,7 +358,13 @@ type VKHeartbeatAck struct {
 
 // Handle requests against the REGISTER endpoint
 func (vk *VaultKeeper) handleVKHeartbeat(_ context.Context, req *VKHeartbeatReq) (*VKHeartbeatAck, error) {
-	resp := &VKHeartbeatAck{}
-	// TODO
+	resp := &VKHeartbeatAck{Body: struct {
+		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+	}{Id: vk.id}}
+	if err := vk.children.HeartbeatCVK(req.Body.Id); err != nil {
+		return nil, huma.ErrorWithHeaders(err, http.Header{
+			hdrPkt_t: {PT_VK_HEARTBEAT_FAULT},
+		})
+	}
 	return resp, nil
 }

@@ -375,6 +375,19 @@ type ChildrenSnapshot struct {
 	Services map[serviceName][]string `json:"services"`
 }
 
+// Refreshes the prune timer of the cVKL associated to the given cID.
+func (c *children) HeartbeatCVK(cID childID) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cvk, exists := c.vks[cID]
+	if !exists {
+		return fmt.Errorf("no child VK associated to ID %d", cID)
+	}
+	cvk.pruneTimer.Reset(c.cvkPruneTime)
+	c.log.Debug().Str("child type", "vk").Uint64("child ID", cID).Msg("refreshed prune timer")
+	return nil
+}
+
 // Returns a JSON-encodable struct of the child nodes and their services.
 // It is a point-in-time snapshot and requires locking the children struct.
 func (c *children) Snapshot() ChildrenSnapshot {
