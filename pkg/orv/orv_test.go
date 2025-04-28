@@ -283,13 +283,12 @@ func TestHopList(t *testing.T) {
 
 	// start to send heartbeats A --> B
 	aHBDone, aHBErr := sendVKHeartbeats(apiB, 1*time.Second, vkA.ID())
+	t.Cleanup(func() { close(aHBDone) })
 
-	time.Sleep(7 * time.Second)
+	// sleep long enough for non-heartbeat VKs to get pruned
+	time.Sleep(orv.DEFAULT_PRUNE_TIME_CVK + 1*time.Second)
 
-	close(aHBDone)
-
-	// TODO query the VK directly for a list of its children
-
+	// check for any heartbeating errors
 	select {
 	case e := <-aHBErr:
 		// an error occurred in the heartbeater
@@ -297,6 +296,14 @@ func TestHopList(t *testing.T) {
 	default:
 		// the heartbeater worked as intended
 	}
+
+	// check that A is still included as a child of B
+	snap := vkB.ChildrenSnapshot()
+	if _, exists := snap.CVKs[vkA.ID()]; !exists {
+		t.Fatal("cVK A was pruned from B despite no heartbeater errors. Snapshot:", snap)
+	}
+
+	time.Sleep(1 * time.Second)
 
 }
 
