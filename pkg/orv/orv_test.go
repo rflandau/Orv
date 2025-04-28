@@ -529,6 +529,23 @@ func TestMultiLeafMultiService(t *testing.T) {
 	t.Fatal("NYI")
 }
 
+// POSTs a HELLO to the endpoint embedded in the huma api.
+// Only returns if the given status code was matched; Fatal if not
+func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) {
+	resp := api.Post(orv.EP_HELLO,
+		"Packet-Type: "+orv.PT_HELLO,
+		orv.HelloReq{
+			Body: struct {
+				Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			}{
+				Id: id,
+			}}.Body)
+	if resp.Code != expectedCode {
+		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+	}
+}
+
+// POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
 func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
 	resp = api.Post(orv.EP_JOIN,
@@ -547,7 +564,7 @@ func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id ui
 			},
 		}.Body)
 	if resp.Code != expectedCode {
-		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, 202))
+		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
 	}
 
 	return resp
@@ -610,18 +627,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	}
 
 	// introduce and join leaf A
-	resp := api.Post(orv.EP_HELLO,
-		"Packet-Type: "+orv.PT_HELLO,
-		orv.HelloReq{
-			Body: struct {
-				Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-			}{
-				Id: leafA.id,
-			}}.Body)
-	if resp.Code != 200 {
-		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, 200))
-	}
-
+	makeHelloRequest(t, api, 200, leafA.id)
 	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
 
 	time.Sleep(6 * time.Second)
