@@ -21,8 +21,8 @@ import (
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) {
-	resp := api.Post(orv.EP_HELLO,
+func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) (resp *httptest.ResponseRecorder) {
+	resp = api.Post(orv.EP_HELLO,
 		"Packet-Type: "+orv.PT_HELLO,
 		orv.HelloReq{
 			Body: struct {
@@ -33,6 +33,7 @@ func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id u
 	if resp.Code != expectedCode {
 		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
 	}
+	return resp
 }
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
