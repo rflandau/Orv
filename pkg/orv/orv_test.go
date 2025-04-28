@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+// Marshalls and POSTs data to the given address.
+// Returns the status code, byte string body, and an error (if applicable).
+//
+// Based on Professor Patrick Tague's helper test code.
 func getResponse(ip string, port int, endpoint string, data any) (int, []byte, error) {
 
 	jsonBytes, err := json.Marshal(data)
