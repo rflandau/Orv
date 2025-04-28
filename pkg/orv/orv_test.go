@@ -225,6 +225,85 @@ func TestMultiLeafMultiService(t *testing.T) {
 	t.Fatal("NYI")
 }
 
+// Tests that we can compose LeafA --> VKA --> VKB <-- LeafB, with all working heartbeats and a bubble-up list request.
+func TestHopList(t *testing.T) {
+	// spawn the test api
+	slt := SuppressedLogTest{t}
+	// spawn the huma test API
+	_, apiA := humatest.New(slt)
+	_, apiB := humatest.New(slt)
+
+	vkAAddr, err := netip.ParseAddrPort("[::1]:8090")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vkBAddr, err := netip.ParseAddrPort("[::1]:9000")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vkA, err := orv.NewVaultKeeper(1, vkAAddr, orv.SetHumaAPI(apiA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vkA.Terminate)
+	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1), orv.SetHumaAPI(apiB))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vkB.Terminate)
+	// Join A under B
+	t.Log(makeHelloRequest(t, apiB, 200, vkA.ID()))
+	t.Log(makeJoinRequest(t, apiB, 202, vkA.ID(), vkA.Height(), vkAAddr.String(), true))
+
+	// start to send heartbeats A --> B
+	aHBDone, aHBErr := sendVKHeartbeats(apiB, 1*time.Second, vkA.ID())
+
+	time.Sleep(7 * time.Second)
+
+	close(aHBDone)
+
+	// TODO query the VK directly for a list of its children
+
+	select {
+	case e := <-aHBErr:
+		// an error occurred in the heartbeater
+		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
+	default:
+		// the heartbeater worked as intended
+	}
+
+}
+
+// Send VK heartbeats (every sleep duration) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
+// The caller must close the done channel
+func sendVKHeartbeats(targetAPI humatest.TestAPI, sleep time.Duration, cID uint64) (done chan bool, errResp chan *httptest.ResponseRecorder) {
+	// create the channel
+	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(sleep):
+				// submit a heartbeat
+				resp := targetAPI.Post(orv.EP_VK_HEARTBEAT, map[string]any{
+					"id": cID,
+				})
+				if resp.Code != 200 {
+					errResp <- resp
+					return
+				}
+
+			}
+		}
+	}()
+
+	return
+
+}
+
 // Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
 // services that fail to heartbeat are properly pruned out (without pruning out correctly heartbeating services).
 //
