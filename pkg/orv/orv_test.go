@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"network-bois-orv/pkg/orv"
 	"strconv"
@@ -528,6 +529,30 @@ func TestMultiLeafMultiService(t *testing.T) {
 	t.Fatal("NYI")
 }
 
+// Only returns if the given status code was matched; Fatal if not
+func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+	resp = api.Post(orv.EP_JOIN,
+		"Packet-Type: "+orv.PT_JOIN,
+		orv.JoinReq{
+			Body: struct {
+				Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+				Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
+				VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
+				IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
+			}{
+				Id:     id,
+				Height: height,
+				VKAddr: vkaddr,
+				IsVK:   isvk,
+			},
+		}.Body)
+	if resp.Code != expectedCode {
+		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, 202))
+	}
+
+	return resp
+}
+
 // Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
 // services that fail to heartbeat are properly pruned out (without pruning out correctly heartbeating services).
 //
@@ -584,23 +609,22 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// send a HELLO from leafA
-	resp := api.Post(orv.EP_HELLO, map[string]any{
-		"id": leafA.id,
-	})
+	// introduce and join leaf A
+	resp := api.Post(orv.EP_HELLO,
+		"Packet-Type: "+orv.PT_HELLO,
+		orv.HelloReq{
+			Body: struct {
+				Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			}{
+				Id: leafA.id,
+			}}.Body)
 	if resp.Code != 200 {
 		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, 200))
 	}
 
-	// we can also send requests using the body struct and including the header manually
-	req := orv.HelloReq{
-		Body: struct {
-			Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-		}{Id: 3},
-	}
-	api.Post(orv.EP_HELLO,
-		"Packet-Type: "+orv.PT_HELLO,
-		req.Body)
+	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
+
+	time.Sleep(6 * time.Second)
 
 	// TODO
 
