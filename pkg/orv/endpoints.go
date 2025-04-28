@@ -456,7 +456,7 @@ type ListReq struct {
 type ListResponseResp struct {
 	PktType PacketType `header:"Packet-Type"` // LIST_RESPONSE
 	Body    struct {
-		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the VK responding to the list request. If the request propagated up the vault, the ID will be of the last VK."`
 		Services []string `json:"services" required:"true" example:"[\"serviceA\"]" doc:"the name of the services known"`
 	}
 }
@@ -502,8 +502,8 @@ func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListRespons
 	// If we made it down this far, then we are root, our parent failed, or hop count expired.
 	// Just return our list of services.
 	resp := &ListResponseResp{PktType: PT_LIST_RESPONSE, Body: struct {
-		Id       uint64   "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
-		Services []string "json:\"services\" required:\"true\" example:\"[\\\"serviceA\\\"]\" doc:\"the name of the services known\""
+		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the VK responding to the list request. If the request propagated up the vault, the ID will be of the last VK."`
+		Services []string `json:"services" required:"true" example:"[\"serviceA\"]" doc:"the name of the services known"`
 	}{Id: vk.id, Services: vk.children.Services()}}
 	return resp, nil
 }
