@@ -101,6 +101,14 @@ func SetLogger(l *zerolog.Logger) VKOption {
 	}
 }
 
+// Override the default huma API instance.
+// NOTE(_): This option is applied before routes are built, meaning routes will be built onto it, potentially destructively.
+func SetHumaAPI(api huma.API) VKOption {
+	return func(vk *VaultKeeper) {
+		vk.endpoint.api = api
+	}
+}
+
 //#endregion options
 
 // Spawns and returns a new vault keeper instance.
@@ -108,7 +116,6 @@ func SetLogger(l *zerolog.Logger) VKOption {
 // Optionally takes additional options to modify the state of the VaultKeeper.
 // Conflicting options prefer options latter.
 func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
-	mux := http.NewServeMux()
 
 	// validate the given address
 	if !addr.IsValid() {
@@ -125,8 +132,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 			mux  *http.ServeMux
 			http http.Server // TODO populate with new server
 		}{
-			api: humago.New(mux, huma.DefaultConfig(_API_NAME, _API_VERSION)),
-			mux: mux,
+			mux: http.NewServeMux(),
 		},
 		height: 0,
 
@@ -138,12 +144,16 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		pchDone: make(chan bool),
 	}
 
-	vk.buildEndpoints()
-
 	// apply the given options
 	for _, opt := range opts {
 		opt(vk)
 	}
+	// if the api handler was not set by the options, use the default handler
+	if vk.endpoint.api == nil {
+		vk.endpoint.api = humago.New(vk.endpoint.mux, huma.DefaultConfig(_API_NAME, _API_VERSION))
+	}
+
+	vk.buildEndpoints()
 
 	// if logger was not set by the options, use the default logger
 	if vk.log == nil {
