@@ -542,7 +542,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	{
 		resp := api.Get(orv.STATUS)
 		if resp.Code != 200 {
-			t.Fatal("valid status failed: " + ErrBadResponseCode(resp.Code, 200))
+			t.Fatal("valid status request failed: " + ErrBadResponseCode(resp.Code, 200))
 		}
 	}
 
@@ -566,9 +566,13 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	}
 
 	// send a HELLO from leafA
-	api.Post(orv.HELLO, map[string]any{
+	resp := api.Post(orv.HELLO, map[string]any{
 		"id": leafA.id,
 	})
+	if resp.Code != 200 {
+		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, 200))
+	}
+
 	// we can also send requests using the body struct and including the header manually
 	req := orv.HelloReq{
 		Body: struct {
