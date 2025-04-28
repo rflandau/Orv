@@ -16,9 +16,11 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/rs/zerolog"
 )
 
@@ -386,6 +388,44 @@ func (c *children) HeartbeatCVK(cID childID) error {
 	cvk.pruneTimer.Reset(c.cvkPruneTime)
 	c.log.Debug().Str("child type", "vk").Uint64("child ID", cID).Msg("refreshed prune timer")
 	return nil
+}
+
+// Refreshes the prune timer of the cVKL associated to the given cID.
+// If an error is returned, it will a huma error (thus including the response status code).
+func (c *children) HeartbeatLeafService(cID childID, svcNames []serviceName) (refreshedServices []serviceName, herr error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// initialize return array
+	refreshedServices = make([]serviceName, 0)
+
+	services, exists := c.leaves[cID]
+	if !exists {
+		return nil, huma.Error404NotFound(fmt.Sprint("no leaf associated to ID ", cID))
+	}
+
+	for _, sn := range svcNames {
+		// validate the service name
+		sn = strings.TrimSpace(sn)
+		if sn == "" {
+			continue
+		}
+
+		// find the leaf's service by the given name
+		lfs, exists := services[sn]
+		if !exists {
+			continue
+		}
+		lfs.pruneTimer.Reset(lfs.staleTime)
+		c.log.Debug().Str("child type", "leaf").Uint64("child ID", cID).Str("service", sn).Msg("refreshed prune timer")
+		refreshedServices = append(refreshedServices, sn)
+	}
+
+	if len(refreshedServices) == 0 {
+		return nil, huma.Error400BadRequest("no services were refreshed")
+	}
+
+	return refreshedServices, nil
 }
 
 // Returns a JSON-encodable struct of the child nodes and their services.

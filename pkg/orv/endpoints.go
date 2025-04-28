@@ -356,8 +356,8 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 
 //#region VK_HEARTBEAT
 
-// Request for /register.
-// Used by nodes to tell their parent about a new service.
+// Request for /vk-heartbeat.
+// Used by cVKs to alert their parent that they are still alive.
 type VKHeartbeatReq struct {
 	PktType PacketType `header:"Packet-Type"` // VK_HEARTBEAT
 	Body    struct {
@@ -365,24 +365,25 @@ type VKHeartbeatReq struct {
 	}
 }
 
-// Response for /register.
+// Response for /vk-heartbeat.
 type VKHeartbeatAck struct {
-	PktType PacketType `header:"Packet-Type"` // SERVICE_HEARTBEAT_ACK
+	PktType PacketType `header:"Packet-Type"` // VK_HEARTBEAT_ACK
 	Body    struct {
 		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
 	}
 }
 
-// Handle requests against the REGISTER endpoint
+// Handle refreshing child VKs so they are not considered dead.
 func (vk *VaultKeeper) handleVKHeartbeat(_ context.Context, req *VKHeartbeatReq) (*VKHeartbeatAck, error) {
-	resp := &VKHeartbeatAck{Body: struct {
-		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
-	}{Id: vk.id}}
 	if err := vk.children.HeartbeatCVK(req.Body.Id); err != nil {
 		return nil, huma.ErrorWithHeaders(err, http.Header{
 			hdrPkt_t: {PT_VK_HEARTBEAT_FAULT},
 		})
 	}
+
+	resp := &VKHeartbeatAck{Body: struct {
+		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+	}{Id: vk.id}}
 	return resp, nil
 }
 
@@ -390,17 +391,17 @@ func (vk *VaultKeeper) handleVKHeartbeat(_ context.Context, req *VKHeartbeatReq)
 
 //#region SERVICE_HEARTBEAT
 
-// Request for /register.
-// Used by nodes to tell their parent about a new service.
+// Request for /service-heartbeat.
+// Used by leaves to refresh their services so they don't get pruned.
 type ServiceHeartbeatReq struct {
-	PktType PacketType `header:"Packet-Type"` // VK_HEARTBEAT
+	PktType PacketType `header:"Packet-Type"` // SERVICE_HEARTBEAT
 	Body    struct {
 		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
 		Services []string `json:"services" required:"true" example:"[\"serviceA\", \"serviceB\"]" doc:"the name of the services to refresh"`
 	}
 }
 
-// Response for /register.
+// Response for /service-heartbeat.
 type ServiceHeartbeatAck struct {
 	PktType PacketType `header:"Packet-Type"` // SERVICE_HEARTBEAT_ACK
 	Body    struct {
@@ -409,10 +410,19 @@ type ServiceHeartbeatAck struct {
 	}
 }
 
-// Handle requests against the REGISTER endpoint
+// Handle refreshing services offered by leaves.
 func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHeartbeatReq) (*ServiceHeartbeatAck, error) {
-	resp := &ServiceHeartbeatAck{}
-	// TODO
+	refreshed, herr := vk.children.HeartbeatLeafService(req.Body.Id, req.Body.Services)
+	if herr != nil {
+		return nil, huma.ErrorWithHeaders(herr, http.Header{
+			hdrPkt_t: {PT_VK_HEARTBEAT_FAULT},
+		})
+	}
+
+	resp := &ServiceHeartbeatAck{PktType: PT_SERVICE_HEARTBEAT_ACK, Body: struct {
+		Id       uint64   "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+		Services []string "json:\"services\" required:\"true\" example:\"[\\\"serviceA\\\"]\" doc:\"the name of the services that were successfully refreshed\""
+	}{vk.id, refreshed}}
 	return resp, nil
 }
 
