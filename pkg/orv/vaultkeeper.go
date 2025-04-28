@@ -215,6 +215,25 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 	return vk, nil
 }
 
+//#region getters
+
+// Return's ID of the VK.
+func (vk *VaultKeeper) ID() childID {
+	return vk.id
+}
+
+// Return's addr of the VK.
+func (vk *VaultKeeper) AddrPort() netip.AddrPort {
+	return vk.addr
+}
+
+// Return's height of the VK.
+func (vk *VaultKeeper) Height() uint16 {
+	vk.structureRWMu.RLock()
+	defer vk.structureRWMu.RUnlock()
+	return vk.height
+}
+
 //#region methods
 
 // Starts the http api listener in the vk.
