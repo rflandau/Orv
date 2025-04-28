@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
@@ -144,9 +145,7 @@ func getResponse(ip string, port int, endpoint string, data any) (int, []byte, e
 	return resp.StatusCode, body, nil
 }
 
-// Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
-// A la ClientArgs in lab3.
-func TestEndpointArgs(t *testing.T) {
+func StartVKListener(t *testing.T, api huma.API) (*orv.VaultKeeper, netip.AddrPort) {
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
 		t.Fatal(err)
@@ -154,444 +153,66 @@ func TestEndpointArgs(t *testing.T) {
 
 	// spin up vk
 	var vkid uint64 = 1
-	vk, err := orv.NewVaultKeeper(vkid, vkAddr)
+	vk, err := orv.NewVaultKeeper(vkid, vkAddr, orv.SetHumaAPI(api))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
+	return vk, vkAddr
+}
+
+// Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
+// A la ClientArgs in lab3.
+func TestEndpointArgs(t *testing.T) {
+
+	slt := SuppressedLogTest{t}
+	// spawn the huma test API
+	_, api := humatest.New(slt)
+
+	vk, vkAddr := StartVKListener(t, api)
 
 	time.Sleep(1 * time.Second) // give the VK time to start up
 
+	t.Cleanup(vk.Terminate)
+
 	// submit a valid HELLO
-	respStatus, resp, err := getResponse("[::1]", 8080, orv.EP_HELLO, struct {
-		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-	}{Id: 2})
-	if err != nil || resp == nil || respStatus != 200 {
-		t.Fatalf("valid hello failed (code: %d, resp: %s, err: %v)", respStatus, string(resp), err)
-	}
+	makeHelloRequest(t, api, 200, 2)
 
-	// submit a JOIN with an invalid ID
-	req := struct {
-		Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-		Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
-		VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
-		IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
-	}{
-		Id: 55,
-	}
+	// submit a valid JOIN
+	makeJoinRequest(t, api, 200, 2, 0, "", false)
 
-	respStatus, resp, err = getResponse("[::1]", 8080, "/join", req)
-	if err != nil || resp == nil {
-		t.Fatalf("invalid join errored (code: %d, resp: %s, err: %v)", respStatus, string(resp), err)
-	}
-	if respStatus != 400 {
-		t.Fatalf("received incorrect join status from invalid join (expected 400, got %d). Response: %s", respStatus, string(resp))
-	}
+	// submit a HELLO with an invalid ID
+	makeHelloRequest(t, api, 400, 0)
 
-	fmt.Println("Ok")
+	// submit a JOIN with an invalid ID and height
+	makeJoinRequest(t, api, 400, 0, 0, "", false)
 
-	// // Hello call
-	// resp, err := http.Post("http://[::1]:8080/hello", "application/json", bytes.NewReader(jsonBytes))
-	// if err != nil {
-	// 	t.Fatal("Failed to make request:", err)
-	// }
+	// submit a JOIN with same ID
+	makeJoinRequest(t, api, 409, 2, 0, "", false)
 
-	// body, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	t.Fatal("Failed read body:", err)
-	// }
+	// submit a REGISTER with an invalid ID
+	makeRegisterRequest(t, api, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr, time.Second)
 
-	// fmt.Println("Body -", body)
+	// submit a REGISTER for an unjoined ID
+	makeHelloRequest(t, api, 200, 3)
+	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker", vkAddr, time.Second)
 
-	/*
-		Aye. We probably need to implement vk.Start and vk.Stop before the tests will work properly
-		but then you should just be able to call vk.Start and, in the same thread (assuming we make it non-blocking)
-		start issuing requests to the endpoint it is listening on Now
-	*/
+	fmt.Println("ok")
 
-	// send a bunch of garbage and out of order requests (ex joins before hello)
+	// submit a valid REGISTER for vk
+	makeHelloRequest(t, api, 200, 100)
+	makeJoinRequest(t, api, 200, 100, 1, "", true)
+	makeRegisterRequest(t, api, 200, 100, "Horrible Coffee Maker", vkAddr, time.Second)
 
-	//http.Post()
+	// submit a valid REGISTER for vk and check if multiple services are allowed
+	makeRegisterRequest(t, api, 200, 100, "Tea Maker - makes sense why I make horrible Coffee", vkAddr, time.Second)
 
-	/*
-		fmt.Print("Checking error responses by list endpoint ... ")
-		lr := ListResponse{}
+	// submit a invalid REGISTER for vk
+	makeRegisterRequest(t, api, 400, 100, "", vkAddr, time.Second)
 
-		p, e := json.Marshal(DirectoryRequest{Directory: "", SeqNumber: 0})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err := getResponse("localhost", ctrl.basePort, "/list", p, &lr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("List endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(DirectoryRequest{Directory: "dir", SeqNumber: 1})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/list", p, &lr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("List endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(DirectoryRequest{Directory: "/dir:name", SeqNumber: 2})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/list", p, &lr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("List endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(DirectoryRequest{Directory: "/dir", SeqNumber: 3})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/list", p, &lr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("List endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-
-		fmt.Print("Checking error responses by get_metadata endpoint ... ")
-		mr := MetadataResponse{}
-
-		p, e = json.Marshal(KeyRequest{Directory: "", Key: "key", SeqNumber: 4})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get-metadata endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "", SeqNumber: 5})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get-metadata endpoint accepted empty key or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "dir", Key: "key", SeqNumber: 6})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get-metadata endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir:name", Key: "key", SeqNumber: 7})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get-metadata endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "key", SeqNumber: 8})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Get-metadata endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/", Key: "key", SeqNumber: 9})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get_metadata", p, &mr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != KeyNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Get-metadata endpoint accepted non-existent key or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-
-		fmt.Print("Checking error responses by get endpoint ... ")
-		kvm := KeyValueMessage{}
-
-		p, e = json.Marshal(KeyRequest{Directory: "", Key: "key", SeqNumber: 10})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "dir", Key: "key", SeqNumber: 11})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir:name", Key: "key", SeqNumber: 12})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Get endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "key", SeqNumber: 13})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Get endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/", Key: "key", SeqNumber: 14})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/get", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != KeyNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Get endpoint accepted non-existent key or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-
-		fmt.Print("Checking error responses by set endpoint ... ")
-		ksr := KeySuccessResponse{}
-
-		p, e = json.Marshal(KeyValueMessage{Directory: "", Key: "key", Value: "abcd", SeqNumber: 15})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/set", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Set endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyValueMessage{Directory: "dir", Key: "key", Value: "abcd", SeqNumber: 16})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/set", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Set endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyValueMessage{Directory: "/dir:name", Key: "key", Value: "abcd", SeqNumber: 17})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/set", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Set endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyValueMessage{Directory: "/dir", Key: "key", Value: "abcd", SeqNumber: 18})
-		if e != nil {
-			t.Fatal("Error encoding directory request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/set", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Set endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-
-		fmt.Print("Checking error responses by create endpoint ... ")
-
-		p, e = json.Marshal(KeyRequest{Directory: "", Key: "key", SeqNumber: 19})
-		if e != nil {
-			t.Fatal("Error encoding create request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/create", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Create endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "dir", Key: "key", SeqNumber: 20})
-		if e != nil {
-			t.Fatal("Error encoding create request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/create", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Create endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir:name", Key: "key", SeqNumber: 21})
-		if e != nil {
-			t.Fatal("Error encoding create request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/create", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Create endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "key", SeqNumber: 22})
-		if e != nil {
-			t.Fatal("Error encoding create request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/create", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Create endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-
-		fmt.Print("Checking error responses by delete endpoint ... ")
-
-		p, e = json.Marshal(KeyRequest{Directory: "", Key: "key", SeqNumber: 23})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Delete endpoint accepted empty directory request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "dir", Key: "key", SeqNumber: 24})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Delete endpoint accepted directory with no leading / or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir:name", Key: "key", SeqNumber: 25})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Delete endpoint accepted directory with : or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "", SeqNumber: 26})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != InvalidError || rc != http.StatusBadRequest {
-			t.Fatal("Delete endpoint accepted empty key request or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/dir", Key: "key", SeqNumber: 27})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &ksr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != DirNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Delete endpoint accepted non-existent directory or returned incorrect error type")
-		}
-
-		p, e = json.Marshal(KeyRequest{Directory: "/", Key: "key", SeqNumber: 28})
-		if e != nil {
-			t.Fatal("Error encoding delete request: ", e)
-		}
-		rc, er, err = getResponse("localhost", ctrl.basePort, "/delete", p, &kvm)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if er == nil || er.ErrorType != KeyNotFoundError || rc != http.StatusNotFound {
-			t.Fatal("Delete endpoint accepted non-existent key or returned incorrect error type")
-		}
-
-		fmt.Println("ok")
-	*/
+	fmt.Println("ok")
 
 }
 
