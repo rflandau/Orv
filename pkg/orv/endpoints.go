@@ -70,6 +70,15 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Summary:       EP_VK_HEARTBEAT[1:],
 		DefaultStatus: http.StatusOK,
 	}, vk.handleVKHeartbeat)
+
+	// handle heartbeats for leaf services
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   EP_SERVICE_HEARTBEAT[1:],
+		Method:        http.MethodPost,
+		Path:          EP_SERVICE_HEARTBEAT,
+		Summary:       EP_SERVICE_HEARTBEAT[1:],
+		DefaultStatus: http.StatusOK,
+	}, vk.handleServiceHeartbeat)
 }
 
 //#region HELLO
@@ -376,3 +385,35 @@ func (vk *VaultKeeper) handleVKHeartbeat(_ context.Context, req *VKHeartbeatReq)
 	}
 	return resp, nil
 }
+
+//#endregion VK_HEARTBEAT
+
+//#region SERVICE_HEARTBEAT
+
+// Request for /register.
+// Used by nodes to tell their parent about a new service.
+type ServiceHeartbeatReq struct {
+	PktType PacketType `header:"Packet-Type"` // VK_HEARTBEAT
+	Body    struct {
+		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+		Services []string `json:"services" required:"true" example:"[\"serviceA\", \"serviceB\"]" doc:"the name of the services to refresh"`
+	}
+}
+
+// Response for /register.
+type ServiceHeartbeatAck struct {
+	PktType PacketType `header:"Packet-Type"` // SERVICE_HEARTBEAT_ACK
+	Body    struct {
+		Id       uint64   `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+		Services []string `json:"services" required:"true" example:"[\"serviceA\"]" doc:"the name of the services that were successfully refreshed"`
+	}
+}
+
+// Handle requests against the REGISTER endpoint
+func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHeartbeatReq) (*ServiceHeartbeatAck, error) {
+	resp := &ServiceHeartbeatAck{}
+	// TODO
+	return resp, nil
+}
+
+//#endregion SERVICE_HEARTBEAT
