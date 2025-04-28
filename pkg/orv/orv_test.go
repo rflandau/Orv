@@ -21,8 +21,8 @@ import (
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64) {
-	resp := api.Post(orv.EP_HELLO,
+func makeHelloRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64) (resp *httptest.ResponseRecorder) {
+	resp = targetAPI.Post(orv.EP_HELLO,
 		"Packet-Type: "+orv.PT_HELLO,
 		orv.HelloReq{
 			Body: struct {
@@ -31,14 +31,15 @@ func makeHelloRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id u
 				Id: id,
 			}}.Body)
 	if resp.Code != expectedCode {
-		t.Fatal("valid hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
 	}
+	return resp
 }
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
-	resp = api.Post(orv.EP_JOIN,
+func makeJoinRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+	resp = targetAPI.Post(orv.EP_JOIN,
 		"Packet-Type: "+orv.PT_JOIN,
 		orv.JoinReq{
 			Body: struct {
@@ -54,7 +55,7 @@ func makeJoinRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id ui
 			},
 		}.Body)
 	if resp.Code != expectedCode {
-		t.Fatal("valid join request failed: " + ErrBadResponseCode(resp.Code, expectedCode))
+		t.Fatal("join request failed: " + ErrBadResponseCode(resp.Code, expectedCode) + "\n" + resp.Body.String())
 	}
 
 	return resp
@@ -245,6 +246,85 @@ func TestMultiLeafMultiService(t *testing.T) {
 	makeHelloRequest(t, api, 200, 7)
 	makeJoinRequest(t, api, 200, 7, 0, "", false)
 	makeRegisterRequest(t, api, 200, 1, "Broken Laptop service - Honestly, nothing you can do about it", vkAddr, time.Second)
+
+}
+
+// Tests that we can compose LeafA --> VKA --> VKB <-- LeafB, with all working heartbeats and a bubble-up list request.
+func TestHopList(t *testing.T) {
+	// spawn the test api
+	slt := SuppressedLogTest{t}
+	// spawn the huma test API
+	_, apiA := humatest.New(slt)
+	_, apiB := humatest.New(slt)
+
+	vkAAddr, err := netip.ParseAddrPort("[::1]:8090")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vkBAddr, err := netip.ParseAddrPort("[::1]:9000")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vkA, err := orv.NewVaultKeeper(1, vkAAddr, orv.SetHumaAPI(apiA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vkA.Terminate)
+	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1), orv.SetHumaAPI(apiB))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vkB.Terminate)
+	// Join A under B
+	t.Log(makeHelloRequest(t, apiB, 200, vkA.ID()))
+	t.Log(makeJoinRequest(t, apiB, 202, vkA.ID(), vkA.Height(), vkAAddr.String(), true))
+
+	// start to send heartbeats A --> B
+	aHBDone, aHBErr := sendVKHeartbeats(apiB, 1*time.Second, vkA.ID())
+
+	time.Sleep(7 * time.Second)
+
+	close(aHBDone)
+
+	// TODO query the VK directly for a list of its children
+
+	select {
+	case e := <-aHBErr:
+		// an error occurred in the heartbeater
+		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
+	default:
+		// the heartbeater worked as intended
+	}
+
+}
+
+// Send VK heartbeats (every sleep duration) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
+// The caller must close the done channel
+func sendVKHeartbeats(targetAPI humatest.TestAPI, sleep time.Duration, cID uint64) (done chan bool, errResp chan *httptest.ResponseRecorder) {
+	// create the channel
+	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(sleep):
+				// submit a heartbeat
+				resp := targetAPI.Post(orv.EP_VK_HEARTBEAT, map[string]any{
+					"id": cID,
+				})
+				if resp.Code != 200 {
+					errResp <- resp
+					return
+				}
+
+			}
+		}
+	}()
+
+	return
 
 }
 
