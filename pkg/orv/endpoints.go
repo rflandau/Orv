@@ -13,10 +13,10 @@ import (
 type Endpoint = string
 
 const (
-	HELLO    Endpoint = "/hello"
-	STATUS   Endpoint = "/status"
-	JOIN     Endpoint = "/join"
-	REGISTER Endpoint = "/register"
+	EP_HELLO    Endpoint = "/hello"
+	EP_STATUS   Endpoint = "/status"
+	EP_JOIN     Endpoint = "/join"
+	EP_REGISTER Endpoint = "/register"
 )
 
 // Generates endpoint handling on the given api instance.
@@ -25,38 +25,38 @@ const (
 func (vk *VaultKeeper) buildEndpoints() {
 	// Handle POST requests on /hello
 	huma.Register(vk.endpoint.api, huma.Operation{
-		OperationID:   HELLO[1:],
+		OperationID:   EP_HELLO[1:],
 		Method:        http.MethodPost,
-		Path:          HELLO,
-		Summary:       HELLO[1:],
+		Path:          EP_HELLO,
+		Summary:       EP_HELLO[1:],
 		DefaultStatus: http.StatusOK,
 	}, vk.handleHello)
 
 	// Handle GET requests on /status
 	huma.Register(vk.endpoint.api, huma.Operation{
-		OperationID:   STATUS[1:],
+		OperationID:   EP_STATUS[1:],
 		Method:        http.MethodGet,
-		Path:          STATUS,
-		Summary:       STATUS[1:],
+		Path:          EP_STATUS,
+		Summary:       EP_STATUS[1:],
 		Tags:          []string{"meta"},
 		DefaultStatus: http.StatusOK,
 	}, vk.handleStatus)
 
 	// handle POST requests on /join
 	huma.Register(vk.endpoint.api, huma.Operation{
-		OperationID:   JOIN[1:],
+		OperationID:   EP_JOIN[1:],
 		Method:        http.MethodPost,
-		Path:          JOIN,
-		Summary:       JOIN[1:],
+		Path:          EP_JOIN,
+		Summary:       EP_JOIN[1:],
 		DefaultStatus: http.StatusAccepted,
 	}, vk.handleJoin)
 
 	// handle POST requests on /register
 	huma.Register(vk.endpoint.api, huma.Operation{
-		OperationID:   REGISTER[1:],
+		OperationID:   EP_REGISTER[1:],
 		Method:        http.MethodPost,
-		Path:          REGISTER,
-		Summary:       REGISTER[1:],
+		Path:          EP_REGISTER,
+		Summary:       EP_REGISTER[1:],
 		DefaultStatus: http.StatusAccepted,
 	}, vk.handleRegister)
 }

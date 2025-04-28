@@ -72,7 +72,7 @@ func TestEndpointArgs(t *testing.T) {
 	time.Sleep(1 * time.Second) // give the VK time to start up
 
 	// submit a valid HELLO
-	respStatus, resp, err := getResponse("[::1]", 8080, orv.HELLO, struct {
+	respStatus, resp, err := getResponse("[::1]", 8080, orv.EP_HELLO, struct {
 		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 	}{Id: 2})
 	if err != nil || resp == nil || respStatus != 200 {
@@ -540,7 +540,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	// issue a status request after a brief start up window
 	time.Sleep(1 * time.Second)
 	{
-		resp := api.Get(orv.STATUS)
+		resp := api.Get(orv.EP_STATUS)
 		if resp.Code != 200 {
 			t.Fatal("valid status request failed: " + ErrBadResponseCode(resp.Code, 200))
 		}
@@ -566,7 +566,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	}
 
 	// send a HELLO from leafA
-	resp := api.Post(orv.HELLO, map[string]any{
+	resp := api.Post(orv.EP_HELLO, map[string]any{
 		"id": leafA.id,
 	})
 	if resp.Code != 200 {
@@ -579,7 +579,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 			Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 		}{Id: 3},
 	}
-	api.Post(orv.HELLO,
+	api.Post(orv.EP_HELLO,
 		"Packet-Type: "+orv.PT_HELLO,
 		req.Body)
 
