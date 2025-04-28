@@ -1,5 +1,15 @@
 package orv
 
+/*
+This file revolves around the handling of child node information for a vk.
+The children struct manages two hashtables, one for leaves and one for child VKs, and is responsible for spinning up self-destructing service timers (the prune timers).
+The leaf table maps each leaf cID to a map of the services it offers and their prune timers.
+The cVK table maps each cVK cID to the child's prune timer, address, and the services it has bubbled up.
+For efficiency's sake, it also maintains a third hashtable of services which carries redundant data from the leaves and VKs, but provides constant time access for service requests.
+
+The struct manages its own, coarse-grained locking, which it acquires for all operations.
+*/
+
 import (
 	"errors"
 	"fmt"
@@ -45,8 +55,8 @@ type childVK struct {
 	// uses children.cvkPruneTime.
 	// If the timer is allowed to fire, it will prune this child and all services it provides
 	pruneTimer *time.Timer
-	services   map[serviceName]bool // what services are available via this child's branch? Hashset; value is unused
-	addr       netip.AddrPort       // how do we reach this child? Only used for INCRs
+	services   map[serviceName]netip.AddrPort // service -> downstream leaf's given ip:port for this service
+	addr       netip.AddrPort                 // how do we reach this child? Only used for INCRs
 }
 
 // Returns a ready-to-use children struct with the top level maps initialized.
@@ -168,7 +178,7 @@ func (c *children) addVK(cID childID, addr netip.AddrPort) (wasVK, wasLeaf bool)
 
 				},
 			),
-			services: make(map[serviceName]bool),
+			services: make(map[serviceName]netip.AddrPort),
 			addr:     addr}
 	}
 
@@ -177,9 +187,10 @@ func (c *children) addVK(cID childID, addr netip.AddrPort) (wasVK, wasLeaf bool)
 }
 
 // Adds a new service under the given child.
-// If the service already exists as a leaf, it will take the new stale time.
+// staleTime is only used if cID resolves to a leaf. If this service already exists under a leaf, the service will take on the new staleTime iff it is valid.
 // Does not echo the REGISTER up the tree; expects the caller to do so.
-func (c *children) addService(cID childID, svc serviceName, addr netip.AddrPort, staleTime time.Duration) error {
+// Assumes all parameters (other than staleTime) have already been validated.
+func (c *children) addService(cID childID, svcName serviceName, addr netip.AddrPort, staleTimeStr string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var (
@@ -188,12 +199,12 @@ func (c *children) addService(cID childID, svc serviceName, addr netip.AddrPort,
 	)
 	// identify what kind of child to associate the service under
 	if _, exists := c.leaves[cID]; exists {
-		_, err = c.addServiceToLeaf(cID, svc, addr, staleTime)
+		_, err = c.addServiceToLeaf(cID, svcName, addr, staleTimeStr)
 		if err != nil {
 			return err
 		}
 	} else if _, exists := c.vks[cID]; exists {
-		_, err = c.addServiceToVK(cID, svc)
+		_, err = c.addServiceToVK(cID, svcName, addr)
 		if err != nil {
 			return err
 		}
@@ -203,37 +214,35 @@ func (c *children) addService(cID childID, svc serviceName, addr netip.AddrPort,
 	}
 
 	// add this node as a provider of the service
-	if providers, exists := c.services[svc]; exists {
-		// check if it already exists
-		for i, p := range providers {
+	if providers, exists := c.services[svcName]; exists { // this is an existing service
+		for i, p := range providers { // see if this child is already known to provide this service
 			if p.cID == cID {
 				c.log.Debug().
 					Uint64("child ID", cID).
-					Str("service", svc).
+					Str("service", svcName).
 					Str("old address", p.addr.String()).
 					Str("new address", addr.String()).
 					Msgf("service is already known to be provided by the child. Updating address...")
 				// this service is already associated to the child
 				// update the address
-				c.services[svc][i].addr = addr
+				c.services[svcName][i].addr = addr
 				return nil
 			}
 		}
-		c.log.Debug().
-			Uint64("child ID", cID).
-			Str("service", svc).
-			Str("address", addr.String()).
-			Msgf("registering new service provider")
 		// if we made it this far, then the child is not a known provider of the service
 		// add it
-		c.services[svc] = append(c.services[svc], struct {
+		c.log.Debug().
+			Uint64("child ID", cID).
+			Str("service", svcName).
+			Str("address", addr.String()).
+			Msgf("registering new service provider")
+		c.services[svcName] = append(c.services[svcName], struct {
 			cID  childID
 			addr netip.AddrPort
 		}{cID, addr})
-	} else {
-		c.log.Info().Uint64("provider", cID).Str("service", svc).Msg("adding new service to list of services")
-		// this is a totally new service
-		c.services[svc] = []struct {
+	} else { // this is a totally new service
+		c.log.Info().Uint64("provider", cID).Str("service", svcName).Msg("adding new service to list of services")
+		c.services[svcName] = []struct {
 			cID  childID
 			addr netip.AddrPort
 		}{
@@ -246,20 +255,19 @@ func (c *children) addService(cID childID, svc serviceName, addr netip.AddrPort,
 }
 
 // Helper function for addService() once it figures out that the new service should belong to a leaf.
-// Adds the service under the leaf. Does not associate this leaf as a provider of the service.
+// Adds the service under the leaf. Does not associate this VK as a provider of the service.
+// Assumes cID, svc, and ap have already been validated.
+// staleTime must resolve to a valid time.Duration iff this is a new service.
 // Assumes the caller already owns the child lock.
 // Returns true if it is a new service.
-func (c *children) addServiceToLeaf(cID childID, svc serviceName, addr netip.AddrPort, staleTime time.Duration) (newService bool, err error) {
+func (c *children) addServiceToLeaf(cID childID, svc serviceName, ap netip.AddrPort, staleTimeStr string) (newService bool, err error) {
 	leaf, exists := c.leaves[cID]
 	if !exists {
 		return false, fmt.Errorf("did not find a leaf associated to id %d", cID)
 	}
-	// validate parameters
-	if staleTime <= 0 {
-		return false, errors.New("stale time must be a valid Go time greater than 0")
-	} else if !addr.IsValid() {
-		return false, ErrBadAddr(addr)
-	}
+
+	// pre-prepare stale time
+	staleTime, staleTimeErr := time.ParseDuration(staleTimeStr)
 
 	// if the service already exists, stop the current timer and allow the service to be replaced with the new info
 	if svcInfo, exists := leaf[svc]; exists {
@@ -267,10 +275,15 @@ func (c *children) addServiceToLeaf(cID childID, svc serviceName, addr netip.Add
 			Uint64("child", cID).
 			Str("service", svc).
 			Dur("old stale time", svcInfo.staleTime).
-			Dur("new stale time", staleTime).
+			Str("potential new stale time", staleTimeStr).
+			AnErr("stale time parse error", staleTimeErr).
 			Msg("re-REGISTERing service")
 		svcInfo.pruneTimer.Stop()
 		newService = false
+		// if given staleTime is invalid, use the existing stale time
+		if staleTimeErr != nil {
+			staleTime = svcInfo.staleTime
+		}
 	} else {
 		c.log.Debug().
 			Uint64("child", cID).
@@ -278,7 +291,12 @@ func (c *children) addServiceToLeaf(cID childID, svc serviceName, addr netip.Add
 			Dur("stale time", staleTime).
 			Msg("REGISTERing new service")
 		newService = true
+		// stale time must be valid
+		if staleTimeErr != nil {
+			return true, errors.New("stale must resolve to a valid Go duration when registering a new service (given " + staleTimeStr + "). Error: " + staleTimeErr.Error())
+		}
 	}
+
 	// associate the service to this leaf
 	c.leaves[cID][svc] = leafService{
 		// associate a function to destruct the service if this timer ever fires
@@ -306,17 +324,20 @@ func (c *children) addServiceToLeaf(cID childID, svc serviceName, addr netip.Add
 			}
 		}),
 		staleTime: staleTime,
-		addr:      addr,
+		addr:      ap,
 	}
+
 	return newService, nil
 }
 
 // Helper function for addService() once it figures out that the new service should belong to a cVK.
 // Adds the service under the cVK if we do not already know about it. Does not associate this VK as a provider of the service.
 // Also refreshes the heartbeat timer for this cVK.
+// Assumes cID, svc, and ap have already been validated.
+// ap should be the address of the leaf that offers this service, which should have been passed up by downstream VKs.
 // Assumes the caller already owns the child lock.
 // Returns true if it is a new service.
-func (c *children) addServiceToVK(cID childID, svc serviceName) (newService bool, err error) {
+func (c *children) addServiceToVK(cID childID, svc serviceName, ap netip.AddrPort) (newService bool, err error) {
 	cvk, exists := c.vks[cID]
 	if !exists {
 		return false, fmt.Errorf("did not find a child VK associated to id %d", cID)
@@ -340,7 +361,7 @@ func (c *children) addServiceToVK(cID childID, svc serviceName) (newService bool
 		Str("service", svc).
 		Msg("REGISTERed new service")
 	// new service for this cVK
-	c.vks[cID].services[svc] = true
+	c.vks[cID].services[svc] = ap
 	return true, nil
 }
 
