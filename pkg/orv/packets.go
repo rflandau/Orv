@@ -19,11 +19,13 @@ const (
 
 const (
 	// Sent by a leaf to refresh the lifetimes of all services named in the HB.
-	PT_SERVICE_HEARTBEAT     PacketType = "SERVICE_HEARTBEAT"
-	PT_SERVICE_HEARTBEAT_ACK PacketType = "SERVICE_HEARTBEAT_ACK"
+	PT_SERVICE_HEARTBEAT       PacketType = "SERVICE_HEARTBEAT"
+	PT_SERVICE_HEARTBEAT_ACK   PacketType = "SERVICE_HEARTBEAT_ACK"
+	PT_SERVICE_HEARTBEAT_FAULT PacketType = "SERVICE_HEARTBEAT_FAULT"
 	// Sent by a child VK to refresh the time until it is considered dead.
-	PT_VK_HEARTBEAT     PacketType = "VK_HEARTBEAT"
-	PT_VK_HEARTBEAT_ACK PacketType = "VK_HEARTBEAT_ACK"
+	PT_VK_HEARTBEAT       PacketType = "VK_HEARTBEAT"
+	PT_VK_HEARTBEAT_ACK   PacketType = "VK_HEARTBEAT_ACK"
+	PT_VK_HEARTBEAT_FAULT PacketType = "VK_HEARTBEAT_FAULT"
 )
 
 // special commands that do not necessarily need to follow a HELLO
