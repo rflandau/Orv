@@ -120,7 +120,7 @@ type HelloResp struct {
 // Handle requests against the HELLO endpoint
 func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloResp, error) {
 	// validate their ID
-	if req.Body.Id == 0 {
+	if req.Body.Id == 0 || req.Body.Id == vk.id {
 		return nil, HErrBadID(req.Body.Id, PT_HELLO_ACK)
 	}
 
@@ -243,7 +243,7 @@ type JoinAcceptResp struct {
 func (vk *VaultKeeper) handleJoin(ctx context.Context, req *JoinReq) (*JoinAcceptResp, error) {
 	// validate parameters
 	var cid uint64 = req.Body.Id
-	if cid == 0 {
+	if cid == 0 || cid == vk.id {
 		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
 	}
 
@@ -333,7 +333,7 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 		staleStr string = strings.TrimSpace(req.Body.Stale)
 	)
 	// validate parameters other than Stale
-	if cid == 0 {
+	if cid == 0 || cid == vk.id {
 		return nil, HErrBadID(req.Body.Id, PT_REGISTER_DENY)
 	} else if sn == "" {
 		return nil, HErrBadServiceName(sn, PT_REGISTER_DENY)

@@ -40,7 +40,7 @@ const hdrPkt_t string = "Pkt-Type"
 // id is not 0 < id <= max(uint64)
 func HErrBadID(id uint64, pkt_t PacketType) error {
 	return huma.ErrorWithHeaders(
-		huma.Error400BadRequest(fmt.Sprintf("id (%d) must be 0 < x <= max(uint64)", id)),
+		huma.Error400BadRequest(fmt.Sprintf("id (%d) must be 0 < x <= max(uint64) and not equal to the VK's ID", id)),
 		http.Header{
 			hdrPkt_t: {pkt_t},
 		})
