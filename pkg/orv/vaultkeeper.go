@@ -130,7 +130,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		endpoint: struct {
 			api  huma.API
 			mux  *http.ServeMux
-			http http.Server // TODO populate with new server
+			http http.Server
 		}{
 			mux: http.NewServeMux(),
 		},
@@ -257,7 +257,7 @@ func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
 	// iterate through your children
 	for cid, srvMap := range vk.children.leaves { // leaves
 		a := zerolog.Arr()
-		for sn, _ := range srvMap {
+		for sn := range srvMap {
 			a.Str(sn)
 		}
 
@@ -266,7 +266,7 @@ func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
 
 	for cid, v := range vk.children.vks { // child VKs
 		a := zerolog.Arr()
-		for sn, _ := range v.services {
+		for sn := range v.services {
 			a.Str(sn)
 		}
 
