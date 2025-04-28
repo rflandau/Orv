@@ -8,12 +8,9 @@ import (
 	"net/http"
 	"net/netip"
 	"network-bois-orv/pkg/orv"
-	"os"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/rs/zerolog"
 )
 
 func getResponse(ip string, port int, endpoint string, data any) (int, []byte, error) {
@@ -43,67 +40,46 @@ func getResponse(ip string, port int, endpoint string, data any) (int, []byte, e
 // Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
 // A la ClientArgs in lab3.
 func TestEndpointArgs(t *testing.T) {
-
-	go func() {
-		addr, err := netip.ParseAddrPort("[::1]:8080")
-		// error check
-		if err != nil {
-			t.Fatal("URL is not reachable -", err)
-		}
-
-		// spin up vk
-		var vkid uint64 = 1
-
-		vk, err := orv.NewVaultKeeper(vkid,
-			zerolog.New(zerolog.ConsoleWriter{
-				Out:         os.Stdout,
-				FieldsOrder: []string{"vkid"},
-				TimeFormat:  "15:04:05",
-			}).With().
-				Uint64("vk", vkid).
-				Timestamp().
-				Caller().
-				Logger().Level(zerolog.DebugLevel),
-			addr,
-		)
-
-		// error check
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = vk.Start()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	time.Sleep(2 * time.Second)
-
-	hello_req := orv.HelloReq{}
-	hello_req.Body.Id = 2
-
-	status_code, resp, err := getResponse("[::1]", 8080, "/hello", hello_req)
+	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
-		t.Fatal("hello failed:", err)
+		t.Fatal(err)
+	}
+
+	// spin up vk
+	var vkid uint64 = 1
+	vk, err := orv.NewVaultKeeper(vkid, vkAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(1 * time.Second) // give the VK time to start up
+
+	respStatus, resp, err := getResponse("[::1]", 8080, orv.HELLO, orv.HelloReq{Body: struct {
+		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+	}{Id: 2}})
+	if err != nil {
+		t.Fatalf("valid hello failed (code: %d, err: %v)", respStatus, err)
 	}
 	if resp == nil {
 		t.Fatal("hello response failed:", resp)
 	}
-	fmt.Println("hello response:", resp)
+	t.Log("hello response:", resp)
 
 	join_req := orv.JoinReq{}
 	join_req.Body.Id = 2
 	join_req.Body.Height = 5
 
-	status_code, resp, err = getResponse("[::1]", 8080, "/join", join_req)
+	respStatus, resp, err = getResponse("[::1]", 8080, "/join", join_req)
 	if err != nil {
 		t.Fatal("join failed:", err)
 	}
 	if resp == nil {
 		t.Fatal("join response failed:", resp)
 	}
-	fmt.Println("join response:", status_code)
+	fmt.Println("join response:", respStatus)
 
 	fmt.Println("Ok")
 
@@ -532,15 +508,7 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	// spawn a VK
-	vk, err := orv.NewVaultKeeper(1, zerolog.New(zerolog.ConsoleWriter{
-		Out:         os.Stdout,
-		FieldsOrder: []string{"vkid"},
-		TimeFormat:  "15:04:05",
-	}).With().
-		Uint64("vk", 1).
-		Timestamp().
-		Caller().
-		Logger().Level(zerolog.DebugLevel), vkAddr)
+	vk, err := orv.NewVaultKeeper(1, vkAddr)
 	if err != nil {
 		t.Fatal("failed to construct VK: ", err)
 	}
@@ -551,7 +519,6 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	t.Cleanup(vk.Terminate)
 
 	// issue a status request after a brief start up window
-
 	time.Sleep(1 * time.Second)
 
 	// TODO
