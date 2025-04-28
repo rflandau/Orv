@@ -180,7 +180,7 @@ func TestEndpointArgs(t *testing.T) {
 	makeHelloRequest(t, api, 200, 2)
 
 	// submit a valid JOIN
-	makeJoinRequest(t, api, 200, 2, 0, "", false)
+	makeJoinRequest(t, api, 202, 2, 0, "", false)
 
 	// submit a HELLO with an invalid ID
 	makeHelloRequest(t, api, 400, 0)
@@ -202,7 +202,7 @@ func TestEndpointArgs(t *testing.T) {
 
 	// submit a valid REGISTER for vk
 	makeHelloRequest(t, api, 4, 100)
-	makeJoinRequest(t, api, 200, 4, 1, "", true)
+	makeJoinRequest(t, api, 202, 4, 1, "", true)
 	makeRegisterRequest(t, api, 4, 100, "Horrible Coffee Maker", vkAddr, time.Second)
 
 	// submit a valid REGISTER for vk and check if multiple services are allowed
@@ -241,13 +241,12 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 	makeHelloRequest(t, api, 200, 6)
 	makeJoinRequest(t, api, 200, 6, 0, "", false)
-	makeRegisterRequest(t, api, 200, 1, "Horrible Coffee Maker", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 1, "CMU Cycle stand Manager - too many unaccounted cycles", vkAddr, time.Second)
 
 	makeHelloRequest(t, api, 200, 7)
 	makeJoinRequest(t, api, 200, 7, 0, "", false)
-	makeRegisterRequest(t, api, 200, 1, "Horrible Coffee Maker", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 1, "Broken Laptop service - Honestly, nothing you can do about it", vkAddr, time.Second)
 
-	t.Fatal("NYI")
 }
 
 // Tests that we can compose LeafA --> VKA --> VKB <-- LeafB, with all working heartbeats and a bubble-up list request.
