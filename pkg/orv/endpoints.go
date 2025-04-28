@@ -325,11 +325,19 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 		})
 	}
 
-	// TODO build accept response
-	resp := &RegisterAcceptResp{}
+	resp := &RegisterAcceptResp{
+		PktType: PT_REGISTER_ACCEPT,
+		Body: struct {
+			Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+		}{
+			vk.id,
+			sn,
+		},
+	}
 
 	if !vk.isRoot() {
-		// TODO propagate the request up the tree
+		// TODO asynchronously propagate the request up the tree
 	}
 
 	return resp, nil
