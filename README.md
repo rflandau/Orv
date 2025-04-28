@@ -59,7 +59,7 @@ A multi-level vault will naturally begin to resemble a distributed cloud archite
 - Nodes are cooperative
     - Like Raft, we are assuming that all peers are cooperative. This causes some cognitive dissonance with it being decentralized, but life goes on.
 - Discovery is extrinsic 
-    - While we have mechanisms for handling joins, we do not have a mechanism for node discovery, but assume one is available. In a full implementation, this would likely be served by locally broadcasting HELLO.
+    - While we have mechanisms for handling joins, we do not have a mechanism for node discovery, but assume one is available. See [below](#extrinsic-neighbournode-discovery) for the rationale.
 - Low-powered leaves
     - As we want to support IoT networks, we must assume that the leaves are low-powered and therefore should have minimal requirements. They cannot be assumed to be always listening, always accessible, or even terribly reliable.
 - Powered vault keepers
@@ -227,6 +227,18 @@ This function would also allow multiple trees to share services without merging,
 # Other Design Decisions
 
 This section details design trade-offs we considered as part of developing Orv. Some sections provide supporting thought for our design patterns while others consider valid, alternative approaches/ways to tweak Orv to suit different needs.
+
+## Extrinsic Neighbour/Node Discovery
+
+Orv assumes that a mechanism exists for nodes to find each other, but makes no assumptions about the mechanism or the network that services it. This is because neighbour discovery is a problem well-explored in the networking world and solutions are highly dependent on the problem space.
+
+Some examples:
+
+1. An IoT implementation likely finds nodes via physical proximity, broadcasting HELLOs and seeing who in range has a sensitive enough Rx.
+2. Intra-net/corporate implementations can likely hijack the neighbour discovery of lower layers or broadcast over the VPS/VPN (a logical broadcast rather than IoT's physical broadcast).
+3. A truly decentralized implementation of Orv, think Bittorrent, cannot make any use of broadcasting. In this case, an external provider (like Bittorrent's tracker files) would be necessary for new nodes to discovery entry points to their desired vault.
+
+For us to assume anything about this discovery mechanism would be to make assumptions about the use-case of Orv and potentially bloat the protocol.
 
 ## Layer 5 vs Layer 4
 
