@@ -15,6 +15,24 @@ import (
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
+// Humatest is quite verbose by default and has no native way to suppress its logging.
+// To keep the tests readable (while still gaining the functionality of humatest), we wrap the test handler and give it no-op logging.
+// This way, humatest's native output is suppressed, but we can still utilize all the normal features of the test handler
+// (using the unwrapped version).
+type SuppressedLogTest struct {
+	*testing.T
+}
+
+// no-op wrapper
+func (tb SuppressedLogTest) Log(args ...any) {
+	// no-op
+}
+
+// no-op wrapper
+func (tb SuppressedLogTest) Logf(format string, args ...any) {
+	// no-op
+}
+
 //#region testing error messages
 
 func ErrBadResponseCode(got, expected int) string {
@@ -519,8 +537,9 @@ func TestMultiLeafMultiService(t *testing.T) {
 //
 // By the end, the VK should have a single child (leaf B) and a single service (leaf B's service that is still sending heartbeats).
 func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
+	slt := SuppressedLogTest{t}
 	// spawn the huma test API
-	_, api := humatest.New(t)
+	_, api := humatest.New(slt)
 
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
