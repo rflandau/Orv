@@ -17,7 +17,21 @@ import (
 	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
-//#region request helper functions
+//#region request helper functions and structs
+
+const (
+	HelloSuccessCode    int = 200
+	JoinSuccessCode     int = 202
+	RegisterSuccessCode int = 202
+)
+
+type leaf struct {
+	id       uint64
+	services map[string]struct {
+		addr  string
+		stale string
+	}
+}
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
