@@ -228,17 +228,35 @@ This function would also allow multiple trees to share services without merging,
 
 This section details design trade-offs we considered as part of developing Orv. Some sections provide supporting thought for our design patterns while others consider valid, alternative approaches/ways to tweak Orv to suit different needs.
 
-## Layer 5 vs Layer 4 (vs Layer 3?!?)
+## Layer 5 vs Layer 4
 
 The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a ...
 
-You could probably even construct this to operate at Layer 3, but then the assumption that the there exists a way to get the response to the requester directly falls apart and would have to be accounted for.
+A layer 3 implementation of Orv would requires some changes to how VKs store information and answer requests; see the option for [VK hop tables](#vk-hop-tables-and-removing-route-omnipotence).
 
 ### Sequence Numbers
 
 Orv would likely benefit from sequence numbers. However, coordinating sequence numbers within a node will take some fine-grain efforts as we cannot assume that a single child has a single sequence number. If we did, multiple services on that child would have to coordinate the seqNum, which is unacceptable.
 
 For the prototype, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
+
+## VK Hop Tables and Removing Route Omnipotence
+
+Our original design did not include VKs knowing the service addresses of grandchild and below leaves; they only knew the next hop for a given service.
+
+Take the following diagram as an example:
+
+```mermaid
+flowchart BT
+    LeafB(LeafB<br>ServiceB) -->|"ServiceB via<br>[11::22:33]:80"| B((B)) -->|ServiceB via B| A((A))
+    LeafA(LeafA<br>ServiceA) -->|"ServiceA via<br>[44::5:AB]:22"| A
+
+```
+
+A knows how to access Service A directly and can respond to requests with LeafA's service address. In our current model, A would also know the address to Service B, so a request that reaches route can respond immediately. Our original design did not support this and, per the diagram, A would need to route a request for Service B down to VK, which would know the service's actual address.
+
+This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated incorporating [Rivered VaultKeepers](#rivering-vaultkeepers).
+
 
 ## Depth-less Hierarchy and Cycles
 
@@ -260,12 +278,17 @@ The current design disallows this due to the cost of echoing an INCR down the tr
 
 Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height.
 
+## Token buckets, request fairness, and supernodes
+
+While not an avenue we explored much, Orv could be tweaked to encourage request servicing by associating nodes to token buckets. Leaves are awarded tokens when one of their services is requested. Tokens are spent when a leaf makes a request, depositing a small fraction of the token at each hop (thereby rewarding VKs for ferrying requests). To discourage nodes from dropping requests, we would likely need parent VKs to be responsible for assigning and revoking the token rewards of its children, which adds another potential "trickle-down" in our "bubble-up" paradigm.
+
+This, of course, hinges on the assumption that nodes can be uniquely identified and reliably authenticated, lest a leecher be able to masquerade as a supernode.
+
 ## A note on security and PKI
 
 One of our core assumptions is cooperation. This, of course, is not in any way realistic.
 
 A side effect of this protocol is the ability to act as a second source of truth. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
-
 
 # The Prototype 
 
