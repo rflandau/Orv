@@ -13,10 +13,12 @@ import (
 type Endpoint = string
 
 const (
-	EP_HELLO    Endpoint = "/hello"
-	EP_STATUS   Endpoint = "/status"
-	EP_JOIN     Endpoint = "/join"
-	EP_REGISTER Endpoint = "/register"
+	EP_HELLO             Endpoint = "/hello"
+	EP_STATUS            Endpoint = "/status"
+	EP_JOIN              Endpoint = "/join"
+	EP_REGISTER          Endpoint = "/register"
+	EP_VK_HEARTBEAT      Endpoint = "/vk-heartbeat"
+	EP_SERVICE_HEARTBEAT Endpoint = "/service-heartbeat"
 )
 
 // Generates endpoint handling on the given api instance.
@@ -59,6 +61,15 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Summary:       EP_REGISTER[1:],
 		DefaultStatus: http.StatusAccepted,
 	}, vk.handleRegister)
+
+	// handle heartbeats for child VKs
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   EP_VK_HEARTBEAT[1:],
+		Method:        http.MethodPost,
+		Path:          EP_VK_HEARTBEAT,
+		Summary:       EP_VK_HEARTBEAT[1:],
+		DefaultStatus: http.StatusOK,
+	}, vk.handleVKHeartbeat)
 }
 
 //#region HELLO
@@ -288,7 +299,7 @@ type RegisterAcceptResp struct {
 	}
 }
 
-// Handle requests against the JOIN endpoint
+// Handle requests against the REGISTER endpoint
 func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*RegisterAcceptResp, error) {
 	var (
 		err      error
@@ -324,4 +335,30 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 	return resp, nil
 }
 
-//#endregion JOIN
+//#endregion
+
+//#region VK_HEARTBEAT
+
+// Request for /register.
+// Used by nodes to tell their parent about a new service.
+type VKHeartbeatReq struct {
+	PktType PacketType `header:"Packet-Type"` // VK_HEARTBEAT
+	Body    struct {
+		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+	}
+}
+
+// Response for /register.
+type VKHeartbeatAck struct {
+	PktType PacketType `header:"Packet-Type"` // SERVICE_HEARTBEAT_ACK
+	Body    struct {
+		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the child VK being refreshed"`
+	}
+}
+
+// Handle requests against the REGISTER endpoint
+func (vk *VaultKeeper) handleVKHeartbeat(_ context.Context, req *VKHeartbeatReq) (*VKHeartbeatAck, error) {
+	resp := &VKHeartbeatAck{}
+	// TODO
+	return resp, nil
+}
