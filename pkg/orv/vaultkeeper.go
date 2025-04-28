@@ -240,7 +240,7 @@ func (vk *VaultKeeper) Terminate() {
 }
 
 func (vk *VaultKeeper) isRoot() bool {
-	return vk.parent.id != 0
+	return vk.parent.id == 0
 }
 
 // Used to register a new service that this VK offers locally.
