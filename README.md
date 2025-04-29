@@ -121,7 +121,7 @@ JOINs have two forms:
 
 ### Merging (Root-Root joins)
 
-When two root VKs meet, they can join vaults by performing a MERGE. The VK who requested the merge (sent the original MERGE) packet, becomes the root of the new, conjoined vault. Once a VK receives the MERGE_ACCEPT, it can safely assume that it has acquired root status. It then sends INCR down to its original child VKs (not down the branch of the recently merged VK!), to notify them that that their heights have increased by one step. *This represents the only instance of messages being sent **down** a vault*. 
+When two root VKs meet, they can join vaults by performing a MERGE. The VK who requested the merge (sent the original MERGE) packet, becomes the root of the new, conjoined vault. Once a VK receives the MERGE_ACCEPT, it can safely assume that it has acquired root status. It then sends INCREMENT down to its original child VKs (not down the branch of the recently merged VK!), to notify them that that their heights have increased by one step. *This represents the only instance of messages being sent **down** a vault*. 
 
 Without a dragon's hoard (below), MERGEs are the only way for a VK (and thus, a vault) to increase its height.
 
@@ -135,7 +135,7 @@ sequenceDiagram
     Node->>+VaultKeeper: MERGE{Id:123, Height:3}
     VaultKeeper->>-Node: MERGE_ACCEPT{Id:456}
     Node->>Node: increment height
-    Node-->>Children: INCR{Id:123}
+    Node-->>Children: INCREMENT{Id:123}
 ```
 
 Form: `MERGE{id:123, height:2}`
@@ -251,7 +251,7 @@ Rivered VKs are VKs that duplicate information across one another. This allows a
 
 Rivered VKs do not query each other like children do of their parents; instead, they gossip information back and forth and act as if information from a paired node is always up to date (we cannot allow querying as it could create cycles and count-to-infinite problems). Recurrent heartbeats keep pairs up to date with one another, allowing them to know about services offered by their pairs' children without querying their root.
 
-This function would also allow multiple trees to share services without merging, easing the cost of sending INCRs down a heavily populated branch.
+This function would also allow multiple trees to share services without merging, easing the cost of sending INCREMENTs down a heavily populated branch.
 
 > [!WARNING]
 > This idea should be further explored prior to implementation.
@@ -333,7 +333,7 @@ Using depth would require nodes to echo down the tree to notify their children o
 
 We considered allowing nodes to request that a root increment its height (thus allowing a child of the same former height to join under it).
 
-The current design disallows this due to the cost of echoing an INCR down the tree; we want to avoid additional instances of this expense. However, other implementations of Orv could allow it to make increasing the tree height easier and thus reduce the impact of the stout tree.
+The current design disallows this due to the cost of echoing an INCREMENT down the tree; we want to avoid additional instances of this expense. However, other implementations of Orv could allow it to make increasing the tree height easier and thus reduce the impact of the stout tree.
 
 #### Lazy Depth/Height Knowledge
 
@@ -380,7 +380,7 @@ API docs can be accessed by running the server application (currently just `go r
 As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper proves Orv's viability, but no more. As such, some features are missing.
 
 - VaultKeeper-Local Services: The library does not support services local to a VK. Part of Orv's intention is allow services to register directly with a VKs on the same host so the VK becomes responsible for its heartbeats. Without this functionality, services must be registered under leaves.
-- [Root-Root Merging](#merging-root-root-joins): The VaultKeeper library does not include handling for the MERGE packet (and has no /merge endpoint to accept them). This means that vaults of equal height cannot join and vaults cannot increase their height after creation. As INCREMENT packets are only triggered by MERGE, they have also been omitted. We grant that this is a substantial feature to be wholly absent, but believe that the prototype proves Orv's viability nonetheless.
+- [Root-Root Merging](#merging-root-root-joins): The VaultKeeper library does not include handling for the MERGE packet (and has no /merge endpoint to accept them). This means that vaults of equal height cannot join and vaults cannot increase their height after creation. As INCREMENTEMENT packets are only triggered by MERGE, they have also been omitted. We grant that this is a substantial feature to be wholly absent, but believe that the prototype proves Orv's viability nonetheless.
 - [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
 - [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
 
