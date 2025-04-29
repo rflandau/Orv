@@ -1,7 +1,11 @@
 package orv
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/netip"
 	"os"
@@ -24,7 +28,7 @@ type (
 const (
 	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 5
 	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 20
-	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 20
+	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 5
 )
 
 //#region types
@@ -237,7 +241,18 @@ func (vk *VaultKeeper) Height() uint16 {
 // Returns the name of each service offered and by whom.
 func (vk *VaultKeeper) ChildrenSnapshot() ChildrenSnapshot {
 	return vk.children.Snapshot()
+}
 
+func (vk *VaultKeeper) Parent() struct {
+	Id   uint64
+	Addr netip.AddrPort
+} {
+	vk.structureRWMu.RLock()
+	defer vk.structureRWMu.RUnlock()
+	return struct {
+		Id   uint64
+		Addr netip.AddrPort
+	}{vk.parent.id, vk.parent.addr}
 }
 
 //#region methods
@@ -266,6 +281,62 @@ func (vk *VaultKeeper) Terminate() {
 
 func (vk *VaultKeeper) isRoot() bool {
 	return vk.parent.id == 0
+}
+
+// Causes the vaultkeeper to attempt to join the VK at the given address.
+// If it succeeds, the VK will alters its current parent to point to the new parent.
+// Expects that the caller already sent HELLO.
+func (vk *VaultKeeper) Join(addrStr string) (err error) {
+	// validate the parent address
+	addr, err := netip.ParseAddrPort(addrStr)
+	if err != nil {
+		return err
+	}
+
+	parentURL := addr.String() + EP_JOIN
+	vk.structureRWMu.Lock()
+	defer vk.structureRWMu.Unlock()
+
+	// construct a request to pass to parent
+	pReq := JoinReq{
+		Body: struct {
+			Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
+			VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
+			IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
+		}{vk.id, vk.height, vk.addr.String(), true},
+	}
+	pReqBytes, err := json.Marshal(pReq.Body)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(parentURL, "application/problem+json", bytes.NewReader(pReqBytes))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != EXPECTED_STATUS_JOIN {
+		return fmt.Errorf("unexpected status code from potential parent (got: %d, expected: %d)", resp.StatusCode, EXPECTED_STATUS_JOIN)
+	}
+
+	// unmarshal response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	var joinResp JoinAcceptResp
+	if err := json.Unmarshal(body, &joinResp.Body); err != nil {
+		return err
+	}
+	if joinResp.Body.Id == 0 {
+		return errors.New("new parent VK returned 0 id")
+	}
+
+	// update parent information
+	vk.parent.id = joinResp.Body.Id
+	vk.parent.addr = addr
+	return nil
 }
 
 // Used to register a new service that this VK offers locally.
