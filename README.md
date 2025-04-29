@@ -26,7 +26,7 @@ Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling networ
 
 *Leaf* (better name pending): A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
 
-*Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This can also be a Raft group or similar, replicated collection of machines. As long as it can service Orv requests, it can be a vk.  
+*Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This could be a Raft group or a similar, replicated collection of machines. It could be a single server. It could be a whole data center. As long as it can service Orv requests atomically, it can be a vk.
 
 *Vault*: A vault is any, complete instance of the algorithm. A single vault keeper with any number of leaves (included 0) is a vault. A tree with 4 layers and hundreds of leaves is a vault. Any tree that supports Orv semantics is a vault.
 
@@ -233,6 +233,14 @@ The request returns to the client as soon as a VK identifies a provider of the s
 
 Form: `GET{hop-count:3, service:"DNS"}`.
 
+#### Blacklisting
+
+**Not Implemented**
+
+To prevent clients from routinely being served the same content (for instance, if a service is heartbeating the vault, not is not properly handling clients), GET requests *should* support blacklisting addressing to force the vault to return a different provider, even if it requires going further up the vault.
+
+The currently protocol does not support this, but a future version would need to to improve usability.
+
 ## "Rivering" VaultKeepers
 
 **Not Implemented**
@@ -263,7 +271,7 @@ Orv assumes that a mechanism exists for nodes to find each other, but makes no a
 
 Some examples:
 
-1. An IoT implementation likely finds nodes via physical proximity, broadcasting HELLOs and seeing who in range has a sensitive enough Rx.
+1. An IoT implementation likely finds nodes via physical proximity, broadcasting greetings (ex: ARP) and seeing who in range has a sensitive enough Rx.
 2. Intra-net/corporate implementations can likely hijack the neighbour discovery of lower layers or broadcast over the VPS/VPN (a logical broadcast rather than IoT's physical broadcast).
 3. A truly decentralized implementation of Orv, think Bittorrent, cannot make any use of broadcasting. In this case, an external provider (like Bittorrent's tracker files) would be necessary for new nodes to discovery entry points to their desired vault.
 
@@ -271,9 +279,9 @@ For us to assume anything about this discovery mechanism would be to make assump
 
 ## Layer 5 vs Layer 4
 
-The prototype is designed as an application layer protocol (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a ...
+The prototype included in this repo is designed as an application layer implementation (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a iterative messages (such as propagating requests up the vault) in a client-server paradigm.
 
-A layer 3 implementation of Orv would requires some changes to how VKs store information and answer requests; see the option for [VK hop tables](#vk-hop-tables-and-removing-route-omnipotence).
+A layer 3 implementation of Orv would requires some changes to how VKs store information and answer requests; see the option for [VK hop tables](#vk-hop-tables-and-removing-root-omnipotence).
 
 ### Sequence Numbers
 
@@ -281,9 +289,13 @@ Orv would likely benefit from sequence numbers. However, coordinating sequence n
 
 For the prototype, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
 
-## VK Hop Tables and Removing Route Omnipotence
+### Versioning via HELLOs
 
-Our original design did not include VKs knowing the service addresses of grandchild and below leaves; they only knew the next hop for a given service.
+To ensure compatibility, HELLOs should be altered to send the highest supported Orv version, allowing nodes to agree on which version to use (a la OpenFlow).
+
+## VK Hop Tables and Removing Root Omnipotence
+
+Our original design did not include VKs knowing the service addresses of grandchild and lower leaves; they only knew the next hop for a given service.
 
 Take the following diagram as an example:
 
@@ -294,30 +306,31 @@ flowchart BT
 
 ```
 
-A knows how to access Service A directly and can respond to requests with LeafA's service address. In our current model, A would also know the address to Service B, so a request that reaches route can respond immediately. Our original design did not support this and, per the diagram, A would need to route a request for Service B down to VK, which would know the service's actual address.
+A knows how to access Service A directly and can respond to requests with LeafA's service address. In our current model, A would also know the address to Service B, so a request that reaches root can respond immediately. Our original design did not support this and, per the diagram, A would need to route a request for Service B down to B, which would know the service's actual address.
 
-This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated incorporating [Rivered VaultKeepers](#rivering-vaultkeepers).
+This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered VaultKeepers](#rivering-vaultkeepers).
 
 
 ## Depth-less Hierarchy and Cycles
 
-The original design allowed for trees of arbitrary height and width, completely self-organizing naturally as machines joined. However, because our routing is only next-hop, this would make cycle detection *really* hard and/or expensive.
+The original design allowed for trees of arbitrary height and width, completely self-organizing naturally as machines joined. However, this makes cycle detection *really* hard to do efficiently. Either nodes must carry a lot more information about their ancestry or we need to echo a message up the tree every time a VK joins and see if it comes back to us (if it does, there is a cycle and the recent join must be dissolved).
 
-Echoing...
+There is a valid design in there somewhere, where the restriction of height numbers no longer applies. However, figuring out the optimal way to handle cycles in a project like that (while still supporting as many use-cases as possible) would be a project in its own right.
 
-## Depth versus Height
+## Depth Versus Height
 
-A key trade-off is whether we measure a node's depth (its distance from the root) or we measure a node's height (its distance from the lowest vk in the vault).
+A key trade-off was whether we measure a node's depth (its distance from the root) or we measure a node's height (its distance from the lowest vk in the vault). We decided to go with height, as it means that network partitions do not cause broadcast storms. When a parent is lost, its children become disconnect, but their heights do not change and the children's children are wholly unaffected.
+Using depth would require nodes to echo down the tree to notify their children of their newly decremented depth.
 
-### Asking to increase the height on vk join
+### Asking To Increase The Height on VK Join
 
 We considered allowing nodes to request that a root increment its height (thus allowing a child of the same former height to join under it).
 
-The current design disallows this due to the cost of echoing an INCR down the tree; we want to avoid additional instances of this expense. However, other implementations of Orv could allow it to make increasing the tree height easier and thus reduce the impact from a stout tree.
+The current design disallows this due to the cost of echoing an INCR down the tree; we want to avoid additional instances of this expense. However, other implementations of Orv could allow it to make increasing the tree height easier and thus reduce the impact of the stout tree.
 
 #### Lazy Depth/Height Knowledge
 
-Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height.
+Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height. This shifts the burden around a bit, potentially increasing the already-likely hotspot on root. However, this method could support depth *or* height and increase the rate at which children learn about changes to their ancestry.
 
 ## Token buckets, request fairness, and supernodes
 
@@ -325,23 +338,27 @@ While not an avenue we explored much, Orv could be tweaked to encourage request 
 
 This, of course, hinges on the assumption that nodes can be uniquely identified and reliably authenticated, lest a leecher be able to masquerade as a supernode.
 
-## A note on security and PKI
+## A Note On Security
 
-One of our core assumptions is cooperation. This, of course, is not in any way realistic.
+One of our core assumptions is cooperation. This, of course, is wholly unrealistic. Modifying Orv to be resilient to byzantine fault would be another project entirely. As Orv is designed to be decentralized, it has both the boons of decentralization (reliance only on yourself (as a VK) or your parent) and the banes (no sense of global state, easy for bad actors to join and gain power).
 
-A side effect of this protocol is the ability to act as a second source of truth. The vault could be used to pass around public keys, providing a second source of possible "truth" against MitM attacks. These can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
+## PKI Use-Case
+
+A more unique use-case we wanted to draw attention to is the ability of Orv to act as a second source of truth for public key distribution. Orv could be tweaked to pass around public keys, providing a second source of possible "truth" against MitM attacks. When a service joins, it provides its public key. This public key is distributed around the vault in the same way the service registration propagates. When a client requests a service, the service's public key is provided as well. Clients could query multiple nodes to check that they are providing the same public key.
+
+When the client initiates contact with the fetched service, it now validate that the public key the service provides matches the public keys provided by Orv. These keys can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
 
 # The Prototype 
 
-To test and showcase the protocol, this repo comes with a [VaultKeeper library](pkg/orv/orv.go), an implementation of the [same](vk/main.go), and a [leaf implementation](leaf/main.py).
+To test and showcase the protocol, this repo comes with a [VaultKeeper library](pkg/orv/orv.go), an implementation of the [same](vk/main.go), a [leaf implementation](leaf/main.py), and simple implementations of [client requests](pkg/orv/requests.go).
 
 As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototypes included herein are implemented via a REST API. Not how we envision a production-level implementation, but it is... you know... a prototype. ¯\\_(ツ)_/¯
 
 ## The VaultKeeper Library
 
-The meat of the prototype is the `Orv` package and its VaultKeeper struct. This struct is a multithreaded, self-managing implementation of a VK. It contains the aforementioned HTTP server for processing packets, [packets.go](pkg/orv/packets.go) for declaring and describing packet types, a series of [tests](pkg/orv/orv_test.go) to ensure it meets the basic spec, and an internal [service](pkg/orv/children.go) for managing the VK's children.
+The meat of the prototype is the `orv` package and its VaultKeeper struct. This struct is a multithreaded, self-managing implementation of a VK. It contains the aforementioned HTTP server for processing packets, [packets.go](pkg/orv/packets.go) for declaring and describing packet types, a series of [tests](pkg/orv/orv_test.go) to ensure it meets the basic spec, and an internal [service](pkg/orv/children.go) for managing the VK's children.
 
-From a design standpoint, the VK class is not insignificant. While performance was not our goal, a protocol of this kind requires at least a baseline level of parallelism. As such, the class is a strange amalgam of mutexes, self-destructing data (driven by `*time.Timers`), and a pruner service for cleaning up what cannot self-destruct. VKs are spun up via `NewVaultKeeper()` and can be driven in code by the exported subroutines. After `.Start()` is called, the VK's HTTP server is available for processing requests from external entities. Remember to kill the VK with `.Terminate()` when you are done.
+From a design standpoint, the VK class is not insignificant. While performance was not our goal, a protocol of this kind requires at least a baseline level of parallelism. As such, the class is a strange amalgamation of mutexes, self-destructing data (driven by `*time.Timers`), a pruner service for cleaning up what cannot self-destruct, and a heartbeater service so a VK can automatically track its parent. VKs are spun up via `NewVaultKeeper()` and can be driven in code by the exported subroutines. After `.Start()` is called, the VK's HTTP server is available for processing requests from external entities. Remember to kill the VK with `.Terminate()` when you are done.
 
 > [!WARNING]
 > The VK prototype is missing QoL features and few considerations have been made for efficiency. The bread and butter of the Orv package (the VaultKeeper struct) is not overly configurable and uses coarse-grained locks.
@@ -383,9 +400,9 @@ make test
 
 Logging is serviced by [Zerolog](github.com/rs/zerolog).
 
-Our API endpoints are handled by [Huma](https://huma.rocks/).
+Our API endpoints are handled by [Huma](https://huma.rocks/). *NOTE:* We ran into some issues with humatest and are not relying it for the testing infrastructure.
 
-VK requests (like vk.Join and vk.Hello) as well as API requests made in tests are built on top of [Resty](https://resty.dev/).
+Requests (both within a VK and from the client side) as well as API requests made in tests are built on top of [Resty](https://resty.dev/).
 
 # Special Thanks
 
