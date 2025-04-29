@@ -205,6 +205,16 @@ Vault heartbeats are sent from a child VK to its parent to ensure the parent doe
 
 Form: `VK_HEARTBEAT{id:123}`.
 
+## Deregistering a Service
+
+A service may disconnect gracefully by sending a DEREGISTER packet to its parent. DEREGISTER packets are also provoked by a service or cVK being pruned due to a lack of heartbeats.
+
+When a VK receives a DEREGISTER, it removes the child as a provider of the specified service. If the VK has no other providers of the service, it propagates the DEREGISTER up the vault.
+
+DEREGISTERs are idempotent and a DEREGISTER for a service not known to be provided by the named child can be safely ignored.
+
+Form: `DEREGISTER{id:123, service:briar}`
+
 ## Making Requests of a Vault
 
 Utilizing the service discovery functionality of the vault is done by sending STATUS, GET, or LIST packets to any VK. These are considered "client" interactions and do not require the client to HELLO/JOIN/REGISTER (though nodes within a vault can certainly make requests of the vault, too).
@@ -383,6 +393,7 @@ As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper p
 - [Root-Root Merging](#merging-root-root-joins): The VaultKeeper library does not include handling for the MERGE packet (and has no /merge endpoint to accept them). This means that vaults of equal height cannot join and vaults cannot increase their height after creation. As INCREMENTEMENT packets are only triggered by MERGE, they have also been omitted. We grant that this is a substantial feature to be wholly absent, but believe that the prototype proves Orv's viability nonetheless.
 - [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
 - [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
+- [Deregistering](#deregistering-a-service): The VaultKeeper library does not support DEREGISTER packets and services can only be un-learned by being pruned (due to a lack of heartbeats).
 
 ## The VaultKeeper Implementation
 
