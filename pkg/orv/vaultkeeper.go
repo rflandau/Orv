@@ -1,11 +1,7 @@
 package orv
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/netip"
 	"os"
@@ -15,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/rs/zerolog"
+	"resty.dev/v3"
 )
 
 // type aliases for readability
@@ -62,6 +59,8 @@ type VaultKeeper struct {
 		http http.Server
 	}
 
+	restClient *resty.Client
+
 	structureRWMu sync.RWMutex // locker for height+parent
 	height        uint16       // current height of this vk
 	parent        struct {
@@ -70,7 +69,7 @@ type VaultKeeper struct {
 	}
 	parentHeartbeatFrequency time.Duration
 	pt                       PruneTimes
-	pchDone                  chan bool // used to notify the pruner goro that it is time to shut down
+	helperDoneCh             chan bool // used to notify the pruner and heartbeater goros that it is time to shut down
 
 	pendingHellos sync.Map // id -> timestamp
 }
@@ -143,13 +142,15 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		},
 		height: 0,
 
+		restClient: resty.New(),
+
 		parentHeartbeatFrequency: DEFAULT_PARENT_HEARTBEAT_FREQ,
 		pt: PruneTimes{
 			PendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
 			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
 			CVK:              DEFAULT_PRUNE_TIME_CVK,
 		},
-		pchDone: make(chan bool),
+		helperDoneCh: make(chan bool),
 	}
 
 	// apply the given options
@@ -189,7 +190,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		l.Debug().Msg("pruner online")
 		for {
 			select {
-			case <-vk.pchDone:
+			case <-vk.helperDoneCh:
 				l.Debug().Msg("pruner shutting down...")
 				return
 			default:
@@ -224,23 +225,36 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 
 		for {
 			select {
-			case <-vk.pchDone:
-				l.Debug().Msg("pruner shutting down...")
+			case <-vk.helperDoneCh:
+				l.Debug().Msg("heartbeater shutting down...")
 				return
 			case <-time.After(freq):
 				vk.structureRWMu.RLock()
 				if !vk.isRoot() {
+					parentUrl := vk.parent.addr.String() + EP_VK_HEARTBEAT
 					// send a heartbeat to the parent
+					hbResp := &VKHeartbeatAck{}
 
-					/*
-						resp := http.Post(EP_VK_HEARTBEAT, map[string]any{
-							"id": vk.id,
-						})
-						if resp.Code != 200 {
-							errResp <- resp
-							return
-						}
-					*/
+					res, err := vk.restClient.R().
+						SetBody(VKHeartbeatReq{Body: struct {
+							Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+						}{vk.id}}.Body). // default request content type is JSON
+						SetExpectResponseContentType(CONTENT_TYPE).
+						SetResult(hbResp). // or SetResult(LoginResponse{}).
+						Post(parentUrl)
+					if err != nil {
+						l.Warn().Err(err).Msg("failed to heartbeat parent")
+						// throw away parent
+						vk.parent.id = 0
+						vk.parent.addr = netip.AddrPort{}
+					} else if res.StatusCode() != EXPECTED_STATUS_VK_HEARTBEAT {
+						l.Warn().Int("status", res.StatusCode()).Msg("bad response code when heartbeating parent")
+						// throw away parent
+						vk.parent.id = 0
+						vk.parent.addr = netip.AddrPort{}
+					} else { // success
+						l.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
+					}
 				}
 				vk.structureRWMu.RUnlock()
 			}
@@ -301,20 +315,35 @@ func (vk *VaultKeeper) Start() error {
 		Handler: vk.endpoint.mux,
 	}
 	go vk.endpoint.http.ListenAndServe()
+	time.Sleep(400 * time.Millisecond) // give the server time to start up before returning
 	return nil
 }
 
 // Terminates the vaultkeeper, cleaning up all resources and closing the API server.
 func (vk *VaultKeeper) Terminate() {
-	// kill the pruner
-	close(vk.pchDone)
-	// TODO clean up resources
+	// kill the pruner and heartbeater
+	close(vk.helperDoneCh)
+	// kill resty
+	vk.restClient.Close()
+
 	err := vk.endpoint.http.Close()
 	vk.log.Info().Str("address", vk.addr.String()).AnErr("close error", err).Msg("killed http server")
 }
 
 func (vk *VaultKeeper) isRoot() bool {
 	return vk.parent.id == 0
+}
+
+// Causes the VaultKeeper to send a HELLO to the given address
+func (vk *VaultKeeper) Hello(addrStr string) (resp *resty.Response, err error) {
+	addr, err := netip.ParseAddrPort(addrStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return vk.restClient.R().SetBody(HelloReq{Body: struct {
+		Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+	}{vk.id}}.Body).Post("http://" + addr.String() + EP_HELLO)
 }
 
 // Causes the vaultkeeper to attempt to join the VK at the given address.
@@ -327,49 +356,33 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 		return err
 	}
 
-	parentURL := addr.String() + EP_JOIN
+	parentURL := "http://" + addr.String() + EP_JOIN
+	vk.log.Info().Str("target VK", parentURL).Msg("requesting to join VK as child")
 	vk.structureRWMu.Lock()
 	defer vk.structureRWMu.Unlock()
 
-	// construct a request to pass to parent
-	pReq := JoinReq{
-		Body: struct {
+	var joinResp JoinAcceptResp
+
+	res, err := vk.restClient.R().
+		SetBody(JoinReq{Body: struct {
 			Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 			Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
 			VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
 			IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
-		}{vk.id, vk.height, vk.addr.String(), true},
-	}
-	pReqBytes, err := json.Marshal(pReq.Body)
+		}{Id: vk.id, Height: vk.height, VKAddr: vk.addr.String(), IsVK: true}}.Body). // default request content type is JSON
+		SetExpectResponseContentType(CONTENT_TYPE).
+		SetResult(&joinResp).
+		Post(parentURL)
 	if err != nil {
-		return err
+		vk.log.Warn().Err(err).Any("response", joinResp).Msg("failed to join under VK")
+	} else if res.StatusCode() != EXPECTED_STATUS_JOIN {
+		vk.log.Warn().Int("status", res.StatusCode()).Msg("bad response code when joining under VK")
+	} else { // success
+		vk.log.Debug().Uint64("parent id", joinResp.Body.Id).Msg("successfully joined under VK")
+		// update parent information
+		vk.parent.id = joinResp.Body.Id
+		vk.parent.addr = addr
 	}
-
-	resp, err := http.Post(parentURL, "application/problem+json", bytes.NewReader(pReqBytes))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != EXPECTED_STATUS_JOIN {
-		return fmt.Errorf("unexpected status code from potential parent (got: %d, expected: %d)", resp.StatusCode, EXPECTED_STATUS_JOIN)
-	}
-
-	// unmarshal response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	var joinResp JoinAcceptResp
-	if err := json.Unmarshal(body, &joinResp.Body); err != nil {
-		return err
-	}
-	if joinResp.Body.Id == 0 {
-		return errors.New("new parent VK returned 0 id")
-	}
-
-	// update parent information
-	vk.parent.id = joinResp.Body.Id
-	vk.parent.addr = addr
 	return nil
 }
 
