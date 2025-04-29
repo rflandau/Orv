@@ -1,17 +1,12 @@
 package orv_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
-	"net/http/httptest"
 	"net/netip"
 	"network-bois-orv/pkg/orv"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
@@ -78,7 +73,7 @@ func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int,
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, expectedCode int, targetAddr netip.AddrPort, id uint64, height uint16, vkaddr string, isvk bool) (*resty.Response, orv.JoinAcceptResp) {
+func makeJoinRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (*resty.Response, orv.JoinAcceptResp) {
 	t.Helper()
 	cli := resty.New()
 	unpackedResp := orv.JoinAcceptResp{}
@@ -117,7 +112,7 @@ func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode i
 		}{id, sn, apStr, staleStr}}.Body). // default request content type is JSON
 		SetExpectResponseContentType(orv.CONTENT_TYPE).
 		SetResult(&(unpackedResp.Body)).
-		Post("http://" + targetAddr.String() + orv.EP_JOIN)
+		Post("http://" + targetAddr.String() + orv.EP_REGISTER)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,10 +125,11 @@ func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode i
 
 // Send service heartbeats (at given frequency) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
 // The caller must close the done channel.
-func sendServiceHeartbeats(targetAPI humatest.TestAPI, frequency time.Duration, cID uint64, services []string) (done chan bool, errResp chan *httptest.ResponseRecorder) {
+func sendServiceHeartbeats(targetAddr netip.AddrPort, frequency time.Duration, cID uint64, services []string) (done chan bool, errResp chan *resty.Response) {
 	// create the channel
-	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
+	done, errResp = make(chan bool), make(chan *resty.Response)
 
+	cli := resty.New()
 	go func() {
 		for {
 			select {
@@ -141,15 +137,16 @@ func sendServiceHeartbeats(targetAPI humatest.TestAPI, frequency time.Duration, 
 				return
 			case <-time.After(frequency):
 				// submit a heartbeat
-				resp := targetAPI.Post(orv.EP_SERVICE_HEARTBEAT, map[string]any{
-					"id":       cID,
-					"services": services,
-				})
-				if resp.Code != 200 {
+				resp, err := cli.R().
+					SetBody(orv.ServiceHeartbeatReq{Body: struct {
+						Id       uint64   "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+						Services []string "json:\"services\" required:\"true\" example:\"[\\\"serviceA\\\", \\\"serviceB\\\"]\" doc:\"the name of the services to refresh\""
+					}{cID, services}}.Body). // default request content type is JSON
+					SetExpectResponseContentType(orv.CONTENT_TYPE).
+					Post("http://" + targetAddr.String() + orv.EP_SERVICE_HEARTBEAT)
+				if err != nil || resp.StatusCode() != orv.EXPECTED_STATUS_SERVICE_HEARTBEAT {
 					errResp <- resp
-					return
 				}
-
 			}
 		}
 	}()
@@ -158,10 +155,14 @@ func sendServiceHeartbeats(targetAPI humatest.TestAPI, frequency time.Duration, 
 }
 
 // Checks if an error is currently waiting on the given error response channel and fails the test if it is.
-func checkHeartbeatError(t *testing.T, errResp chan *httptest.ResponseRecorder) {
+func checkHeartbeatError(t *testing.T, errResp chan *resty.Response) {
 	select {
 	case e := <-errResp:
-		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
+		b, err := io.ReadAll(e.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Fatalf("response code %d with response %s", e.StatusCode(), string(b))
 	default:
 	}
 }
@@ -175,34 +176,6 @@ func ErrBadResponseCode(got, expected int) string {
 }
 
 //#endregion
-
-// Marshalls and POSTs data to the given address.
-// Returns the status code, byte string body, and an error (if applicable).
-//
-// Based on Professor Patrick Tague's helper test code.
-func getResponse(ip string, port int, endpoint string, data any) (int, []byte, error) {
-
-	jsonBytes, err := json.Marshal(data)
-	if err != nil {
-		return -1, nil, err
-	}
-
-	url := "http://" + ip + ":" + strconv.Itoa(port) + endpoint
-
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return -1, nil, err
-	}
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return -1, nil, err
-	}
-	resp.Body.Close()
-
-	return resp.StatusCode, body, nil
-}
 
 func StartVKListener(t *testing.T, api huma.API, vkid uint64) (*orv.VaultKeeper, netip.AddrPort) {
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
@@ -223,10 +196,19 @@ func StartVKListener(t *testing.T, api huma.API, vkid uint64) (*orv.VaultKeeper,
 // Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
 // A la ClientArgs in lab3.
 func TestEndpointArgs(t *testing.T) {
-	// spawn the huma test API
-	_, api := humatest.New(t)
+	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	vk, vkAddr := StartVKListener(t, api, 1)
+	vk, err := orv.NewVaultKeeper(1, vkAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
 
 	time.Sleep(1 * time.Second) // give the VK time to start up
 
@@ -236,43 +218,43 @@ func TestEndpointArgs(t *testing.T) {
 	makeHelloRequest(t, vkAddr, 200, 2)
 
 	// submit a valid JOIN
-	makeJoinRequest(t, api, 202, 2, 0, "", false)
+	makeJoinRequest(t, vkAddr, 202, 2, 0, "", false)
 
 	// submit a HELLO with an invalid ID
 	makeHelloRequest(t, vkAddr, 400, 0)
 
 	// submit a JOIN with an invalid ID and height
-	makeJoinRequest(t, api, 400, 0, 0, "", false)
+	makeJoinRequest(t, vkAddr, 400, 0, 0, "", false)
 
 	// submit a JOIN with same ID
-	makeJoinRequest(t, api, 409, 2, 0, "", false)
+	makeJoinRequest(t, vkAddr, 409, 2, 0, "", false)
 
 	// submit a REGISTER with an invalid ID
-	makeRegisterRequest(t, api, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr.String(), time.Second.String())
+	makeRegisterRequest(t, vkAddr, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr.String(), time.Second.String())
 
 	// submit a REGISTER for an unjoined ID
 	makeHelloRequest(t, vkAddr, 200, 3)
-	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr.String(), time.Second.String())
+	makeRegisterRequest(t, vkAddr, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr.String(), time.Second.String())
 
 	fmt.Println("ok")
 
 	// submit a valid REGISTER for vk
 	makeHelloRequest(t, vkAddr, 4, 100)
-	makeJoinRequest(t, api, 202, 4, 1, "", true)
-	makeRegisterRequest(t, api, 4, 100, "Horrible Coffee Maker", vkAddr.String(), time.Second.String())
+	makeJoinRequest(t, vkAddr, 202, 4, 1, "", true)
+	makeRegisterRequest(t, vkAddr, 4, 100, "Horrible Coffee Maker", vkAddr.String(), time.Second.String())
 
 	// submit a valid REGISTER for vk and check if multiple services are allowed
-	makeRegisterRequest(t, api, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr.String(), time.Second.String())
+	makeRegisterRequest(t, vkAddr, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr.String(), time.Second.String())
 
 	// submit a invalid REGISTER for vk
-	makeRegisterRequest(t, api, 400, 4, "", vkAddr.String(), time.Second.String())
+	makeRegisterRequest(t, vkAddr, 400, 4, "", vkAddr.String(), time.Second.String())
 
 	fmt.Println("ok")
 
 	// submit a valid HELLO to the same ID as VK
 	makeHelloRequest(t, vkAddr, 400, 1)
-	makeJoinRequest(t, api, 400, 1, 0, "", false)
-	makeRegisterRequest(t, api, 400, 1, "Flopped Coffee", vkAddr.String(), time.Second.String())
+	makeJoinRequest(t, vkAddr, 400, 1, 0, "", false)
+	makeRegisterRequest(t, vkAddr, 400, 1, "Flopped Coffee", vkAddr.String(), time.Second.String())
 
 }
 
@@ -280,18 +262,12 @@ func TestEndpointArgs(t *testing.T) {
 // Each leaf will HELLO -> JOIN and then submit multiple REGISTERS. Each service will need to send heartbeats to the VK.
 // After a short delay, the test checks if the VK still believe that all services are active.
 func TestMultiLeafMultiService(t *testing.T) {
-	// wrap the test in a no-op for huma
-	nt := SuppressedLogTest{t}
-
-	// spawn the huma test api
-	_, api := humatest.New(nt)
-
 	addr, err := netip.ParseAddrPort("[::1]:42069")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	vk, err := orv.NewVaultKeeper(1, addr, orv.SetHumaAPI(api))
+	vk, err := orv.NewVaultKeeper(1, addr)
 	if err != nil {
 		t.Fatal("failed to construct parent VK: ", err)
 	}
@@ -322,41 +298,30 @@ func TestMultiLeafMultiService(t *testing.T) {
 			"who even knows, man":       {addr: "127.0.0.1:6022", stale: "800ms"}}}
 	// register each leaf under the VK and start heartbeats for it
 	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lA.id)
-	makeJoinRequest(t, api, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lA.id, "ssh", lA.services["ssh"].addr, lA.services["ssh"].stale)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lA.id, "http", lA.services["http"].addr, lA.services["http"].stale)
+	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lA.id, "ssh", lA.services["ssh"].addr, lA.services["ssh"].stale)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lA.id, "http", lA.services["http"].addr, lA.services["http"].stale)
 	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lB.id)
-	makeJoinRequest(t, api, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lB.id, "ssh", lB.services["ssh"].addr, lB.services["ssh"].stale)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lB.id, "dns", lB.services["dns"].addr, lB.services["dns"].stale)
-	lADone, lAErr := sendServiceHeartbeats(api, 300*time.Millisecond, lA.id, slices.Collect(maps.Keys(lA.services)))
-	lBDone, lBErr := sendServiceHeartbeats(api, 300*time.Millisecond, lB.id, slices.Collect(maps.Keys(lB.services)))
+	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lB.id, "ssh", lB.services["ssh"].addr, lB.services["ssh"].stale)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lB.id, "dns", lB.services["dns"].addr, lB.services["dns"].stale)
+	lADone, lAErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lA.id, slices.Collect(maps.Keys(lA.services)))
+	lBDone, lBErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lB.id, slices.Collect(maps.Keys(lB.services)))
 	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lC.id)
-	makeJoinRequest(t, api, orv.EXPECTED_STATUS_JOIN, lC.id, 0, "", false)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lC.id, "some longish service name", lC.services["some longish service name"].addr, lC.services["some longish service name"].stale)
-	makeRegisterRequest(t, api, orv.EXPECTED_STATUS_REGISTER, lC.id, "who even knows, man", lC.services["who even knows, man"].addr, lC.services["who even knows, man"].stale)
-	lCDone, lCErr := sendServiceHeartbeats(api, 300*time.Millisecond, lC.id, slices.Collect(maps.Keys(lC.services)))
+	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lC.id, 0, "", false)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lC.id, "some longish service name", lC.services["some longish service name"].addr, lC.services["some longish service name"].stale)
+	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lC.id, "who even knows, man", lC.services["who even knows, man"].addr, lC.services["who even knows, man"].stale)
+	lCDone, lCErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lC.id, slices.Collect(maps.Keys(lC.services)))
 	t.Cleanup(func() { close(lADone) })
 	t.Cleanup(func() { close(lBDone) })
 	t.Cleanup(func() { close(lCDone) })
 
 	// allow leaves to expire if they are going
 	time.Sleep(2 * time.Second)
-	select {
-	case e := <-lAErr:
-		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
-	default:
-	}
-	select {
-	case e := <-lBErr:
-		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
-	default:
-	}
-	select {
-	case e := <-lCErr:
-		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
-	default:
-	}
+
+	checkHeartbeatError(t, lAErr)
+	checkHeartbeatError(t, lBErr)
+	checkHeartbeatError(t, lCErr)
 
 	// check that the VK believes it has the correct number of children, services, and service providers
 	snap := vk.ChildrenSnapshot()
@@ -427,9 +392,9 @@ func TestSmallVault(t *testing.T) {
 		stale string
 	}{"temp": {"2.2.2.2:99", "2s"}}}
 	makeHelloRequest(t, vkBAddr, orv.EXPECTED_STATUS_HELLO, lB.id)
-	makeJoinRequest(t, apiB, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
-	makeRegisterRequest(t, apiB, orv.EXPECTED_STATUS_REGISTER, lB.id, "temp", lB.services["temp"].addr, lB.services["temp"].stale)
-	lBDone, lBErr := sendServiceHeartbeats(apiB, 500*time.Millisecond, lB.id, []string{"temp"})
+	makeJoinRequest(t, vkBAddr, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
+	makeRegisterRequest(t, vkBAddr, orv.EXPECTED_STATUS_REGISTER, lB.id, "temp", lB.services["temp"].addr, lB.services["temp"].stale)
+	lBDone, lBErr := sendServiceHeartbeats(vkBAddr, 500*time.Millisecond, lB.id, []string{"temp"})
 	t.Cleanup(func() { close(lBDone) })
 	// join leaf A under A
 	lA := leaf{id: 100, services: map[string]struct {
@@ -437,9 +402,9 @@ func TestSmallVault(t *testing.T) {
 		stale string
 	}{"temp": {"1.1.1.1:99", "1s700ms"}}}
 	makeHelloRequest(t, vkAAddr, orv.EXPECTED_STATUS_HELLO, lA.id)
-	makeJoinRequest(t, apiA, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
-	makeRegisterRequest(t, apiA, orv.EXPECTED_STATUS_REGISTER, lA.id, "temp", lA.services["temp"].addr, lA.services["temp"].stale)
-	lADone, lAErr := sendServiceHeartbeats(apiA, 500*time.Millisecond, lA.id, []string{"temp"})
+	makeJoinRequest(t, vkAAddr, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
+	makeRegisterRequest(t, vkAAddr, orv.EXPECTED_STATUS_REGISTER, lA.id, "temp", lA.services["temp"].addr, lA.services["temp"].stale)
+	lADone, lAErr := sendServiceHeartbeats(vkAAddr, 500*time.Millisecond, lA.id, []string{"temp"})
 	t.Cleanup(func() { close(lADone) })
 
 	time.Sleep(6 * time.Second)
@@ -511,9 +476,9 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	}
 	// introduce and join leaf A
 	makeHelloRequest(t, vkAddr, 200, leafA.id)
-	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
+	makeJoinRequest(t, vkAddr, 202, leafA.id, 0, "", false)
 	// register the service
-	makeRegisterRequest(t, api, 202, leafA.id, "testServiceA", leafA.services["testServiceA"].addr, leafA.services["testServiceA"].stale)
+	makeRegisterRequest(t, vkAddr, 202, leafA.id, "testServiceA", leafA.services["testServiceA"].addr, leafA.services["testServiceA"].stale)
 	// make a status request to check for the service
 	{
 		resp := api.Get(orv.EP_STATUS)
