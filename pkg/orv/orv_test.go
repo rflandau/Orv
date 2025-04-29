@@ -272,8 +272,9 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 }
 
-// tests that we can build and query a small vault.
+// Tests that we can build and query a small vault.
 // Composes a tree of the form LeafA --> VKA --> VKB <-- LeafB, including consistent heartbeats for leaves (and the self-managing heartbeats inherent to VKs).
+// VKB and VKA do not merge; instead VKB is spawned with a Dragon's Hoard of 1 and VKA joins as a child.
 //
 // Tests each part of the tree individually (each VK knows about its children and the services they offer) and tests a bubble-up list request.
 func TestSmallVault(t *testing.T) {
