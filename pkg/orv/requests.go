@@ -30,3 +30,30 @@ func Status(addrStr string) (*resty.Response, StatusResp, error) {
 	return res, sr, err
 
 }
+
+// Spawns a new resty client and uses it to make a List request against the target address.
+//
+// addrStr should be of the form "http://<ip>:<port>"
+func List(addrStr string, hopcount uint64) (*resty.Response, ListResponseResp, error) {
+	cli := resty.New()
+
+	// compose the url
+	addrStr = strings.TrimSuffix(addrStr, "/")
+	url := addrStr + EP_LIST
+
+	lrr := ListResponseResp{}
+
+	body := ListReq{Body: struct {
+		HopCount uint16 "json:\"hop-count\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
+	}{
+		HopCount: 2,
+	}}
+
+	res, err := cli.R().
+		SetExpectResponseContentType(CONTENT_TYPE).
+		SetResult(&(lrr.Body)).
+		SetBody(body).
+		Get(url)
+	return res, lrr, err
+
+}
