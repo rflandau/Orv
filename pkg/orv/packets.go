@@ -28,12 +28,6 @@ const (
 	PT_VK_HEARTBEAT_FAULT PacketType = "VK_HEARTBEAT_FAULT"
 )
 
-// special commands that do not necessarily need to follow a HELLO
-const (
-	PT_STATUS          PacketType = "STATUS"
-	PT_STATUS_RESPONSE PacketType = "STATUS_RESPONSE"
-)
-
 // new node joining as leaf or VK
 const (
 	// Sent by a node not part of the vault to request to join under the receiver VK.
@@ -51,6 +45,8 @@ const (
 
 // service registration
 const (
+	PT_STATUS          PacketType = "STATUS"
+	PT_STATUS_RESPONSE PacketType = "STATUS_RESPONSE"
 	// Sent by a child node already part of a vault to tell its parent about a new service.
 	// Initially proc'd by a new service at a leaf or VK, the REGISTER echoes up the tree until it has reached root.
 	// Echoing responsibility falls to each parent VK to pass the message iteratively.
