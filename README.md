@@ -134,8 +134,6 @@ sequenceDiagram
 
 #### Dragon's Hoard (Tree-Seeding)
 
-**Not Implemented**
-
 As height adjustments only happen when root-root joins occur, small trees can rapidly accrue a lot of leaves. This increases the possibility of localized, cascading failure for overloaded vks.
 
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
@@ -329,6 +327,10 @@ The implementation in [vk/main.go](vk/main.go) is really just an invocation of t
 ## The Leaf Implementation
 
 To show that Orv is language agnostic, Shrivyas wrote up a [simple Python script](leaf/main.py) that connects to a VK as a leaf and registers a single service. Again, as long as a device or program can speak Orv, it can join a vault.
+
+## Request Functions
+
+The Orv package includes functions in `requests.go` to perform requests on your behalf. These are requests that can be run without joining the vault and are intended to be directly incorporated into user libraries.
 
 ## Making and Running The Prototype
 
