@@ -105,34 +105,6 @@ func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, i
 	return resp
 }
 
-// Send VK heartbeats (every sleep duration) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
-// The caller must close the done channel.
-func sendVKHeartbeats(targetAPI humatest.TestAPI, sleep time.Duration, cID uint64) (done chan bool, errResp chan *httptest.ResponseRecorder) {
-	// create the channel
-	done, errResp = make(chan bool), make(chan *httptest.ResponseRecorder)
-
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case <-time.After(sleep):
-				// submit a heartbeat
-				resp := targetAPI.Post(orv.EP_VK_HEARTBEAT, map[string]any{
-					"id": cID,
-				})
-				if resp.Code != 200 {
-					errResp <- resp
-					return
-				}
-
-			}
-		}
-	}()
-
-	return
-}
-
 // Send service heartbeats (at given frequency) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
 // The caller must close the done channel.
 func sendServiceHeartbeats(targetAPI humatest.TestAPI, frequency time.Duration, cID uint64, services []string) (done chan bool, errResp chan *httptest.ResponseRecorder) {
