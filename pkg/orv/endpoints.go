@@ -361,7 +361,7 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 
 	err = vk.children.addService(cid, sn, addr, staleStr)
 	if err != nil {
-		return nil, huma.ErrorWithHeaders(err, http.Header{
+		return nil, huma.ErrorWithHeaders(huma.Error400BadRequest(err.Error()), http.Header{
 			hdrPkt_t: {PT_REGISTER_DENY},
 		})
 	}
