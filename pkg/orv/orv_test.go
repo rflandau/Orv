@@ -32,6 +32,17 @@ type leaf struct {
 	}
 }
 
+// HELLOs and JOINs under the given VK, calling Fatal if any step fails.
+// REGISTERs each service defined in the leaf.
+// Does not start a heartbeater for any service.
+func (l *leaf) JoinVault(t *testing.T, parent *orv.VaultKeeper) {
+	makeHelloRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_HELLO, l.id)
+	makeJoinRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_JOIN, l.id, 0, "", false)
+	for k, v := range l.services {
+		makeRegisterRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_REGISTER, l.id, k, v.addr, v.stale)
+	}
+}
+
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
 func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64) (*resty.Response, orv.HelloResp) {
