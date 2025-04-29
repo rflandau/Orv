@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"net/netip"
 	"slices"
 	"strings"
@@ -377,6 +378,24 @@ type ChildrenSnapshot struct {
 	CVKs map[childID][]string `json:"child-VKs"`
 	// service -> ["cID(ip:port)"]
 	Services map[serviceName][]string `json:"services"`
+}
+
+// Given a service name, fetches a random provider of that service.
+func (c *children) GetRandomProvider(sn serviceName) (addr string, found bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	providers, exists := c.services[sn]
+	if !exists {
+		return "", false
+	}
+	if len(providers) == 0 {
+		c.log.Warn().Str("service", sn).Msg("found empty (but non-nil) providers list. Should have been pruned out.")
+		return "", false
+	}
+	// select a random provider
+	i := rand.IntN(len(providers))
+	return providers[i].addr.String(), true
+
 }
 
 // Refreshes the prune timer of the cVKL associated to the given cID.
