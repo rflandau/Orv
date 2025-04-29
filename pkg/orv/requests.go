@@ -57,3 +57,28 @@ func List(addrStr string, hopcount uint64) (*resty.Response, ListResponseResp, e
 	return res, lrr, err
 
 }
+
+// Spawns a new resty client and uses it to make a GET request against the target address for the named service.
+//
+// vkAddrStr should be of the form "http://<ip>:<port>"
+func Get(vkAddrStr string, hopCount uint16, service string) (*resty.Response, GetResponseResp, error) {
+	cli := resty.New()
+
+	// compose the url
+	vkAddrStr = strings.TrimSuffix(vkAddrStr, "/")
+	url := vkAddrStr + EP_GET
+
+	grr := GetResponseResp{}
+
+	body := GetReq{Body: struct {
+		Service  string "json:\"service\" required:\"true\" example:\"ssh\" doc:\"the name of the services to be fetched\""
+		HopCount uint16 "json:\"hop-count\" required:\"true\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
+	}{service, hopCount}}
+
+	res, err := cli.R().
+		SetExpectResponseContentType(CONTENT_TYPE).
+		SetResult(&(grr.Body)).
+		SetBody(body).
+		Get(url)
+	return res, grr, err
+}

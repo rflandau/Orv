@@ -23,6 +23,7 @@ const (
 	EP_VK_HEARTBEAT      Endpoint = "/vk-heartbeat"
 	EP_SERVICE_HEARTBEAT Endpoint = "/service-heartbeat"
 	EP_LIST              Endpoint = "/list"
+	EP_GET               Endpoint = "/get"
 )
 
 const (
