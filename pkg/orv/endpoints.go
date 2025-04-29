@@ -1,5 +1,9 @@
 package orv
 
+/*
+This file contains all the logic for endpoints, which serve as stand-ins for packet types.
+*/
+
 import (
 	"bytes"
 	"context"
@@ -15,6 +19,7 @@ import (
 
 type Endpoint = string
 
+// the endpoints VK listens on for each packet type.
 const (
 	EP_HELLO             Endpoint = "/hello"
 	EP_STATUS            Endpoint = "/status"
@@ -26,6 +31,7 @@ const (
 	EP_GET               Endpoint = "/get"
 )
 
+// the HTTP codes to expect from a "good" response from each endpoint.
 const (
 	EXPECTED_STATUS_HELLO             int = http.StatusOK
 	EXPECTED_STATUS_STATUS            int = http.StatusOK
@@ -34,8 +40,10 @@ const (
 	EXPECTED_STATUS_VK_HEARTBEAT      int = http.StatusOK
 	EXPECTED_STATUS_SERVICE_HEARTBEAT int = http.StatusOK
 	EXPECTED_STATUS_LIST              int = http.StatusOK
+	EXPECTED_STATUS_GET               int = http.StatusOK
 )
 
+// the content type of responses from the VK
 const CONTENT_TYPE string = "application/problem+json"
 
 // Generates endpoint handling on the given api instance.
@@ -112,7 +120,6 @@ func (vk *VaultKeeper) buildEndpoints() {
 
 // Request for /hello.
 // Used by nodes to introduce themselves to the tree.
-// Theoretically, this could be a broadcast and the requester could then pick which HELLO response to follow up on
 type HelloReq struct {
 	PktType PacketType `header:"Packet-Type"` // HELLO
 	Body    struct {
@@ -124,13 +131,12 @@ type HelloReq struct {
 type HelloResp struct {
 	PktType PacketType `header:"Packet-Type"` // HELLO_ACK
 	Body    struct {
-		Id uint64 `json:"id" required:"true" example:"123" doc:"unique identifier for the VK"`
-		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
+		Id     uint64 `json:"id" required:"true" example:"123" doc:"unique identifier for the VK"`
 		Height uint16 `json:"height" required:"true" example:"8" doc:"the height of the node answering the greeting"`
 	}
 }
 
-// Handle requests against the HELLO endpoint
+// Handle requests against the HELLO endpoint.
 func (vk *VaultKeeper) handleHello(ctx context.Context, req *HelloReq) (*HelloResp, error) {
 	// validate their ID
 	if req.Body.Id == 0 || req.Body.Id == vk.id {
@@ -246,8 +252,7 @@ type JoinReq struct {
 type JoinAcceptResp struct {
 	PktType PacketType `header:"Packet-Type"` // JOIN_ACCEPT
 	Body    struct {
-		Id uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
-		//Message string `json:"message" example:"Hello, world!" doc:"response to a greeting"`
+		Id     uint64 `json:"id" example:"123" doc:"unique identifier for the VK"`
 		Height uint16 `json:"height" example:"8" doc:"the height of the requester's new parent"`
 	}
 }

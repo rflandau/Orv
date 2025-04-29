@@ -1,7 +1,7 @@
 package orv
 
 /*
-This file contains requests that can be called on VKs from any client.
+This file contains static subroutine requests that can be called on VKs from any client.
 */
 
 import (

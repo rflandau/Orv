@@ -8,6 +8,8 @@ The cVK table maps each cVK cID to the child's prune timer, address, and the ser
 For efficiency's sake, it also maintains a third hashtable of services which carries redundant data from the leaves and VKs, but provides constant time access for service requests.
 
 The struct manages its own, coarse-grained locking, which it acquires for all operations.
+
+The logic in this file is not intended to be used external to the VaultKeeper prototype.
 */
 
 import (

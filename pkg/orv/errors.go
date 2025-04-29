@@ -1,5 +1,11 @@
 package orv
 
+/*
+Static errors for ease of use and consistency.
+
+HErrs are errors wrapped in the tidings of Huma such that they include the packet type in the header and a status code for Huma to respond with (typically 400).
+*/
+
 import (
 	"errors"
 	"fmt"

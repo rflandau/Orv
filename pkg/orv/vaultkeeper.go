@@ -1,5 +1,9 @@
 package orv
 
+/*
+The brain and body of the prototype, this file defines the VaultKeeper class, options for configuring it, and the defaults it uses for timers.
+*/
+
 import (
 	"fmt"
 	"net/http"
@@ -20,24 +24,26 @@ type (
 	serviceName = string
 )
 
-// Default durations after the K/V may be pruned
-// (it is not guaranteed to be pruned at exactly this time, but its survival cannot guarantee after this point)
+// Default durations for the prune timers to fire.
+// Records are not guaranteed be pruned at exactly this time, but its survival cannot be guaranteed after this point.
 const (
 	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 5
-	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 20
+	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 5
 	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 5
 )
 
+// Default frequency at which a VK sends heartbeats to its parent.
 const DEFAULT_PARENT_HEARTBEAT_FREQ time.Duration = 500 * time.Millisecond
 
 //#region types
 
 // The amount of time before values in each table are prune-able.
 type PruneTimes struct {
+	// after receiving a HELLO, how long until the HELLO is forgotten?
 	PendingHello time.Duration
 	// after a child joins, how long do they have to register a service before getting pruned?
 	ServicelessChild time.Duration
-	// how long can a child CVK survive without sending a heartbeat
+	// how long can a child CVK survive without sending a heartbeat?
 	CVK time.Duration
 }
 
@@ -59,7 +65,7 @@ type VaultKeeper struct {
 		http http.Server
 	}
 
-	restClient *resty.Client
+	restClient *resty.Client // client for hitting the endpoints of other VKs
 
 	structureRWMu sync.RWMutex // locker for height+parent
 	height        uint16       // current height of this vk
@@ -67,7 +73,7 @@ type VaultKeeper struct {
 		id   uint64 // 0 if we are root
 		addr netip.AddrPort
 	}
-	parentHeartbeatFrequency time.Duration
+	parentHeartbeatFrequency time.Duration // how often do we heartbeat our parent?
 	pt                       PruneTimes
 	helperDoneCh             chan bool // used to notify the pruner and heartbeater goros that it is time to shut down
 
@@ -302,6 +308,7 @@ func (vk *VaultKeeper) ChildrenSnapshot() ChildrenSnapshot {
 	return vk.children.Snapshot()
 }
 
+// Returns the parent of the VK. 0 and netip.AddrPort{} if root.
 func (vk *VaultKeeper) Parent() struct {
 	Id   uint64
 	Addr netip.AddrPort
@@ -317,6 +324,7 @@ func (vk *VaultKeeper) Parent() struct {
 //#region methods
 
 // Starts the http api listener in the vk.
+// Includes a small start up delay to ensure the server is ready by the time this function returns.
 func (vk *VaultKeeper) Start() error {
 	vk.log.Info().Str("address", vk.addr.String()).Msg("listening...")
 
@@ -359,7 +367,7 @@ func (vk *VaultKeeper) Hello(addrStr string) (resp *resty.Response, err error) {
 	}{vk.id}}.Body).Post("http://" + addr.String() + EP_HELLO)
 }
 
-// Causes the vaultkeeper to attempt to join the VK at the given address.
+// Causes the VaultKeeper to attempt to join the VK at the given address.
 // If it succeeds, the VK will alters its current parent to point to the new parent.
 // Expects that the caller already sent HELLO.
 func (vk *VaultKeeper) Join(addrStr string) (err error) {
@@ -399,11 +407,6 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 		vk.parent.addr = addr
 	}
 	return nil
-}
-
-// Used to register a new service that this VK offers locally.
-func (vk *VaultKeeper) RegisterLocalService() {
-	// TODO
 }
 
 // Pretty prints the state of the vk into the given zerolog event.

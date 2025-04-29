@@ -1,5 +1,9 @@
 package orv
 
+/*
+Details the packet types Orv uses and provides enumerated constants for them.
+*/
+
 // Representations of each packet type used by Orv along with their functions and related packets.
 // As the prototype is implemented as an API, these packet types are somewhat secondary to the go structs.
 // For consistency's sake, every request and response issued by the API includes the corresponding packet type as a http header.
