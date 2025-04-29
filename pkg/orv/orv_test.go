@@ -295,12 +295,6 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 // Tests that we can compose LeafA --> VKA --> VKB <-- LeafB, with all working heartbeats and a bubble-up list request.
 func TestHopList(t *testing.T) {
-	// spawn the test api
-	slt := SuppressedLogTest{t}
-	// spawn the huma test API
-	_, apiA := humatest.New(slt)
-	_, apiB := humatest.New(slt)
-
 	vkAAddr, err := netip.ParseAddrPort("[::1]:8090")
 	if err != nil {
 		t.Fatal(err)
@@ -310,13 +304,19 @@ func TestHopList(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vkA, err := orv.NewVaultKeeper(1, vkAAddr, orv.SetHumaAPI(apiA))
+	vkA, err := orv.NewVaultKeeper(1, vkAAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := vkA.Start(); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(vkA.Terminate)
-	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1), orv.SetHumaAPI(apiB))
+	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1))
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vkB.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(vkB.Terminate)
