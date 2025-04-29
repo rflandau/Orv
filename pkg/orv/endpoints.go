@@ -538,3 +538,26 @@ func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListRespons
 }
 
 //#endregion LIST
+
+//#region GET
+
+// Request for /get.
+// The request issued by clients to find a provider of the requested service
+type GetReq struct {
+	PktType PacketType `header:"Packet-Type"` // GET
+	Body    struct {
+		Service  string `json:"service" required:"true" example:"ssh" doc:"the name of the services to be fetched"`
+		HopCount uint16 `json:"hop-count" required:"true" example:"2" doc:"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)"`
+	}
+}
+
+// Response for /get.
+type GetResponseResp struct {
+	PktType PacketType `header:"Packet-Type"` // GET_RESPONSE
+	Body    struct {
+		Id   uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the VK responding to the get request. If the request propagated up the vault, the ID will be of the last VK."`
+		Addr string `json:"addr" example:"1.1.1.1:80" doc:"the address of a provider of the service. Empty if none were found."`
+	}
+}
+
+//#endregion GET
