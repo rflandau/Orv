@@ -410,17 +410,40 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 	checkHeartbeatError(t, lAErr)
 
 	// check that B still considers A and LeafB to be its children and that it is aware that leafB offers 1 service.
-	snap := vkB.ChildrenSnapshot()
-	if _, exists := snap.CVKs[vkA.ID()]; !exists {
-		t.Fatal("cVK A was pruned from B despite no heartbeater errors. Snapshot:", snap)
+	snapB := vkB.ChildrenSnapshot()
+	if _, exists := snapB.CVKs[vkA.ID()]; !exists { // B knows A exists
+		t.Fatal("cVK A was pruned from B despite no heartbeater errors. Snapshot:", snapB)
 	}
-
+	if _, exists := snapB.Leaves[lB.id]; !exists {
+		t.Fatal("leaf B was pruned from B despite no heartbeater errors. Snapshot:", snapB)
+	}
 	// check that A's parent is correctly set to B
 	if p := vkA.Parent(); p.Id != vkB.ID() || p.Addr != vkBAddr {
 		t.Fatal("A does not believe B is its parent")
 	}
-
-	// TODO
+	// check that A propagated leafA's service registration up to B
+	s, exists := snapB.Services["temp"]
+	if !exists {
+		t.Fatal("B does not know about a service registered under A")
+	}
+	{ // break out scope for temp vars
+		found := 0
+		vkAProviderStr := fmt.Sprintf("%d(%v)", vkA.ID(), "1.1.1.1:99")
+		for _, provider := range s {
+			if provider == vkAProviderStr {
+				found += 1
+			}
+		}
+		// ensure that we found vkA in B's list of services for temp exactly once
+		switch found {
+		case 0:
+			t.Fatal("vkA is not a provider of the temp service. snap:", snapB)
+		case 1:
+			break
+		default:
+			t.Fatal("vkA is a provider of the temp service more than once (", found, " times)")
+		}
+	}
 
 }
 
