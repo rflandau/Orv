@@ -310,6 +310,17 @@ A knows how to access Service A directly and can respond to requests with LeafA'
 
 This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered VaultKeepers](#rivering-vaultkeepers).
 
+## Recursive Requests or Hand-Off Requests
+
+For the sake of simplicity (on both the client side and the VaultKeeper side), client requests are handled recursively in Orv. When a VK receives a request that it cannot complete (assume all other factors are valid, such as hop count > 2), it passes the request to its parent. This continues until the request hits root, a VK *can* service the request, or the request runs out of hops. The response travels back down the vault until it can be returned to the client.
+
+This is how requests are handled in the included [prototype](#the-prototype).
+
+However, this is not particularly efficient and runs somewhat counter to the bubble-up paradigm. Another idea we discussed was allowing VKs to "hand-off" requests to their parent. When a request (ex: GET) hits a VK and still has more hops it can take (meaning the VK is unable to service the request directly, hop count >2, and the VK != root), the VK passes it to its parent and forgets about it. Once the request has reached its final destination, the final VK responds directly to the client.
+
+The hand-off approach reduces the strain on VKs, but introduces a number of additional complexities. First, it will be arduous to implement in a client-server paradigm on a connection-oriented protocol like TCP. So probably don't do that; this makes more sense with an L4 Orv. Second, it requires the client spin up a listener to watch for LIST_RESPONSE packets from *any host*, which brings its own set of challenges. Finally, it requires the introduction of ACK packets for each request type so parent VKs can confirm the hand-off. 
+
+Here is an example LIST request using the hand-off method: client -|LIST|-> VK, client <-|LIST_ACK|- VK, VK -|LIST|-> parentVK, VK <-|LIST_ACK|- parentVK, ..., VKi -|LIST|-> VKn, VKi <-|LIST_ACK|- VKn, VKn -|LIST_RESPONSE|-> client.
 
 ## Depth-less Hierarchy and Cycles
 
