@@ -219,52 +219,63 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 	}()
 
 	// spawn a service to send heartbeats to the parent of this VK (if applicable)
-	go func() {
-		l := vk.log.With().Str("sublogger", "heartbeater").Logger()
-		freq := vk.parentHeartbeatFrequency
-
-		for {
-			select {
-			case <-vk.helperDoneCh:
-				l.Debug().Msg("heartbeater shutting down...")
-				return
-			case <-time.After(freq):
-				vk.structureRWMu.RLock()
-				if !vk.isRoot() {
-					parentUrl := vk.parent.addr.String() + EP_VK_HEARTBEAT
-					// send a heartbeat to the parent
-					hbResp := &VKHeartbeatAck{}
-
-					res, err := vk.restClient.R().
-						SetBody(VKHeartbeatReq{Body: struct {
-							Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
-						}{vk.id}}.Body). // default request content type is JSON
-						SetExpectResponseContentType(CONTENT_TYPE).
-						SetResult(hbResp). // or SetResult(LoginResponse{}).
-						Post(parentUrl)
-					if err != nil {
-						l.Warn().Err(err).Msg("failed to heartbeat parent")
-						// throw away parent
-						vk.parent.id = 0
-						vk.parent.addr = netip.AddrPort{}
-					} else if res.StatusCode() != EXPECTED_STATUS_VK_HEARTBEAT {
-						l.Warn().Int("status", res.StatusCode()).Msg("bad response code when heartbeating parent")
-						// throw away parent
-						vk.parent.id = 0
-						vk.parent.addr = netip.AddrPort{}
-					} else { // success
-						l.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
-					}
-				}
-				vk.structureRWMu.RUnlock()
-			}
-		}
-	}()
+	go vk.startHeartbeater()
 
 	// dump out data about the vault keeper
 	vk.log.Debug().Func(vk.LogDump).Msg("New Vault Keeper created")
 
 	return vk, nil
+}
+
+// Infinite call to continually send heartbeats to the parent, if one is set on the vk.
+//
+// Intended to be run in a new goroutine.
+//
+// Dies only when vk.helperDoneCh is closed.
+func (vk *VaultKeeper) startHeartbeater() {
+	l := vk.log.With().Str("sublogger", "heartbeater").Logger()
+	freq := vk.parentHeartbeatFrequency
+
+	for {
+		select {
+		case <-vk.helperDoneCh:
+			l.Debug().Msg("heartbeater shutting down...")
+			return
+		case <-time.After(freq):
+			l.Debug().Msg("heartbeater waking...")
+
+			vk.structureRWMu.RLock()
+			if !vk.isRoot() {
+				l.Debug().Msg("sending HB to parent...")
+
+				parentUrl := "http://" + vk.parent.addr.String() + EP_VK_HEARTBEAT
+				// send a heartbeat to the parent
+				hbResp := &VKHeartbeatAck{}
+
+				res, err := vk.restClient.R().
+					SetBody(VKHeartbeatReq{Body: struct {
+						Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
+					}{vk.id}}.Body). // default request content type is JSON
+					SetExpectResponseContentType(CONTENT_TYPE).
+					SetResult(hbResp). // or SetResult(LoginResponse{}).
+					Post(parentUrl)
+				if err != nil {
+					l.Warn().Err(err).Msg("failed to heartbeat parent")
+					// throw away parent
+					vk.parent.id = 0
+					vk.parent.addr = netip.AddrPort{}
+				} else if res.StatusCode() != EXPECTED_STATUS_VK_HEARTBEAT {
+					l.Warn().Int("status", res.StatusCode()).Msg("bad response code when heartbeating parent")
+					// throw away parent
+					vk.parent.id = 0
+					vk.parent.addr = netip.AddrPort{}
+				} else { // success
+					l.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
+				}
+			}
+			vk.structureRWMu.RUnlock()
+		}
+	}
 }
 
 //#region getters
@@ -371,7 +382,7 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 			IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
 		}{Id: vk.id, Height: vk.height, VKAddr: vk.addr.String(), IsVK: true}}.Body). // default request content type is JSON
 		SetExpectResponseContentType(CONTENT_TYPE).
-		SetResult(&joinResp).
+		SetResult(&(joinResp.Body)).
 		Post(parentURL)
 	if err != nil {
 		vk.log.Warn().Err(err).Any("response", joinResp).Msg("failed to join under VK")
