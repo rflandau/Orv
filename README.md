@@ -352,6 +352,8 @@ Logging is serviced by [Zerolog](github.com/rs/zerolog).
 
 Our API endpoints are handled by [Huma](https://huma.rocks/).
 
+VK requests (like vk.Join and vk.Hello) as well as API requests made in tests are built on top of [Resty](https://resty.dev/).
+
 # Special Thanks
 
 - Professors Patrick Tague and Pedro Bustamante, for all of your assistance, advice, support, and just general pleasantness to be around.
