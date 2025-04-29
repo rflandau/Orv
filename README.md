@@ -4,7 +4,7 @@ Shrivyas | shrivyas@andrew.cmu.edu
 
 R Landau | rlandau@andrew.cmu.edu <-- the guy writing this README
 
-# Orv: the Decentralized, Hierarchical (Height-Aware), Self-Organizing, Service Discovery Tree
+# Orv: the Decentralized, Hierarchical, Self-Organizing, Service Discovery Tree
 
 Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
 
