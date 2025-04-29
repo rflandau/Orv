@@ -24,6 +24,7 @@ const (
 	RegisterSuccessCode int = 202
 )
 
+// represents a single leaf with any number of services
 type leaf struct {
 	id       uint64
 	services map[string]struct {
@@ -561,12 +562,53 @@ func TestListRequest(t *testing.T) {
 // Tests that we can successfully make get requests against a vault.
 // Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
 func TestGetRequest(t *testing.T) {
-	buildLineVault(t)
+	vkA, vkB, vkC := buildLineVault(t)
 
 	// register a leaf under C
-	// TODO
+	lC := leaf{id: 300, services: map[string]struct {
+		addr  string
+		stale string
+	}{"File Server": {"3.3.3.3:300", "2s"}}}
+	lC.JoinVault(t, vkC)
+	// spawn a heartbeater for C's services
+	lCSvcDone, lCSvcErr := sendServiceHeartbeats(vkC.AddrPort(), 800*time.Millisecond, lC.id, slices.Collect(maps.Keys(lC.services)))
+	t.Cleanup(func() { close(lCSvcDone) })
 
-	time.Sleep(1 * time.Second)
+	// register a leaf under A
+	lA := leaf{id: 100, services: map[string]struct {
+		addr  string
+		stale string
+	}{"ssh": {"1.1.1.1:100", "2s"},
+		"oven": {"1.1.1.1:101", "2s"}}}
+	lA.JoinVault(t, vkA)
+	// spawn a heartbeater for C's services
+	lASvcDone, lASvcErr := sendServiceHeartbeats(vkA.AddrPort(), 800*time.Millisecond, lA.id, slices.Collect(maps.Keys(lA.services)))
+	t.Cleanup(func() { close(lASvcDone) })
+
+	time.Sleep(4 * time.Second)
+	// check for any errors from our services
+	checkHeartbeatError(t, lCSvcErr)
+	checkHeartbeatError(t, lASvcErr)
+
+	// issue a GET against A for a service offered by leafA
+	resp, grr, err := orv.Get("http://"+vkA.AddrPort().String(), 1, "oven")
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if grr.Body.Addr != lA.services["oven"].addr {
+		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, lA.services["oven"].addr)
+	}
+
+	// issue a GET against B, with the intention of it bubbling up to C
+	_, grr, err = orv.Get("http://"+vkB.AddrPort().String(), 5, "File Server")
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if grr.Body.Addr != lC.services["File Server"].addr {
+		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, lC.services["File Server"].addr)
+	}
 }
 
 // Tests that VKs can successfully take each other on as children and that two, equal-height, root VKs can successfully merge.
