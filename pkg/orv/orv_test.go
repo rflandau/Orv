@@ -72,7 +72,7 @@ func makeJoinRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, 
 	}
 
 	if resp.StatusCode() != expectedCode {
-		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
+		t.Fatal("Join request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
 	}
 	return resp, unpackedResp
 }
@@ -98,7 +98,7 @@ func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode i
 	}
 
 	if resp.StatusCode() != expectedCode {
-		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
+		t.Fatal("Register request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
 	}
 	return resp, unpackedResp
 }
@@ -178,6 +178,38 @@ func TestEndpointArgs(t *testing.T) {
 
 	t.Cleanup(vk.Terminate)
 
+	lA, lB, lC, lD, lE := leaf{
+		id: 100, services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"Good advice generator - Just drink Milk instead of Coffee": {addr: "127.0.0.1:5001", stale: "1s"},
+		}},
+		leaf{id: 200, services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"Very good Coffee Maker - I might just beat Starbucks": {addr: "127.0.0.1:5011", stale: "1s"},
+		}},
+		leaf{id: 300, services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"Horrible Coffee Maker": {addr: "127.0.0.1:5021", stale: "1s"},
+		}},
+		leaf{id: 300, services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"Flopped Coffee": {addr: "127.0.0.1:5051", stale: "1s"},
+		}},
+		leaf{id: 1, services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"Tea Maker - makes sense why I make horrible Coffee": {addr: "127.0.0.1:5031", stale: "1s"},
+		}}
+
 	// submit a valid HELLO
 	makeHelloRequest(t, vkAddr, 200, 2)
 
@@ -191,34 +223,34 @@ func TestEndpointArgs(t *testing.T) {
 	makeJoinRequest(t, vkAddr, 400, 0, 0, "", false)
 
 	// submit a JOIN with same ID
-	makeJoinRequest(t, vkAddr, 409, 2, 0, "", false)
-
-	// submit a REGISTER with an invalid ID
-	makeRegisterRequest(t, vkAddr, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr.String(), time.Second.String())
-
-	// submit a REGISTER for an unjoined ID
-	makeHelloRequest(t, vkAddr, 200, 3)
-	makeRegisterRequest(t, vkAddr, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr.String(), time.Second.String())
-
+	makeJoinRequest(t, vkAddr, 202, 2, 0, "", false)
 	fmt.Println("ok")
 
-	// submit a valid REGISTER for vk
-	makeHelloRequest(t, vkAddr, 4, 100)
-	makeJoinRequest(t, vkAddr, 202, 4, 1, "", true)
-	makeRegisterRequest(t, vkAddr, 4, 100, "Horrible Coffee Maker", vkAddr.String(), time.Second.String())
+	// submit a REGISTER with an invalid ID
+	makeRegisterRequest(t, vkAddr, 500, lA.id, "Good advice generator - Just drink Milk instead of Coffee", lA.services["Good advice generator - Just drink Milk instead of Coffee"].addr, lA.services["Good advice generator - Just drink Milk instead of Coffee"].stale)
 
-	// submit a valid REGISTER for vk and check if multiple services are allowed
-	makeRegisterRequest(t, vkAddr, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr.String(), time.Second.String())
+	// submit a REGISTER for an unjoined ID
+	makeHelloRequest(t, vkAddr, 200, lB.id)
+	makeRegisterRequest(t, vkAddr, 500, lB.id, "Very good Coffee Maker - I might just beat Starbucks", lB.services["Very good Coffee Maker - I might just beat Starbucks"].addr, lB.services["Very good Coffee Maker - I might just beat Starbucks"].stale)
+	fmt.Println("ok")
 
-	// submit a invalid REGISTER for vk
-	makeRegisterRequest(t, vkAddr, 400, 4, "", vkAddr.String(), time.Second.String())
+	// submit a valid REGISTER for leaf
+	makeHelloRequest(t, vkAddr, 200, lC.id)
+	makeJoinRequest(t, vkAddr, 202, lC.id, 0, "", false)
+	makeRegisterRequest(t, vkAddr, 202, lC.id, "Horrible Coffee Maker", lC.services["Horrible Coffee Maker"].addr, lC.services["Horrible Coffee Maker"].stale)
+
+	// submit a valid REGISTER for leaf and check if multiple services are allowed
+	makeRegisterRequest(t, vkAddr, 202, lD.id, "Flopped Coffee", lD.services["Flopped Coffee"].addr, lD.services["Flopped Coffee"].stale)
+
+	// submit a invalid REGISTER for leaf
+	makeRegisterRequest(t, vkAddr, 400, lC.id, "", "127.0.0.1:5061", "1s")
 
 	fmt.Println("ok")
 
 	// submit a valid HELLO to the same ID as VK
 	makeHelloRequest(t, vkAddr, 400, 1)
 	makeJoinRequest(t, vkAddr, 400, 1, 0, "", false)
-	makeRegisterRequest(t, vkAddr, 400, 1, "Flopped Coffee", vkAddr.String(), time.Second.String())
+	makeRegisterRequest(t, vkAddr, 400, 1, "Tea Maker - makes sense why I make horrible Coffee", lE.services["Tea Maker - makes sense why I make horrible Coffee"].addr, lE.services["Tea Maker - makes sense why I make horrible Coffee"].stale)
 
 }
 
