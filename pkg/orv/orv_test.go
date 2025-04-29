@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2/humatest"
 	"resty.dev/v3"
 )
 
@@ -402,15 +401,12 @@ func TestSmallVault(t *testing.T) {
 //
 // By the end, the VK should have a single child (leaf B) and a single service (leaf B's service that is still sending heartbeats).
 func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
-	// spawn the huma test API
-	_, api := humatest.New(t)
-
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// spawn a VK
-	vk, err := orv.NewVaultKeeper(1, vkAddr, orv.SetHumaAPI(api))
+	vk, err := orv.NewVaultKeeper(1, vkAddr)
 	if err != nil {
 		t.Fatal("failed to construct VK: ", err)
 	}
@@ -422,11 +418,12 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 
 	// issue a status request after a brief start up window
 	time.Sleep(500 * time.Millisecond)
-	{
-		resp := api.Get(orv.EP_STATUS)
-		if resp.Code != 200 {
-			t.Fatal("valid status request failed: " + ErrBadResponseCode(resp.Code, 200))
-		}
+	if r, u, err := orv.Status("http://" + vk.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	} else if r.StatusCode() != orv.EXPECTED_STATUS_STATUS {
+		t.Fatal("bad status code from /status (expected: ", r.StatusCode(), ", got: ", orv.EXPECTED_STATUS_STATUS, ")")
+	} else {
+		t.Log(u)
 	}
 
 	// spin up the first leaf
@@ -445,15 +442,15 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	// register the service
 	makeRegisterRequest(t, vkAddr, 202, leafA.id, "testServiceA", leafA.services["testServiceA"].addr, leafA.services["testServiceA"].stale)
 	// make a status request to check for the service
-	{
-		resp := api.Get(orv.EP_STATUS)
-		if resp.Code != 200 {
-			t.Fatal("valid status request failed: " + ErrBadResponseCode(resp.Code, 200))
-		}
-		fmt.Println(resp.Body.String())
+	if r, u, err := orv.Status("http://" + vk.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	} else if r.StatusCode() != orv.EXPECTED_STATUS_STATUS {
+		t.Fatal("bad status code from /status (expected: ", r.StatusCode(), ", got: ", orv.EXPECTED_STATUS_STATUS, ")")
+	} else {
+		t.Log(u)
 	}
 
-	time.Sleep(6 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// TODO
 
