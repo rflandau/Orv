@@ -242,7 +242,7 @@ func (vk *VaultKeeper) startHeartbeater() {
 			l.Debug().Msg("heartbeater shutting down...")
 			return
 		case <-time.After(freq):
-			l.Debug().Msg("heartbeater waking...")
+			//l.Debug().Msg("heartbeater waking...")
 
 			vk.structureRWMu.RLock()
 			if !vk.isRoot() {
