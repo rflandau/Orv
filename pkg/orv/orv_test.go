@@ -272,8 +272,11 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 }
 
-// Tests that we can compose LeafA --> VKA --> VKB <-- LeafB, with all working heartbeats and a bubble-up list request.
-func TestHopList(t *testing.T) {
+// tests that we can build and query a small vault.
+// Composes a tree of the form LeafA --> VKA --> VKB <-- LeafB, including consistent heartbeats for leaves (and the self-managing heartbeats inherent to VKs).
+//
+// Tests each part of the tree individually (each VK knows about its children and the services they offer) and tests a bubble-up list request.
+func TestSmallVault(t *testing.T) {
 	vkAAddr, err := netip.ParseAddrPort("[::1]:8090")
 	if err != nil {
 		t.Fatal(err)
