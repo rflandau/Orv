@@ -330,6 +330,10 @@ The implementation in [vk/main.go](vk/main.go) is really just an invocation of t
 
 To show that Orv is language agnostic, Shrivyas wrote up a [simple Python script](leaf/main.py) that connects to a VK as a leaf and registers a single service. Again, as long as a device or program can speak Orv, it can join a vault.
 
+## Request Functions
+
+The Orv package includes functions in `requests.go` to perform requests on your behalf. These are requests that can be run without joining the vault and are intended to be directly incorporated into user libraries.
+
 ## Making and Running The Prototype
 
 Being a Go project, it should manage all of its own dependencies.
