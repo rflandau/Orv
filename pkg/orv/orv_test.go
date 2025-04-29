@@ -150,6 +150,72 @@ func checkHeartbeatError(t *testing.T, errResp chan *resty.Response) {
 	}
 }
 
+// Generates 3 VKs in the form A --> B --> C with C at the root.
+// Returns handles to all 3.
+// Calls Fatal if any step fails
+func buildLineVault(t *testing.T) (A, B, C *orv.VaultKeeper) {
+	vkAAddr, err := netip.ParseAddrPort("[::1]:7001")
+	if err != nil {
+		t.Fatal("failed to parse addrport: ", err)
+	}
+	vkA, err := orv.NewVaultKeeper(1, vkAAddr)
+	if err != nil {
+		t.Fatal("failed to create VK: ", err)
+	}
+	if err := vkA.Start(); err != nil {
+		t.Fatal("failed to start VK: ", err)
+	}
+	t.Cleanup(vkA.Terminate)
+
+	vkBAddr, err := netip.ParseAddrPort("[::1]:7002")
+	if err != nil {
+		t.Fatal("failed to parse addrport: ", err)
+	}
+	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1))
+	if err != nil {
+		t.Fatal("failed to create VK: ", err)
+	}
+	if err := vkB.Start(); err != nil {
+		t.Fatal("failed to start VK: ", err)
+	}
+	t.Cleanup(vkB.Terminate)
+
+	vkCAddr, err := netip.ParseAddrPort("[::1]:7003")
+	if err != nil {
+		t.Fatal("failed to parse addrport: ", err)
+	}
+	vkC, err := orv.NewVaultKeeper(3, vkCAddr, orv.Height(2))
+	if err != nil {
+		t.Fatal("failed to create VK: ", err)
+	}
+	if err := vkC.Start(); err != nil {
+		t.Fatal("failed to start VK: ", err)
+	}
+	t.Cleanup(vkC.Terminate)
+
+	// Join A under B
+	if resp, err := vkA.Hello(vkBAddr.String()); err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_HELLO {
+		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), orv.EXPECTED_STATUS_HELLO)
+	}
+	if err := vkA.Join(vkBAddr.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Join B under C
+	if resp, err := vkB.Hello(vkCAddr.String()); err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_HELLO {
+		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), orv.EXPECTED_STATUS_HELLO)
+	}
+	if err := vkB.Join(vkCAddr.String()); err != nil {
+		t.Fatal(err)
+	}
+
+	return vkA, vkB, vkC
+}
+
 //#endregion
 
 //#region testing error messages
@@ -484,8 +550,12 @@ func TestListRequest(t *testing.T) {
 // Tests that we can successfully make get requests against a vault.
 // Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
 func TestGetRequest(t *testing.T) {
+	buildLineVault(t)
+
+	// register a leaf under C
 	// TODO
-	t.Fatal("NYI")
+
+	time.Sleep(1 * time.Second)
 }
 
 // Tests that VKs can successfully take each other on as children and that two, equal-height, root VKs can successfully merge.
