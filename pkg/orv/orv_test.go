@@ -78,57 +78,54 @@ func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int,
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+func makeJoinRequest(t *testing.T, expectedCode int, targetAddr netip.AddrPort, id uint64, height uint16, vkaddr string, isvk bool) (*resty.Response, orv.JoinAcceptResp) {
 	t.Helper()
-	resp = targetAPI.Post(orv.EP_JOIN,
-		"Packet-Type: "+orv.PT_JOIN,
-		orv.JoinReq{
-			Body: struct {
-				Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-				Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
-				VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
-				IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
-			}{
-				Id:     id,
-				Height: height,
-				VKAddr: vkaddr,
-				IsVK:   isvk,
-			},
-		}.Body)
-	if resp.Code != expectedCode {
-		t.Fatal("join request failed: " + ErrBadResponseCode(resp.Code, expectedCode) + "\n" + resp.Body.String())
+	cli := resty.New()
+	unpackedResp := orv.JoinAcceptResp{}
+	resp, err := cli.R().
+		SetBody(orv.JoinReq{Body: struct {
+			Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
+			VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
+			IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
+		}{id, height, vkaddr, isvk}}.Body). // default request content type is JSON
+		SetExpectResponseContentType(orv.CONTENT_TYPE).
+		SetResult(&(unpackedResp.Body)).
+		Post("http://" + targetAddr.String() + orv.EP_JOIN)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	return resp
+	if resp.StatusCode() != expectedCode {
+		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
+	}
+	return resp, unpackedResp
 }
 
 // POSTs a REGISTER to the endpoint embedded in the huma api, registering a new service under the given id.
 // Only returns if the given status code was matched; Fatal if not
-func makeRegisterRequest(t *testing.T, api humatest.TestAPI, expectedCode int, id uint64, sn string, apStr, staleStr string) (resp *httptest.ResponseRecorder) {
-	resp = api.Post(orv.EP_REGISTER,
-		"Packet-Type: "+orv.PT_REGISTER,
-		orv.RegisterReq{
-			Body: struct {
-				Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-				Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
-				Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
-				Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
-			}{
-				Id:      id,
-				Service: sn,
-				Address: apStr,
-				Stale:   staleStr,
-			},
-		}.Body)
-	if resp.Code != expectedCode {
-		s := "valid"
-		if expectedCode-400 >= 0 {
-			s = "invalid"
-		}
-		t.Fatal(s, " register request failed: ", ErrBadResponseCode(resp.Code, expectedCode))
+func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, sn string, apStr, staleStr string) (*resty.Response, orv.RegisterAcceptResp) {
+	t.Helper()
+	cli := resty.New()
+	unpackedResp := orv.RegisterAcceptResp{}
+	resp, err := cli.R().
+		SetBody(orv.RegisterReq{Body: struct {
+			Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+			Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+			Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
+			Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
+		}{id, sn, apStr, staleStr}}.Body). // default request content type is JSON
+		SetExpectResponseContentType(orv.CONTENT_TYPE).
+		SetResult(&(unpackedResp.Body)).
+		Post("http://" + targetAddr.String() + orv.EP_JOIN)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	return resp
+	if resp.StatusCode() != expectedCode {
+		t.Fatal("hello request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
+	}
+	return resp, unpackedResp
 }
 
 // Send service heartbeats (at given frequency) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
