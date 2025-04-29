@@ -398,7 +398,7 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 		return fmt.Errorf("failed to join under VK: %v (response: %v)", err, joinResp)
 	} else if res.StatusCode() != EXPECTED_STATUS_JOIN {
 		vk.log.Warn().Int("status", res.StatusCode()).Msg("")
-		return fmt.Errorf("bad response code when joining under VK: %d", res.StatusCode())
+		return fmt.Errorf("bad response code when joining under VK: %d (response: %v)", res.StatusCode(), res.String())
 	} else { // success
 		vk.log.Debug().Uint64("parent id", joinResp.Body.Id).Msg("successfully joined under VK")
 		// update parent information
