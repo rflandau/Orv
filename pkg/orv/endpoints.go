@@ -25,6 +25,16 @@ const (
 	EP_LIST              Endpoint = "/list"
 )
 
+const (
+	EXPECTED_STATUS_HELLO             int = http.StatusOK
+	EXPECTED_STATUS_STATUS            int = http.StatusOK
+	EXPECTED_STATUS_JOIN              int = http.StatusAccepted
+	EXPECTED_STATUS_REGISTER          int = http.StatusAccepted
+	EXPECTED_STATUS_VK_HEARTBEAT      int = http.StatusOK
+	EXPECTED_STATUS_SERVICE_HEARTBEAT int = http.StatusOK
+	EXPECTED_STATUS_LIST              int = http.StatusOK
+)
+
 // Generates endpoint handling on the given api instance.
 // Directly alters a shared pointer within the parameter
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
@@ -35,7 +45,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Method:        http.MethodPost,
 		Path:          EP_HELLO,
 		Summary:       EP_HELLO[1:],
-		DefaultStatus: http.StatusOK,
+		DefaultStatus: EXPECTED_STATUS_HELLO,
 	}, vk.handleHello)
 
 	// Handle GET requests on /status
@@ -45,7 +55,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Path:          EP_STATUS,
 		Summary:       EP_STATUS[1:],
 		Tags:          []string{"meta"},
-		DefaultStatus: http.StatusOK,
+		DefaultStatus: EXPECTED_STATUS_STATUS,
 	}, vk.handleStatus)
 
 	// handle POST requests on /join
@@ -54,7 +64,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Method:        http.MethodPost,
 		Path:          EP_JOIN,
 		Summary:       EP_JOIN[1:],
-		DefaultStatus: http.StatusAccepted,
+		DefaultStatus: EXPECTED_STATUS_JOIN,
 	}, vk.handleJoin)
 
 	// handle POST requests on /register
@@ -63,7 +73,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Method:        http.MethodPost,
 		Path:          EP_REGISTER,
 		Summary:       EP_REGISTER[1:],
-		DefaultStatus: http.StatusAccepted,
+		DefaultStatus: EXPECTED_STATUS_REGISTER,
 	}, vk.handleRegister)
 
 	// handle heartbeats for child VKs
@@ -72,7 +82,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Method:        http.MethodPost,
 		Path:          EP_VK_HEARTBEAT,
 		Summary:       EP_VK_HEARTBEAT[1:],
-		DefaultStatus: http.StatusOK,
+		DefaultStatus: EXPECTED_STATUS_VK_HEARTBEAT,
 	}, vk.handleVKHeartbeat)
 
 	// handle heartbeats for leaf services
@@ -81,7 +91,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Method:        http.MethodPost,
 		Path:          EP_SERVICE_HEARTBEAT,
 		Summary:       EP_SERVICE_HEARTBEAT[1:],
-		DefaultStatus: http.StatusOK,
+		DefaultStatus: EXPECTED_STATUS_SERVICE_HEARTBEAT,
 	}, vk.handleServiceHeartbeat)
 
 	// handle list requests for listing available services
@@ -91,7 +101,7 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Path:          EP_LIST,
 		Summary:       EP_LIST[1:],
 		Tags:          []string{"client"},
-		DefaultStatus: http.StatusOK,
+		DefaultStatus: EXPECTED_STATUS_LIST,
 	}, vk.handleList)
 }
 
