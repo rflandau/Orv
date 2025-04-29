@@ -16,11 +16,9 @@ TODO possible two diagrams, one of just the vault in operation and a more advanc
 
 ## The Name 
 
-**O**rganically **R**estructing **V**aults
+Honestly, we never really landed on a name. Orv came about as a temporary solution so I could stop calling it just "The Algorithm".
 
-Or, if you prefer something recursive: **O**rv **R**uns **V**aults
-
-Orv is the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel.
+By the end, we narrowed the name down to Orv (**O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults; a reference to the lowest layer of the world in the Pathfinder TTRPG, a sprawling network of self-sufficient biomes ("vaults") interconnected by a labyrinth of tunnel) or Izanami (for the protocol's powers of creation, a reference to both the Japanese creator deity and the Naruto ability of the same lineage).
 
 # Terminology
 
