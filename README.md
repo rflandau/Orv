@@ -134,8 +134,6 @@ sequenceDiagram
 
 #### Dragon's Hoard (Tree-Seeding)
 
-**Not Implemented**
-
 As height adjustments only happen when root-root joins occur, small trees can rapidly accrue a lot of leaves. This increases the possibility of localized, cascading failure for overloaded vks.
 
 If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
