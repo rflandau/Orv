@@ -618,10 +618,36 @@ func (vk *VaultKeeper) handleGet(_ context.Context, req *GetReq) (*GetResponseRe
 	// validate request
 	sn := strings.TrimSpace(req.Body.Service)
 	if sn == "" {
-		return nil, HErrBadServiceName(sn, PT_GET_RESPONSE)
+		return nil, HErrBadServiceName(sn, PT_GET_FAULT)
 	}
 
-	resp := &GetResponseResp{}
+	// check if we can service the request
+	pAddr, found := vk.children.GetRandomProvider(sn)
+	if !found && req.Body.HopCount > 2 {
+		// we cannot so try to send the request up the tree
+		vk.structureRWMu.RLock() // conditionally released by the sub-branches
+		if !vk.isRoot() {
+			// cache data about our parent
+			//t_id := vk.parent.id
+			//t_addr := vk.parent.addr
+			vk.structureRWMu.RUnlock()
+
+			// submit the request to our parent
+			vk.restClient.R().SetBody(GetReq{Body: struct {
+				Service  string "json:\"service\" required:\"true\" example:\"ssh\" doc:\"the name of the services to be fetched\""
+				HopCount uint16 "json:\"hop-count\" required:\"true\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
+			}{sn, 0}}.Body)
+		} else {
+			// we are root, so no dice.
+			// continue to the success response
+			vk.structureRWMu.RUnlock()
+		}
+	}
+
+	resp := &GetResponseResp{PktType: PT_GET_RESPONSE, Body: struct {
+		Id   uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the VK responding to the get request. If the request propagated up the vault, the ID will be of the last VK.\""
+		Addr string "json:\"addr\" example:\"1.1.1.1:80\" doc:\"the address of a provider of the service. Empty if none were found.\""
+	}{vk.id, pAddr}}
 
 	return resp, nil
 }
