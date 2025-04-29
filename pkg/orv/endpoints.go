@@ -114,6 +114,16 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Tags:          []string{"client"},
 		DefaultStatus: EXPECTED_STATUS_LIST,
 	}, vk.handleList)
+
+	// handle get requests for requesting a specific service
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   EP_GET[1:],
+		Method:        http.MethodPost,
+		Path:          EP_GET,
+		Summary:       EP_GET[1:],
+		Tags:          []string{"client"},
+		DefaultStatus: EXPECTED_STATUS_GET,
+	}, vk.handleGet)
 }
 
 //#region HELLO
@@ -626,21 +636,20 @@ func (vk *VaultKeeper) handleGet(_ context.Context, req *GetReq) (*GetResponseRe
 	if !found && req.Body.HopCount > 2 {
 		// we cannot so try to send the request up the tree
 		vk.structureRWMu.RLock() // conditionally released by the sub-branches
-		if !vk.isRoot() {
-			// cache data about our parent
-			//t_id := vk.parent.id
-			//t_addr := vk.parent.addr
-			vk.structureRWMu.RUnlock()
-
-			// submit the request to our parent
-			vk.restClient.R().SetBody(GetReq{Body: struct {
-				Service  string "json:\"service\" required:\"true\" example:\"ssh\" doc:\"the name of the services to be fetched\""
-				HopCount uint16 "json:\"hop-count\" required:\"true\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
-			}{sn, 0}}.Body)
-		} else {
-			// we are root, so no dice.
-			// continue to the success response
-			vk.structureRWMu.RUnlock()
+		t_id := vk.parent.id
+		t_addr := vk.parent.addr
+		vk.structureRWMu.RUnlock()
+		if t_id != 0 { // we are not root
+			resp, grr, err := Get("http://"+t_addr.String(), req.Body.HopCount-1, sn)
+			if err != nil {
+				vk.log.Warn().Err(err).Str("parent address", t_addr.String()).Msg("failed to contact parent")
+			} else if resp.StatusCode() != EXPECTED_STATUS_GET {
+				vk.log.Warn().Int("response code", resp.StatusCode()).Str("parent address", t_addr.String()).Msg("bad response code from parent")
+			} else {
+				// success! Return this to the client
+				grr.PktType = PT_GET_RESPONSE
+				return &grr, nil
+			}
 		}
 	}
 
