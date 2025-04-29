@@ -235,15 +235,11 @@ Form: `GET{hop-count:3, service:"DNS"}`.
 
 #### Blacklisting
 
-**Not Implemented**
-
 To prevent clients from routinely being served the same content (for instance, if a service is heartbeating the vault, not is not properly handling clients), GET requests *should* support blacklisting addressing to force the vault to return a different provider, even if it requires going further up the vault.
 
-The currently protocol does not support this, but a future version would need to to improve usability.
+The included prototype does not support this, but a future version would need to to improve usability.
 
 ## "Rivering" VaultKeepers
-
-**Not Implemented**
 
 For partition resiliency and load balancing, Orv could support a lateral connection between VKs of the same height. We call this functionality "rivering", as it creates a gossip stream between VKs *of the same height*.
 Rivered VKs are VKs that duplicate information across one another. This allows a vault to not splinter completely at the loss of the root and potentially reduces the hotspot that forms around root.
@@ -378,6 +374,15 @@ From a design standpoint, the VK class is not insignificant. While performance w
 ### API Docs
 
 API docs can be accessed by running the server application (currently just `go run vk/main.go`) and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
+
+### Notable Omissions
+
+As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper proves Orv's viability, but no more. As such, some features are missing.
+
+- VaultKeeper-Local Services: The library does not support services local to a VK. Part of Orv's intention is allow services to register directly with a VKs on the same host so the VK becomes responsible for its heartbeats. Without this functionality, services must be registered under leaves.
+- [Root-Root Merging](#merging-root-root-joins): The VaultKeeper library does not include handling for the MERGE packet (and has no /merge endpoint to accept them). This means that vaults of equal height cannot join and vaults cannot increase their height after creation. As INCREMENT packets are only triggered by MERGE, they have also been omitted. We grant that this is a substantial feature to be wholly absent, but believe that the prototype proves Orv's viability nonetheless.
+- [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
+- [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
 
 ## The VaultKeeper Implementation
 
