@@ -240,6 +240,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 // Dies only when vk.helperDoneCh is closed.
 func (vk *VaultKeeper) startHeartbeater() {
 	l := vk.log.With().Str("sublogger", "heartbeater").Logger()
+	smpl := l.Sample(&zerolog.Sometimes).With().Str("sampled", "sometimes").Logger() // create a sampled logger for HB messages
 	freq := vk.parentHeartbeatFrequency
 
 	for {
@@ -248,11 +249,9 @@ func (vk *VaultKeeper) startHeartbeater() {
 			l.Debug().Msg("heartbeater shutting down...")
 			return
 		case <-time.After(freq):
-			//l.Debug().Msg("heartbeater waking...")
-
 			vk.structureRWMu.RLock()
 			if !vk.isRoot() {
-				l.Debug().Msg("sending HB to parent...")
+				smpl.Debug().Msg("sending HB to parent...")
 
 				parentUrl := "http://" + vk.parent.addr.String() + EP_VK_HEARTBEAT
 				// send a heartbeat to the parent
@@ -276,7 +275,7 @@ func (vk *VaultKeeper) startHeartbeater() {
 					vk.parent.id = 0
 					vk.parent.addr = netip.AddrPort{}
 				} else { // success
-					l.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
+					smpl.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
 				}
 			}
 			vk.structureRWMu.RUnlock()
