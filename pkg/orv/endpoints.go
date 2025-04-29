@@ -372,9 +372,54 @@ func (vk *VaultKeeper) handleRegister(_ context.Context, req *RegisterReq) (*Reg
 		},
 	}
 
-	if !vk.isRoot() {
-		// TODO asynchronously propagate the request up the tree
-	}
+	// spin off a goroutine to attempt to propagate the REGISTER
+	go func() {
+		// acquire the structure lock for as briefly a time as possible
+		vk.structureRWMu.RLock()
+		if vk.isRoot() {
+			vk.structureRWMu.RUnlock()
+			return
+		}
+		// cache parent info
+		c_parentID, c_parentAddr := vk.parent.id, vk.parent.addr
+		vk.structureRWMu.RUnlock()
+
+		parentURL := "http://" + strings.TrimSuffix(vk.parent.addr.String(), "/") + EP_REGISTER
+		var parentResp RegisterAcceptResp
+		// submit the REGISTER
+		req := vk.restClient.R().SetBody(RegisterReq{
+			Body: struct {
+				Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+				Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+				Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
+				Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
+			}{vk.id, sn, addrStr, ""}, // forward the message, but do not include the staleness
+		}.Body).SetExpectResponseContentType(CONTENT_TYPE).SetResult(&(parentResp))
+		vk.log.Info().Str("parent url", parentURL).Str("service", sn).Msg("propagating REGISTER to parent")
+
+		resp, err := req.Post(parentURL)
+		if err != nil {
+			// if an error occurred, drop the parent
+			vk.log.Warn().Err(err).Str("parent url", parentURL).Str("service", sn).Any("response", resp).Msg("failed to contact parent")
+			vk.structureRWMu.Lock()
+			// check that the parent has not changed in our absence
+			if vk.parent.id == c_parentID && vk.parent.addr == c_parentAddr {
+				vk.parent.id = 0
+				vk.parent.addr = netip.AddrPort{}
+			} else {
+				vk.log.Warn().
+					Uint64("new parent id", vk.parent.id).
+					Uint64("cached parent id", c_parentID).
+					Str("new parent address", vk.parent.addr.String()).
+					Str("cached parent address", c_parentAddr.String()).
+					Msg("parent info changed since making REGISTER propagation. Refusing to clear new parent.")
+			}
+			vk.structureRWMu.Unlock()
+		} else if resp.StatusCode() != EXPECTED_STATUS_REGISTER {
+			// if the parent returned a bad status code, give up, but do not drop the parent
+			vk.log.Warn().Err(err).Str("parent url", parentURL).Str("service", sn).Any("status code", resp.StatusCode()).Msg("parent refused propagated REGISTER")
+		}
+	}()
 
 	return resp, nil
 }
