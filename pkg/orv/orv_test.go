@@ -339,16 +339,16 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 }
 
-// Tests that a VK will automatically prune out individual services that do not heartbeat and all services learned by a child VK when the cVK does not heartbeat.
-func TestAutoPrune(t *testing.T) {
+// A simple test to ensure that leaves that do not register a service are pruned after a short delay.
+func TestChildlessService(t *testing.T) {
 	// TODO
 	t.Fatal("NYI")
 }
 
-// Tests that we can build a small vault without merging
+// Tests that we can build a small vault without merging.
 // Composes a tree of the form LeafA --> VKA --> VKB <-- LeafB, including consistent heartbeats for leaves (and the self-managing heartbeats inherent to VKs).
 // VKB and VKA do not merge; instead VKB is spawned with a Dragon's Hoard of 1 and VKA joins as a child.
-func TestSmallVault(t *testing.T) {
+func TestSmallVaultDragonsHoard(t *testing.T) {
 	vkAAddr, err := netip.ParseAddrPort("[::1]:8090")
 	if err != nil {
 		t.Fatal(err)
@@ -424,68 +424,42 @@ func TestSmallVault(t *testing.T) {
 
 }
 
-// Tests that VKs properly prune out leaves that do not register at least one service within a short span AND that
-// services that fail to heartbeat are properly pruned out (without pruning out correctly heartbeating services).
+// Tests that a VK will automatically prune out individual services that do not heartbeat and all services learned by a child VK when the cVK does not heartbeat.
 //
-// Spins up one VK and two leaves (A and B). Both leaves should successfully HELLO -> JOIN. Leaf B then REGISTERs two services and begins heartbeating them.
-// Leaf A should be pruned after a short delay, as it did not register any services.
-// Leaf B stops heartbeating one service. After a short detail, only that service should be pruned.
+// Sets up a vault similar to SmallVault, but terminates the childVK and stops heartbeating a leaf service.
 //
-// By the end, the VK should have a single child (leaf B) and a single service (leaf B's service that is still sending heartbeats).
-func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
-	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// spawn a VK
-	vk, err := orv.NewVaultKeeper(1, vkAddr)
-	if err != nil {
-		t.Fatal("failed to construct VK: ", err)
-	}
-	// start the VK
-	if err := vk.Start(); err != nil {
-		t.Fatal("failed to start VK: ", err)
-	}
-	t.Cleanup(vk.Terminate)
-
-	// issue a status request after a brief start up window
-	time.Sleep(500 * time.Millisecond)
-	if r, u, err := orv.Status("http://" + vk.AddrPort().String()); err != nil {
-		t.Fatal(err)
-	} else if r.StatusCode() != orv.EXPECTED_STATUS_STATUS {
-		t.Fatal("bad status code from /status (expected: ", r.StatusCode(), ", got: ", orv.EXPECTED_STATUS_STATUS, ")")
-	} else {
-		t.Log(u)
-	}
-
-	// spin up the first leaf
-	leafA := leaf{
-		id: 100,
-		services: map[string]struct {
-			addr  string
-			stale string
-		}{
-			"testServiceA": {"[::1]:8091", "3s"},
-		},
-	}
-	// introduce and join leaf A
-	makeHelloRequest(t, vkAddr, 200, leafA.id)
-	makeJoinRequest(t, vkAddr, 202, leafA.id, 0, "", false)
-	// register the service
-	makeRegisterRequest(t, vkAddr, 202, leafA.id, "testServiceA", leafA.services["testServiceA"].addr, leafA.services["testServiceA"].stale)
-	// make a status request to check for the service
-	if r, u, err := orv.Status("http://" + vk.AddrPort().String()); err != nil {
-		t.Fatal(err)
-	} else if r.StatusCode() != orv.EXPECTED_STATUS_STATUS {
-		t.Fatal("bad status code from /status (expected: ", r.StatusCode(), ", got: ", orv.EXPECTED_STATUS_STATUS, ")")
-	} else {
-		t.Log(u)
-	}
-
-	time.Sleep(1 * time.Second)
-
+// LeafA --> VKA --> VKB <-- LeafB
+// VKB <-- LeafC
+//
+// VKA is taken offline, as is LeafB. By the end, the vault should only consist of VKB <-- LeafC
+func TestAutoPrune(t *testing.T) {
 	// TODO
+	t.Fatal("NYI")
+}
 
+// Tests that child VKs properly drop an unresponsive parent.
+// Builds a vault:
+//
+// VKA --> VKB <-- VKC <-- VKD
+//
+// Kills VB. VKs A and C should become root after a short delay. VKD should be unaffected.
+func TestUnresponsiveParent(t *testing.T) {
+	// TODO
+	t.Fatal("NYI")
+}
+
+// Tests that we can successfully make list requests against a vault.
+// Builds a small vault, registers a couple services to it at different levels, and then makes a couple List requests at different levels.
+func TestListRequest(t *testing.T) {
+	// TODO
+	t.Fatal("NYI")
+}
+
+// Tests that we can successfully make get requests against a vault.
+// Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
+func TestGetRequest(t *testing.T) {
+	// TODO
+	t.Fatal("NYI")
 }
 
 // Tests that VKs can successfully take each other on as children and that two, equal-height, root VKs can successfully merge.
