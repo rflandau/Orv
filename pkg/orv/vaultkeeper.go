@@ -341,6 +341,8 @@ func (vk *VaultKeeper) Terminate() {
 	vk.log.Info().Str("address", vk.addr.String()).AnErr("close error", err).Msg("killed http server")
 }
 
+// Returns whether or not we believe we are the root of the vault.
+// Caller is expected to hold the structureLock, lest we create a data race.
 func (vk *VaultKeeper) isRoot() bool {
 	return vk.parent.id == 0
 }
