@@ -326,7 +326,7 @@ func (vk *VaultKeeper) Start() error {
 		Handler: vk.endpoint.mux,
 	}
 	go vk.endpoint.http.ListenAndServe()
-	time.Sleep(400 * time.Millisecond) // give the server time to start up before returning
+	time.Sleep(600 * time.Millisecond) // give the server time to start up before returning
 	return nil
 }
 
@@ -386,8 +386,10 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 		Post(parentURL)
 	if err != nil {
 		vk.log.Warn().Err(err).Any("response", joinResp).Msg("failed to join under VK")
+		return fmt.Errorf("failed to join under VK: %v (response: %v)", err, joinResp)
 	} else if res.StatusCode() != EXPECTED_STATUS_JOIN {
-		vk.log.Warn().Int("status", res.StatusCode()).Msg("bad response code when joining under VK")
+		vk.log.Warn().Int("status", res.StatusCode()).Msg("")
+		return fmt.Errorf("bad response code when joining under VK: %d", res.StatusCode())
 	} else { // success
 		vk.log.Debug().Uint64("parent id", joinResp.Body.Id).Msg("successfully joined under VK")
 		// update parent information
