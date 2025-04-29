@@ -503,7 +503,7 @@ func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHea
 //#region LIST
 
 // Request for /list.
-// The request issued by clients to learn about available services
+// The request issued by clients to learn about available services.
 type ListReq struct {
 	PktType PacketType `header:"Packet-Type"` // LIST
 	Body    struct {
@@ -512,7 +512,7 @@ type ListReq struct {
 	}
 }
 
-// Response for /list.
+// Success response for /list.
 type ListResponseResp struct {
 	PktType PacketType `header:"Packet-Type"` // LIST_RESPONSE
 	Body    struct {
@@ -521,7 +521,8 @@ type ListResponseResp struct {
 	}
 }
 
-// Handle refreshing services offered by leaves.
+// Handle the LIST client request.
+// Returns the list of all known services, as given by the highest-reachable VK (per hop count or root height).
 func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListResponseResp, error) {
 	vk.log.Debug().Msg("servicing list request")
 
@@ -604,6 +605,20 @@ type GetResponseResp struct {
 		Id   uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the VK responding to the get request. If the request propagated up the vault, the ID will be of the last VK."`
 		Addr string `json:"addr" example:"1.1.1.1:80" doc:"the address of a provider of the service. Empty if none were found."`
 	}
+}
+
+// Handle refreshing services offered by leaves.
+func (vk *VaultKeeper) handleGet(_ context.Context, req *GetReq) (*GetResponseResp, error) {
+	vk.log.Debug().Msg("servicing get request")
+	// validate request
+	sn := strings.TrimSpace(req.Body.Service)
+	if sn == "" {
+		return nil, HErrBadServiceName(sn, PT_GET_RESPONSE)
+	}
+
+	resp := &GetResponseResp{}
+
+	return resp, nil
 }
 
 //#endregion GET
