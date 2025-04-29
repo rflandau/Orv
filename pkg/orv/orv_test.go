@@ -53,6 +53,7 @@ func makeHelloRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
 func makeJoinRequest(t *testing.T, targetAPI humatest.TestAPI, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (resp *httptest.ResponseRecorder) {
+	t.Helper()
 	resp = targetAPI.Post(orv.EP_JOIN,
 		"Packet-Type: "+orv.PT_JOIN,
 		orv.JoinReq{
@@ -263,31 +264,31 @@ func TestEndpointArgs(t *testing.T) {
 	makeJoinRequest(t, api, 409, 2, 0, "", false)
 
 	// submit a REGISTER with an invalid ID
-	makeRegisterRequest(t, api, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 3, "Good advice generator - Just drink Milk instead of Coffee", vkAddr.String(), time.Second.String())
 
 	// submit a REGISTER for an unjoined ID
 	makeHelloRequest(t, api, 200, 3)
-	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 3, "Very good Coffee Maker - I might just beat Starbucks", vkAddr.String(), time.Second.String())
 
 	fmt.Println("ok")
 
 	// submit a valid REGISTER for vk
 	makeHelloRequest(t, api, 4, 100)
 	makeJoinRequest(t, api, 202, 4, 1, "", true)
-	makeRegisterRequest(t, api, 4, 100, "Horrible Coffee Maker", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 4, 100, "Horrible Coffee Maker", vkAddr.String(), time.Second.String())
 
 	// submit a valid REGISTER for vk and check if multiple services are allowed
-	makeRegisterRequest(t, api, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 4, "Tea Maker - makes sense why I make horrible Coffee", vkAddr.String(), time.Second.String())
 
 	// submit a invalid REGISTER for vk
-	makeRegisterRequest(t, api, 400, 4, "", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 4, "", vkAddr.String(), time.Second.String())
 
 	fmt.Println("ok")
 
 	// submit a valid HELLO to the same ID as VK
 	makeHelloRequest(t, api, 400, 1)
 	makeJoinRequest(t, api, 400, 1, 0, "", false)
-	makeRegisterRequest(t, api, 400, 1, "Flopped Coffee", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 400, 1, "Flopped Coffee", vkAddr.String(), time.Second.String())
 
 }
 
@@ -308,15 +309,15 @@ func TestMultiLeafMultiService(t *testing.T) {
 	// submit a valid REGISTER for vk
 	makeHelloRequest(t, api, 200, 5)
 	makeJoinRequest(t, api, 200, 5, 0, "", false)
-	makeRegisterRequest(t, api, 200, 1, "Cookie Maker - as coffee maker bombed", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 1, "Cookie Maker - as coffee maker bombed", vkAddr.String(), time.Second.String())
 
 	makeHelloRequest(t, api, 200, 6)
 	makeJoinRequest(t, api, 200, 6, 0, "", false)
-	makeRegisterRequest(t, api, 200, 1, "CMU Cycle stand Manager - too many unaccounted cycles", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 1, "CMU Cycle stand Manager - too many unaccounted cycles", vkAddr.String(), time.Second.String())
 
 	makeHelloRequest(t, api, 200, 7)
 	makeJoinRequest(t, api, 200, 7, 0, "", false)
-	makeRegisterRequest(t, api, 200, 1, "Broken Laptop service - Honestly, nothing you can do about it", vkAddr, time.Second)
+	makeRegisterRequest(t, api, 200, 1, "Broken Laptop service - Honestly, nothing you can do about it", vkAddr.String(), time.Second.String())
 
 }
 
@@ -373,6 +374,11 @@ func TestHopList(t *testing.T) {
 		t.Fatal("cVK A was pruned from B despite no heartbeater errors. Snapshot:", snap)
 	}
 
+	// check that A's parent is correctly set to B
+	if p := vkA.Parent(); p.Id != vkB.ID() || p.Addr != vkBAddr {
+		t.Fatal("A does not believe B is its parent")
+	}
+
 	// register a leaf to A
 	leafA := leaf{
 		id: 100,
@@ -400,6 +406,55 @@ func TestHopList(t *testing.T) {
 	default:
 		// the heartbeater worked as intended
 	}
+
+	// check that A has a leaf with leafA's ID
+	snap = vkA.ChildrenSnapshot()
+	if _, exists := snap.Leaves[leafA.id]; !exists {
+		t.Fatal("LeafA was pruned from A despite no heartbeater errors. Snapshot:", snap)
+	}
+	// check that A has a service "ssh"
+	if _, exists := snap.Services["ssh"]; !exists {
+		t.Fatal("service 'ssh' was not found on vk A despite no heartbeater errors. Snapshot:", snap)
+	}
+
+	// register a leaf to B
+	leafB := leaf{
+		id: 200,
+		services: map[string]struct {
+			addr  string
+			stale string
+		}{"DNS": {"111.0.0.1:53", "1s"}},
+	}
+	makeHelloRequest(t, apiB, HelloSuccessCode, leafB.id)
+	makeJoinRequest(t, apiB, JoinSuccessCode, leafB.id, 0, "", false)
+	makeRegisterRequest(t, apiB, RegisterSuccessCode, leafB.id, "DNS", leafB.services["DNS"].addr, leafB.services["DNS"].stale)
+
+	leafBServiceHBDone, leafBServiceHBErr := sendServiceHeartbeats(apiB, 500*time.Millisecond, leafB.id, []string{"DNS"})
+	t.Cleanup(func() { close(leafBServiceHBDone) })
+
+	// sleep long enough for greater than service stale time
+	time.Sleep(1500 * time.Millisecond)
+
+	// check for any heartbeating errors
+	select {
+	case e := <-leafBServiceHBErr:
+		// an error occurred in the heartbeater
+		t.Fatalf("response code %d with response %s", e.Code, e.Body.String())
+	default:
+		// the heartbeater worked as intended
+	}
+
+	// check that B has a leaf with leafB's ID
+	snap = vkB.ChildrenSnapshot()
+	if _, exists := snap.Leaves[leafB.id]; !exists {
+		t.Fatal("LeafB was pruned from B despite no heartbeater errors. Snapshot:", snap)
+	}
+	// check that B has a service "DNS"
+	if _, exists := snap.Services["DNS"]; !exists {
+		t.Fatal("service 'DNS' was not found on vk B despite no heartbeater errors. Snapshot:", snap)
+	}
+
+	// we should now be able to submit a list request to A which will propagate up to ... TODO
 
 	time.Sleep(time.Second)
 }
@@ -442,35 +497,20 @@ func TestLeafNoRegisterNoHeartbeat(t *testing.T) {
 	}
 
 	// spin up the first leaf
-	var leafA struct {
-		id           uint64
-		serviceName  string
-		serviceAddr  netip.AddrPort
-		serviceStale time.Duration
-	} = struct {
-		id           uint64
-		serviceName  string
-		serviceAddr  netip.AddrPort
-		serviceStale time.Duration
-	}{
-		id:          100,
-		serviceName: "testServiceA",
+	leafA := leaf{
+		id: 100,
+		services: map[string]struct {
+			addr  string
+			stale string
+		}{
+			"testServiceA": {"[::1]:8091", "3s"},
+		},
 	}
-
-	leafA.serviceAddr, err = netip.ParseAddrPort("[::1]:8091")
-	if err != nil {
-		t.Fatal(err)
-	}
-	leafA.serviceStale, err = time.ParseDuration("3s")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// introduce and join leaf A
 	makeHelloRequest(t, api, 200, leafA.id)
 	makeJoinRequest(t, api, 202, leafA.id, 0, "", false)
 	// register the service
-	makeRegisterRequest(t, api, 202, leafA.id, leafA.serviceName, leafA.serviceAddr, leafA.serviceStale)
+	makeRegisterRequest(t, api, 202, leafA.id, "testServiceA", leafA.services["testServiceA"].addr, leafA.services["testServiceA"].stale)
 	// make a status request to check for the service
 	{
 		resp := api.Get(orv.EP_STATUS)
