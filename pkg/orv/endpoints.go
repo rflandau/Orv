@@ -35,6 +35,8 @@ const (
 	EXPECTED_STATUS_LIST              int = http.StatusOK
 )
 
+const CONTENT_TYPE string = "application/problem+json"
+
 // Generates endpoint handling on the given api instance.
 // Directly alters a shared pointer within the parameter
 // (hence no return value and no pointer parameter (yes, I know it is weird. Weird design decision on huma's part)).
