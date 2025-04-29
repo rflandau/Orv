@@ -10,30 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"resty.dev/v3"
 )
 
 //#region request helper functions and structs
-
-// Humatest is quite verbose by default and has no native way to suppress its logging.
-// To keep the tests readable (while still gaining the functionality of humatest), we wrap the test handler and give it no-op logging.
-// This way, humatest's native output is suppressed, but we can still utilize all the normal features of the test handler
-// (using the unwrapped version).
-type SuppressedLogTest struct {
-	*testing.T
-}
-
-// no-op wrapper
-func (tb SuppressedLogTest) Log(args ...any) {
-	// no-op
-}
-
-// no-op wrapper
-func (tb SuppressedLogTest) Logf(format string, args ...any) {
-	// no-op
-}
 
 const (
 	HelloSuccessCode    int = 200
@@ -176,22 +157,6 @@ func ErrBadResponseCode(got, expected int) string {
 }
 
 //#endregion
-
-func StartVKListener(t *testing.T, api huma.API, vkid uint64) (*orv.VaultKeeper, netip.AddrPort) {
-	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	vk, err := orv.NewVaultKeeper(vkid, vkAddr, orv.SetHumaAPI(api))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := vk.Start(); err != nil {
-		t.Fatal(err)
-	}
-	return vk, vkAddr
-}
 
 // Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
 // A la ClientArgs in lab3.
