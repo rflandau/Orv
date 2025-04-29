@@ -31,6 +31,7 @@ import (
 // mu must be held for all operations on children.
 type children struct {
 	log      zerolog.Logger // child logger of vk.log
+	smpl     zerolog.Logger // sampled version of children.log
 	mu       sync.Mutex
 	services map[serviceName][]struct {
 		cID  childID
@@ -68,7 +69,7 @@ type childVK struct {
 // leafPruneTime is how much time a new leaf has from the moment it is added to the map until it is pruned
 // (if it does not add a service).
 func newChildren(parentLogger *zerolog.Logger, leafPruneTime, cvkPruneTime time.Duration) *children {
-	return &children{
+	c := &children{
 		log: parentLogger.With().Str("sublogger", "children").Logger(),
 		services: make(map[string][]struct {
 			cID  childID
@@ -79,6 +80,8 @@ func newChildren(parentLogger *zerolog.Logger, leafPruneTime, cvkPruneTime time.
 		leaves:                   make(map[childID]map[serviceName]leafService),
 		vks:                      make(map[childID]childVK),
 	}
+	c.smpl = c.log.Sample(&zerolog.Sometimes).With().Str("sampled", "sometimes").Logger() // create a sampled logger for refresh messages
+	return c
 }
 
 // Adds a new leaf if the leaf does not already exist (as a leaf or VK).
@@ -407,7 +410,7 @@ func (c *children) HeartbeatCVK(cID childID) error {
 		return huma.Error400BadRequest(fmt.Sprintf("no child VK associated to ID %d", cID))
 	}
 	cvk.pruneTimer.Reset(c.cvkPruneTime)
-	c.log.Debug().Str("child type", "vk").Uint64("child ID", cID).Msg("refreshed prune timer")
+	c.smpl.Debug().Str("child type", "vk").Uint64("child ID", cID).Msg("refreshed prune timer")
 	return nil
 }
 
