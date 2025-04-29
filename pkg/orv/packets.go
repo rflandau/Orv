@@ -17,6 +17,7 @@ const (
 	PT_HELLO_ACK PacketType = "HELLO_ACK"
 )
 
+// heartbeats
 const (
 	// Sent by a leaf to refresh the lifetimes of all services named in the HB.
 	PT_SERVICE_HEARTBEAT       PacketType = "SERVICE_HEARTBEAT"
@@ -45,12 +46,10 @@ const (
 
 // service registration
 const (
-	PT_STATUS          PacketType = "STATUS"
-	PT_STATUS_RESPONSE PacketType = "STATUS_RESPONSE"
 	// Sent by a child node already part of a vault to tell its parent about a new service.
 	// Initially proc'd by a new service at a leaf or VK, the REGISTER echoes up the tree until it has reached root.
-	// Echoing responsibility falls to each parent VK to pass the message iteratively.
-	// If an existing service is registered to the same child node, the new information will supplant the existing information.
+	// Echoing responsibility falls to each parent VK to pass the message recursively.
+	// If an existing service is registered to the same child node, the new information will supplant the existing information (ex: address and stale time).
 	PT_REGISTER PacketType = "REGISTER"
 	// Sent by a parent VK to confirm registration of the service offered by the child.
 	PT_REGISTER_ACCEPT PacketType = "REGISTER_ACCEPT"
@@ -59,25 +58,29 @@ const (
 
 // service requests
 const (
-	// Sent by a child node to learn what services are available.
-	// Use hop count to enforce locality. A hop count of 1 means the request will only query the node's immediate parent. Hop count is limited by vault height.
+	// Sent by a client to learn about the receiver VK. Does not echo up the vault.
+	PT_STATUS          PacketType = "STATUS"
+	PT_STATUS_RESPONSE PacketType = "STATUS_RESPONSE"
+	// Sent by a client to learn what services are available.
+	// Use hop count to enforce locality. A hop count of 1 means the request will only query the client immediate contact. Hop count is limited by vault height.
 	// While a LIST with a hop count of 0 is technically an error, hop counts of 0 and 1 are treated the same.
-	PT_LIST PacketType = "LIST"
-	// Sent by a VK when it receives a LIST request to acknowledge it while the VK propagates it up the vault.
-	// Only sent if the hop count is greater than 1 when it was received (because otherwise it will be decremented to 0 and answered by LIST_RESPONSE.
-	PT_LIST_ACK PacketType = "LIST_ACK"
-	// Sent by a VK when it receives a LIST request and the hop count decrements to 0 OR it is the root of the vault.
+	PT_LIST          PacketType = "LIST"
 	PT_LIST_RESPONSE PacketType = "LIST_RESPONSE"
-	// TODO
-	PT_GET PacketType = "GET"
-	// TODO
+	// Sent by a client to fetch the address of a node providing the named service.
+	// Use hop count to enforce locality. A hop count of 1 means the request will only query the client immediate contact. Hop count is limited by vault height.
+	// While a GET with a hop count of 0 is technically an error, hop counts of 0 and 1 are treated the same.
+	PT_GET          PacketType = "GET"
 	PT_GET_RESPONSE PacketType = "GET_RESPONSE"
+	// Sent by a VK to a client when the client's GET request is poorly formatted.
+	// NOTE(_): not sent when GET does not find a service; that is still considered a good response.
+	PT_GET_FAULT PacketType = "GET_FAULT"
 )
 
 // root-root merging
 const (
 	// Sent by a node to indicate that the VK should become one of its children.
 	// Only used in root-root interactions.
+	// Must follow a HELLO_ACK.
 	//
 	// Must be followed up by a MERGE_ACCEPT to confirm.
 	PT_MERGE PacketType = "MERGE"
@@ -85,7 +88,14 @@ const (
 	// Only used in root-root interactions.
 	//
 	// Once received by the requester node, that node can safely consider itself to be the new root.
-	// The requester node must then update its height and send an INCR to its pre-existing children.
+	// The requester node must then update its height and send an INCREMENT to its pre-existing children.
 	PT_MERGE_ACCEPT PacketType = "MERGE_ACCEPT"
-	PT_INCR         PacketType = "INCR"
+	// Sent by a VK when it MERGEs with another VK in order to notify the pre-existing child VKs that their heights have increased by 1.
+	// Children who receive an INCREMENT must echo it to their child VKs.
+	// Do NOT send an INCREMENT down the new branch that was just attached because of the merge.
+	PT_INCREMENT PacketType = "INCREMENT"
+	// Optional response from a child VK who receives an ACK to confirm to their parent that their height has been updated.
+	//
+	// Should be used to validate that there are no gaps in the height (in other words, every child VK's height is exactly equal to its parent's height-1).
+	PT_INCREMENT_ACK PacketType = "INCREMENT_ACK"
 )
