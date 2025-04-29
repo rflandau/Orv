@@ -29,9 +29,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	parentLogger := zerolog.New(os.Stdout).Output(os.Stdout).Level(zerolog.ErrorLevel)
-
 	pvk, err := orv.NewVaultKeeper(pvkid, addr, orv.Height(1), orv.SetLogger(&parentLogger))
 	if err != nil {
 		panic(err)
@@ -40,6 +38,8 @@ func main() {
 		panic(err)
 	}
 	defer pvk.Terminate()
+
+	fmt.Println("Started parent VK @ ", pvk.AddrPort())
 
 	// spawn the child VK
 	cvkAddr, err := netip.ParseAddrPort("[::1]:8081")
@@ -55,6 +55,8 @@ func main() {
 	}
 	defer cvk.Terminate()
 
+	fmt.Println("Started child VK @ ", cvk.AddrPort())
+
 	// have the child greet and join the parent
 	if resp, err := cvk.Hello(pvk.AddrPort().String()); resp.StatusCode() != orv.EXPECTED_STATUS_HELLO || err != nil {
 		panic(fmt.Sprintf("failed to greet parent (status code: %d, error: %v)", resp.StatusCode(), err))
@@ -62,6 +64,8 @@ func main() {
 	if err := cvk.Join(pvk.AddrPort().String()); err != nil {
 		panic(err)
 	}
+
+	fmt.Println("child has joined under parent")
 
 	// submit a status request to the parent
 	httpResp, statusAck, err := orv.Status("http://" + pvk.AddrPort().String())
