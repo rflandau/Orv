@@ -1,14 +1,14 @@
 package orv
 
+/*
+This file contains requests that can be called on VKs from any client.
+*/
+
 import (
 	"strings"
 
 	"resty.dev/v3"
 )
-
-/*
-This file contains requests that can be called on VKs from any client.
-*/
 
 // Spawns a new resty client and uses it to make a status request against the target address.
 // Serves as an example of how to make client-side calls against a Vault.
