@@ -31,6 +31,8 @@ const (
 	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 5
 )
 
+const DEFAULT_PARENT_HEARTBEAT_FREQ time.Duration = 500 * time.Millisecond
+
 //#region types
 
 // The amount of time before values in each table are prune-able.
@@ -66,8 +68,9 @@ type VaultKeeper struct {
 		id   uint64 // 0 if we are root
 		addr netip.AddrPort
 	}
-	pt      PruneTimes
-	pchDone chan bool // used to notify the pruner goro that it is time to shut down
+	parentHeartbeatFrequency time.Duration
+	pt                       PruneTimes
+	pchDone                  chan bool // used to notify the pruner goro that it is time to shut down
 
 	pendingHellos sync.Map // id -> timestamp
 }
@@ -140,6 +143,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		},
 		height: 0,
 
+		parentHeartbeatFrequency: DEFAULT_PARENT_HEARTBEAT_FREQ,
 		pt: PruneTimes{
 			PendingHello:     DEFAULT_PRUNE_TIME_PENDING_HELLO,
 			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
@@ -209,6 +213,36 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 					}
 					return true // also continue, until we have visited every key
 				})
+			}
+		}
+	}()
+
+	// spawn a service to send heartbeats to the parent of this VK (if applicable)
+	go func() {
+		l := vk.log.With().Str("sublogger", "heartbeater").Logger()
+		freq := vk.parentHeartbeatFrequency
+
+		for {
+			select {
+			case <-vk.pchDone:
+				l.Debug().Msg("pruner shutting down...")
+				return
+			case <-time.After(freq):
+				vk.structureRWMu.RLock()
+				if !vk.isRoot() {
+					// send a heartbeat to the parent
+
+					/*
+						resp := http.Post(EP_VK_HEARTBEAT, map[string]any{
+							"id": vk.id,
+						})
+						if resp.Code != 200 {
+							errResp <- resp
+							return
+						}
+					*/
+				}
+				vk.structureRWMu.RUnlock()
 			}
 		}
 	}()
