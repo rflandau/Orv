@@ -439,7 +439,7 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 }
 
-// A simple test to ensure that leaves that do not register a service are pruned after a short delay.
+// Ensure that leaves that do not register a service are pruned after a short delay.
 func TestChildlessService(t *testing.T) {
 	// spin up a VK
 	vkAddr, err := netip.ParseAddrPort("[::1]:7500")
@@ -572,19 +572,6 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 	}
 
 }
-
-// Tests that a VK will automatically prune out individual services that do not heartbeat and all services learned by a child VK when the cVK does not heartbeat.
-//
-// Sets up a vault similar to SmallVault, but terminates the childVK and stops heartbeating a leaf service.
-//
-// LeafA --> VKA --> VKB <-- LeafB
-// VKB <-- LeafC
-//
-// VKA is taken offline, as is LeafB. By the end, the vault should only consist of VKB <-- LeafC
-/*func TestAutoPrune(t *testing.T) {
-	// TODO
-	t.Fatal("NYI")
-}*/
 
 // Tests that child VKs properly drop an unresponsive parent.
 // Builds a vault:
@@ -748,3 +735,24 @@ func TestListRequest(t *testing.T) {
 	}
 
 }
+
+// Tests that a VK will automatically prune out individual services that do not heartbeat and all services learned by a child VK when the cVK does not heartbeat.
+//
+// Sets up a vault similar to SmallVault, but terminates the childVK and stops heartbeating a leaf service.
+//
+// LeafA --> VKA --> VKB <-- LeafB
+// VKB <-- LeafC
+//
+// VKA is taken offline, as is LeafB. By the end, the vault should only consist of VKB <-- LeafC
+/*func TestAutoPrune(t *testing.T) {
+	t.Fatal("NYI")
+}*/
+
+// Tests that we can construct a complex vault with a variety of nodes at different heights and with different child counts
+//
+// Creates two, reasonably large, heterogenous vaults and joins one as a child to the other.
+//
+// Tests that LISTs and GETs can fetch data from the newly join branch of the vault.
+/*func TestJoinLargeVaults(t *testing.T) {
+	t.Fatal("NYI")
+}*/
