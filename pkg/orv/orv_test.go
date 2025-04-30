@@ -548,17 +548,17 @@ func TestAutoPrune(t *testing.T) {
 // Tests that child VKs properly drop an unresponsive parent.
 // Builds a vault:
 //
-// VKA --> VKB <-- VKC <-- VKD
+// VKA --> VKB --> VKC <-- VKD
 //
-// Kills VKB. VKs A and C should become root after a short delay. VKD should be unaffected.
+// Kills VKC. VKs B and D should become root after a short delay. VKA should be unaffected.
 func TestUnresponsiveParent(t *testing.T) {
-	_, _, vkC := buildLineVault(t, 2)
+	vkA, vkB, vkC := buildLineVault(t, 2)
 	// spin up and connect vkD to vkC
 	vkDAddr, err := netip.ParseAddrPort("[::1]:7004")
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkD, err := orv.NewVaultKeeper(4, vkDAddr)
+	vkD, err := orv.NewVaultKeeper(4, vkDAddr, orv.Height(1))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -573,7 +573,19 @@ func TestUnresponsiveParent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(3 * time.Second)
+	// kill the root, then wait for everything to stabilize
+	vkC.Terminate()
+	time.Sleep(4 * time.Second)
+
+	// check the parents of each living node
+	if vkA.Parent().Id != vkB.ID() {
+		t.Fatal("vkA does not believe that vkB is its parent")
+	} else if vkB.Parent().Id != 0 {
+		t.Fatal("vkB does not believe that it is root")
+	} else if vkD.Parent().Id != 0 {
+		t.Fatal("vkD does not believe that it is root")
+	}
+
 }
 
 // Tests that we can successfully make list requests against a vault.
