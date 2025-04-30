@@ -100,7 +100,7 @@ Nodes who wish to join the vault must first introduce themselves with `HELLO` me
 
 You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted.
 
-After a receiving a `JOIN_ACCEPT`, the new child node must register a service or they will be pruned and have to re-join. See [Registering A Service](#registering-a-service) below.
+After a receiving a `JOIN_ACCEPT`, the new child node is obligated to register its services. A leaf child *must* register a service or it will be pruned and have to re-join. See [Registering A Service](#registering-a-service) below. A VK child should register its known services as if it was bubbling up a REGISTER; without this the parent may never learn of pre-existing services.
 
 ```mermaid
 sequenceDiagram
@@ -392,6 +392,7 @@ As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper p
 - [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
 - [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
 - [Deregistering](#deregistering-a-service): The VaultKeeper library does not support DEREGISTER packets and services can only be un-learned by being pruned (due to a lack of heartbeats).
+- Registering On VK Join: When a VK joins as a child to another VK, it is supposed to register its known services with its new parent. The VaultKeeper library currently does not support this, so only new registrations post-join will make it all the way up. This is a high-priority fix.
 
 ## The VaultKeeper Implementation
 
@@ -411,14 +412,63 @@ Being a Go project, it should manage all of its own dependencies.
 
 Each test contains a comment describing what it is testing and how, available in [orv_test.go](pkg/orv/orv_test.go).
 
-TODO
+To build the example VaultKeeper, use `make build`.
 
-1. Test for...
+To run the testing code, use `make test` or `make test-race` (the latter tests with Go's race condition checker enabled).
 
-```
-make test
-```
+### Test Descriptions
 
+As noted above, each test has a header comment with what it does. They have been copied down here for ease of use.
+
+1. TestEndpointArgs
+
+    Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
+
+    A la ClientArgs in lab3.
+
+2. TestMultiLeafMultiService
+    
+    Tests that a single VK can support multiple leaves and multiple services (some duplicates) on each leaf simultaneously.
+    
+    Each leaf will HELLO -> JOIN and then submit multiple REGISTERS. Each service will need to send heartbeats to the VK.
+    
+    After a short delay, the test checks if the VK still believe that all services are active.
+
+3. TestChildlessService
+    
+    Ensure that leaves that do not register a service are pruned after a short delay.
+
+4. TestSmallVaultDragonsHoard
+
+    Tests that we can build a small vault without merging.
+    
+    Composes a tree of the form LeafA --> VKA --> VKB <-- LeafB, including consistent heartbeats for leaves (and the self-managing heartbeats inherent to VKs).
+    
+    VKB and VKA do not merge; instead VKB is spawned with a Dragon's Hoard of 1 and VKA joins as a child.
+
+5. TestUnresponsiveParent
+    
+    Tests that child VKs properly drop an unresponsive parent
+
+    Builds a vault: VKA --> VKB --> VKC <-- VKD
+    
+    Kills VKC. VKs B and D should become root after a short delay. VKA should be unaffected.
+
+6. TestGetRequest
+
+    Tests that we can successfully make get requests against a vault.
+    
+    Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
+    
+    Checks that Gets respect hop count, can get immediately available services (available from the first VK), and can bubble up to root.
+
+7. TestListRequest
+    
+    Tests that we can successfully make list requests against a vault.
+    
+    Builds a small line vault, registers a couple services to it at different levels, and then makes a couple List requests to test correct propagate (or the lack thereof) of the LIST request.
+    
+    Very similar to the GET test.
 ## Resources Used
 
 ### Libraries
