@@ -327,7 +327,11 @@ func (vk *VaultKeeper) Parent() struct {
 
 // Starts the http api listener in the vk.
 // Includes a small start up delay to ensure the server is ready by the time this function returns.
+// WARNING(_): This function is not safe to call multiple times. It should be integrated with a .Stop() function to make this call safer.
 func (vk *VaultKeeper) Start() error {
+	if !vk.alive.Load() {
+		return ErrDead()
+	}
 	vk.log.Info().Str("address", vk.addr.String()).Msg("listening...")
 
 	// Create the HTTP server.
@@ -356,6 +360,11 @@ func (vk *VaultKeeper) Terminate() {
 	vk.log.Info().Str("address", vk.addr.String()).AnErr("close error", err).Msg("killed http server")
 }
 
+// Has this VK been terminated?
+func (vk *VaultKeeper) Dead() bool {
+	return vk.alive.Load()
+}
+
 // Returns whether or not we believe we are the root of the vault.
 // Caller is expected to hold the structureLock, lest we create a data race.
 func (vk *VaultKeeper) isRoot() bool {
@@ -364,6 +373,9 @@ func (vk *VaultKeeper) isRoot() bool {
 
 // Causes the VaultKeeper to send a HELLO to the given address
 func (vk *VaultKeeper) Hello(addrStr string) (resp *resty.Response, err error) {
+	if !vk.alive.Load() {
+		return nil, ErrDead()
+	}
 	addr, err := netip.ParseAddrPort(addrStr)
 	if err != nil {
 		return nil, err
@@ -378,6 +390,9 @@ func (vk *VaultKeeper) Hello(addrStr string) (resp *resty.Response, err error) {
 // If it succeeds, the VK will alters its current parent to point to the new parent.
 // Expects that the caller already sent HELLO.
 func (vk *VaultKeeper) Join(addrStr string) (err error) {
+	if !vk.alive.Load() {
+		return ErrDead()
+	}
 	// validate the parent address
 	addr, err := netip.ParseAddrPort(addrStr)
 	if err != nil {
