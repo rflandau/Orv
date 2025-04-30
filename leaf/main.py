@@ -3,6 +3,7 @@ MAIN CLIENT/LEAF script
 '''
 
 import sys
+import signal
 import threading
 from flask import Flask, jsonify, request
 from clientRequests import client_work
@@ -25,20 +26,39 @@ temperature = [
 def get_temperature():
     return jsonify(temperature)
 
+# Global flag to stop the thread
+close_thread = False
+
+def thread_run_in_bg():
+    while not close_thread:
+        client_work()
+
+def signal_handler(signum, frame):
+    print("Interrupt signal received, shutting down...")
+    global close_thread
+    close_thread = True
+    sys.exit(0)
+
 
 if __name__ == '__main__':
     try:
+        signal.signal(signal.SIGINT, signal_handler)
         # Run client in a separate thread so that main thread concetrates on just providing its service
-        t1 = threading.Thread(target=client_work)
-        t1.start()
+        t1 = threading.Thread(target=thread_run_in_bg)
+        t1.daemon = True  # So it doesn't block the exit
+        t1.start()        
+
+        close_thread = True
 
         # Main thread functionality to run Flask server
         app.run(debug=False, port=1299)
 
     except KeyboardInterrupt as ki:
         print("Keyboard Interrupt performed. Exiting....")
+        close_thread = True
         sys.exit(0)
     
     except Exception as e:
         print(f"Something went wrong - {e}")
+        close_thread = True
         sys.exit(0)
