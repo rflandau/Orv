@@ -17,6 +17,11 @@ import (
 
 //#region Errors
 
+// this VK has been terminated.
+func ErrDead() error {
+	return errors.New("this VaultKeeper is dead")
+}
+
 // invalid stale time
 func ErrBadStaleTime() error {
 	return errors.New("stale time must be a valid Go time greater than 0")
