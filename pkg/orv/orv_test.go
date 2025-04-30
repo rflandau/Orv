@@ -629,13 +629,6 @@ func TestUnresponsiveParent(t *testing.T) {
 
 }
 
-// Tests that we can successfully make list requests against a vault.
-// Builds a small vault, registers a couple services to it at different levels, and then makes a couple List requests at different levels.
-func TestListRequest(t *testing.T) {
-	// TODO
-	t.Fatal("NYI")
-}
-
 // Tests that we can successfully make get requests against a vault.
 // Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
 // Checks that Gets respect hop count, can get immediately available services (available from the first VK), and can bubble up to root.
@@ -697,4 +690,61 @@ func TestGetRequest(t *testing.T) {
 	} else if grr.Body.Addr != "" {
 		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, "")
 	}
+}
+
+// Tests that we can successfully make list requests against a vault.
+// Builds a small line vault, registers a couple services to it at different levels, and then makes a couple List requests to test correct propagate (or the lack thereof) of the LIST request.
+// Very similar to the GET test.
+func TestListRequest(t *testing.T) {
+	vkA, _, vkC := buildLineVault(t, 3)
+	// register a leaf under C
+	lC := leaf{id: 300, services: map[string]struct {
+		addr  string
+		stale string
+	}{"File Server": {"3.3.3.3:300", "2s"}}}
+	lC.JoinVault(t, vkC)
+	// spawn a heartbeater for C's services
+	lCSvcDone, lCSvcErr := sendServiceHeartbeats(vkC.AddrPort(), 800*time.Millisecond, lC.id, slices.Collect(maps.Keys(lC.services)))
+	t.Cleanup(func() { close(lCSvcDone) })
+
+	// register a leaf under A
+	lA := leaf{id: 100, services: map[string]struct {
+		addr  string
+		stale string
+	}{"ssh": {"1.1.1.1:100", "2s"},
+		"oven": {"1.1.1.1:101", "2s"}}}
+	lA.JoinVault(t, vkA)
+	// spawn a heartbeater for C's services
+	lASvcDone, lASvcErr := sendServiceHeartbeats(vkA.AddrPort(), 800*time.Millisecond, lA.id, slices.Collect(maps.Keys(lA.services)))
+	t.Cleanup(func() { close(lASvcDone) })
+
+	time.Sleep(4 * time.Second)
+	// check for any errors from our services
+	checkHeartbeatError(t, lCSvcErr)
+	checkHeartbeatError(t, lASvcErr)
+
+	leafAServices := slices.Collect(maps.Keys(lA.services))
+	leafCServices := slices.Collect(maps.Keys(lC.services))
+	allServices := append(leafAServices, leafCServices...)
+	// issue a LIST against vkA, which should only pick up the services offered by A
+	resp, grr, err := orv.List("http://"+vkA.AddrPort().String(), 1)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_LIST {
+		t.Log(resp.String())
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_LIST))
+	} else if !slicesUnorderedEqual(grr.Body.Services, leafAServices) {
+		t.Fatalf("mismatching list services (got %v, expected %v)", grr.Body.Services, leafAServices)
+	}
+
+	// issue a LIST against vkA, which should echo up to root get all services
+	resp, grr, err = orv.List("http://"+vkA.AddrPort().String(), 5)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_LIST {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_LIST))
+	} else if !slicesUnorderedEqual(grr.Body.Services, allServices) {
+		t.Fatalf("mismatching list services (got %v, expected %v)", grr.Body.Services, allServices)
+	}
+
 }
