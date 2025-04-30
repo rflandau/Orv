@@ -178,6 +178,12 @@ REGISTERs have two forms:
 - Leaf -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080", stale:"3s"}`
 - VK -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080"}`
 
+### Registering Multiple Services at Once
+
+The spec should *eventually* support registering multiple services in a single REGISTER packet. While not a huge deal for most leaves, which will have service counts in the single or double digits, JOINing/MERGEing large vaults triggers a REGISTER for every service known to the now-child-root and can have hundreds of service providers.
+
+To alleviate the bursty messaging of large-scale join, Orv should support REGISTERs that hold many services to reduce overall message count.
+
 ## Heartbeats
 
 There are two kinds of heartbeats: service heartbeats and vault heartbeats. They are detailed below.
