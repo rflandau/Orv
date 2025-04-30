@@ -163,14 +163,18 @@ func checkHeartbeatError(t *testing.T, errResp chan *resty.Response) {
 }
 
 // Generates 3 VKs in the form A --> B --> C with C at the root.
+// The given height sets the height of C, with B.height-=1 and A.height-=2.
 // Returns handles to all 3.
 // Calls Fatal if any step fails
-func buildLineVault(t *testing.T) (A, B, C *orv.VaultKeeper) {
+func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
+	if height < 2 {
+		t.Fatal("height must be greater than 2 to build the line vault")
+	}
 	vkAAddr, err := netip.ParseAddrPort("[::1]:7001")
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkA, err := orv.NewVaultKeeper(1, vkAAddr)
+	vkA, err := orv.NewVaultKeeper(1, vkAAddr, orv.Height(height-2))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -183,7 +187,7 @@ func buildLineVault(t *testing.T) (A, B, C *orv.VaultKeeper) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1))
+	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(height-1))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -196,7 +200,7 @@ func buildLineVault(t *testing.T) (A, B, C *orv.VaultKeeper) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkC, err := orv.NewVaultKeeper(3, vkCAddr, orv.Height(2))
+	vkC, err := orv.NewVaultKeeper(3, vkCAddr, orv.Height(height))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -546,10 +550,30 @@ func TestAutoPrune(t *testing.T) {
 //
 // VKA --> VKB <-- VKC <-- VKD
 //
-// Kills VB. VKs A and C should become root after a short delay. VKD should be unaffected.
+// Kills VKB. VKs A and C should become root after a short delay. VKD should be unaffected.
 func TestUnresponsiveParent(t *testing.T) {
-	// TODO
-	t.Fatal("NYI")
+	_, _, vkC := buildLineVault(t, 2)
+	// spin up and connect vkD to vkC
+	vkDAddr, err := netip.ParseAddrPort("[::1]:7004")
+	if err != nil {
+		t.Fatal("failed to parse addrport: ", err)
+	}
+	vkD, err := orv.NewVaultKeeper(4, vkDAddr)
+	if err != nil {
+		t.Fatal("failed to create VK: ", err)
+	}
+	if err := vkD.Start(); err != nil {
+		t.Fatal("failed to start VK: ", err)
+	}
+	t.Cleanup(vkD.Terminate)
+	if _, err := vkD.Hello(vkC.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	}
+	if err := vkD.Join(vkC.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(3 * time.Second)
 }
 
 // Tests that we can successfully make list requests against a vault.
@@ -562,7 +586,7 @@ func TestListRequest(t *testing.T) {
 // Tests that we can successfully make get requests against a vault.
 // Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
 func TestGetRequest(t *testing.T) {
-	vkA, vkB, vkC := buildLineVault(t)
+	vkA, vkB, vkC := buildLineVault(t, 3)
 
 	// register a leaf under C
 	lC := leaf{id: 300, services: map[string]struct {
