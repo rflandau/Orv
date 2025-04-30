@@ -5,10 +5,7 @@ This file contains all the logic for endpoints, which serve as stand-ins for pac
 */
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -541,53 +538,22 @@ type ListResponseResp struct {
 func (vk *VaultKeeper) handleList(_ context.Context, req *ListReq) (*ListResponseResp, error) {
 	vk.log.Debug().Msg("servicing list request")
 
+	// we cannot so try to send the request up the tree
 	vk.structureRWMu.RLock() // conditionally released by the sub-branches
-
-	if req.Body.HopCount > 1 && !vk.isRoot() { // try to forward the request up the vault
-		// cache the parent info in case we need to modify it
-		t_id := vk.parent.id
-		t_addr := vk.parent.addr
-
-		// construct a request to pass to parent
-		pReq := ListReq{
-			Body: struct {
-				HopCount uint16 "json:\"hop-count\" example:\"2\" doc:\"the maximum number of VKs to hop to. A hop count of 0 or 1 means the request will stop at the first VK (the VK who receives the initial request)\""
-			}{req.Body.HopCount - 1},
-		}
-		pReqBytes, err := json.Marshal(pReq.Body)
+	t_id := vk.parent.id
+	t_addr := vk.parent.addr
+	vk.structureRWMu.RUnlock()
+	if req.Body.HopCount > 2 && t_id != 0 { // we are not root and there are hops remaining
+		resp, lrr, err := List("http://"+t_addr.String(), req.Body.HopCount-1)
 		if err != nil {
-			panic(err) // should never be able to occur
-		}
-		rd := bytes.NewReader(pReqBytes)
-
-		resp, err := http.Post(vk.parent.addr.String()+EP_LIST, "application/problem+json", rd)
-		vk.structureRWMu.RUnlock()
-		if err == nil {
-			vk.log.Debug().Int("response code", resp.StatusCode).Msg("passed /list up to parent")
-			if (resp.StatusCode - 299) <= 0 { // check for a good response code
-				// return the services we got from the parent
-				b, err := io.ReadAll(resp.Body)
-				if err == nil {
-					// forward the response we got from our parent
-					resp := &ListResponseResp{PktType: PT_LIST_RESPONSE}
-					json.Unmarshal(b, &resp.Body)
-					return resp, nil
-				}
-			}
-			// got a bad response code or failed to read the response body
-			// do nothing, just return our services below
+			vk.log.Warn().Err(err).Str("parent address", t_addr.String()).Msg("failed to contact parent")
+		} else if resp.StatusCode() != EXPECTED_STATUS_LIST {
+			vk.log.Warn().Int("response code", resp.StatusCode()).Str("parent address", t_addr.String()).Msg("bad response code from parent")
 		} else {
-			vk.log.Debug().Err(err).Msg("failed to contact parent")
-			vk.structureRWMu.Lock()
-			// only drop parent info if it has not changed since we re-acquired the lock
-			if vk.parent.addr == t_addr && vk.parent.id == t_id {
-				vk.parent.id = 0
-				vk.parent.addr = netip.AddrPort{}
-			}
-			vk.structureRWMu.Unlock()
+			// success! Return this to the client
+			lrr.PktType = PT_GET_RESPONSE
+			return &lrr, nil
 		}
-	} else {
-		vk.structureRWMu.RUnlock()
 	}
 
 	// If we made it down this far, then we are root, our parent failed, or hop count expired.
