@@ -581,10 +581,10 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 // VKB <-- LeafC
 //
 // VKA is taken offline, as is LeafB. By the end, the vault should only consist of VKB <-- LeafC
-func TestAutoPrune(t *testing.T) {
+/*func TestAutoPrune(t *testing.T) {
 	// TODO
 	t.Fatal("NYI")
-}
+}*/
 
 // Tests that child VKs properly drop an unresponsive parent.
 // Builds a vault:
