@@ -623,6 +623,7 @@ func TestListRequest(t *testing.T) {
 
 // Tests that we can successfully make get requests against a vault.
 // Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
+// Checks that Gets respect hop count, can get immediately available services (available from the first VK), and can bubble up to root.
 func TestGetRequest(t *testing.T) {
 	vkA, vkB, vkC := buildLineVault(t, 3)
 
@@ -671,16 +672,14 @@ func TestGetRequest(t *testing.T) {
 	} else if grr.Body.Addr != lC.services["File Server"].addr {
 		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, lC.services["File Server"].addr)
 	}
+	// issue a GET with a hop count of 1 against A for a service only available at C
+	// This should fail to find any services, but return a 200 anyways.
+	_, grr, err = orv.Get("http://"+vkA.AddrPort().String(), 1, "File Server")
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if grr.Body.Addr != "" {
+		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, "")
+	}
 }
-
-// Tests that VKs can successfully take each other on as children and that two, equal-height, root VKs can successfully merge.
-//
-// Three VKs are created: A, B, and C.
-// A and B are given starting heights of 1.
-// C joins under B.
-// B then sends a MERGE to A, which A should accept.
-// Upon receiving MERGE_ACCEPT, B must increment its height to 2 and send an INCREMENT to C, which should increment its height to 1.
-/*func TestVKJoinMerge(t *testing.T) {
-	// TODO
-	t.Fatal("NYI")
-}*/
