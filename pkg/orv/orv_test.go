@@ -312,11 +312,11 @@ func TestEndpointArgs(t *testing.T) {
 	fmt.Println("ok")
 
 	// submit a REGISTER with an invalid ID
-	makeRegisterRequest(t, vkAddr, 500, lA.id, "Good advice generator - Just drink Milk instead of Coffee", lA.services["Good advice generator - Just drink Milk instead of Coffee"].addr, lA.services["Good advice generator - Just drink Milk instead of Coffee"].stale)
+	makeRegisterRequest(t, vkAddr, 400, lA.id, "Good advice generator - Just drink Milk instead of Coffee", lA.services["Good advice generator - Just drink Milk instead of Coffee"].addr, lA.services["Good advice generator - Just drink Milk instead of Coffee"].stale)
 
 	// submit a REGISTER for an unjoined ID
 	makeHelloRequest(t, vkAddr, 200, lB.id)
-	makeRegisterRequest(t, vkAddr, 500, lB.id, "Very good Coffee Maker - I might just beat Starbucks", lB.services["Very good Coffee Maker - I might just beat Starbucks"].addr, lB.services["Very good Coffee Maker - I might just beat Starbucks"].stale)
+	makeRegisterRequest(t, vkAddr, 400, lB.id, "Very good Coffee Maker - I might just beat Starbucks", lB.services["Very good Coffee Maker - I might just beat Starbucks"].addr, lB.services["Very good Coffee Maker - I might just beat Starbucks"].stale)
 	fmt.Println("ok")
 
 	// submit a valid REGISTER for leaf
