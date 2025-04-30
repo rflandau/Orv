@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -53,9 +54,10 @@ Able to provide services, route & answer requests, and facilitate vault growth.
 Should be constructed via NewVaultKeeper().
 */
 type VaultKeeper struct {
-	log  *zerolog.Logger // output logger
-	id   uint64          // unique identifier
-	addr netip.AddrPort
+	alive atomic.Bool     // has this VK been terminated?
+	log   *zerolog.Logger // output logger
+	id    uint64          // unique identifier
+	addr  netip.AddrPort
 	// services
 	children *children
 
@@ -158,6 +160,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		},
 		helperDoneCh: make(chan bool),
 	}
+	vk.alive.Store(true)
 
 	// apply the given options
 	for _, opt := range opts {
@@ -339,8 +342,13 @@ func (vk *VaultKeeper) Start() error {
 
 // Terminates the vaultkeeper, cleaning up all resources and closing the API server.
 func (vk *VaultKeeper) Terminate() {
+	// if we are already dead, do not try to re-terminate
+	if !vk.alive.CompareAndSwap(true, false) {
+		return
+	}
 	// kill the pruner and heartbeater
 	close(vk.helperDoneCh)
+	vk.helperDoneCh = nil
 	// kill resty
 	vk.restClient.Close()
 
