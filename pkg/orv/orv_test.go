@@ -426,8 +426,34 @@ func TestMultiLeafMultiService(t *testing.T) {
 
 // A simple test to ensure that leaves that do not register a service are pruned after a short delay.
 func TestChildlessService(t *testing.T) {
-	// TODO
-	t.Fatal("NYI")
+	// spin up a VK
+	vkAddr, err := netip.ParseAddrPort("[::1]:7500")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vk, err := orv.NewVaultKeeper(1, vkAddr, orv.SetPruneTimes(orv.PruneTimes{
+		PendingHello: 2 * time.Second, ServicelessChild: 1 * time.Second, CVK: 10 * time.Second}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	// attach two children
+	l100, l200 := leaf{id: 100}, leaf{id: 200}
+	l100.JoinVault(t, vk)
+	l200.JoinVault(t, vk)
+
+	// wait for the leaves to get pruned
+	time.Sleep(1100 * time.Millisecond)
+
+	// confirm that vk has no children remaining
+	snap := vk.ChildrenSnapshot()
+	if len(snap.Leaves) != 0 {
+		t.Fatalf("wrong number of leaves (got %d, expected %d)", len(snap.Leaves), 0)
+	}
 }
 
 // Tests that we can build a small vault without merging.
