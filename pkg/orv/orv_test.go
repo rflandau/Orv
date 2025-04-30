@@ -44,6 +44,21 @@ func (l *leaf) JoinVault(t *testing.T, parent *orv.VaultKeeper) {
 	}
 }
 
+// Given two slices, compares their elements for equality (and equal count) without caring about the order of the elements.
+func slicesUnorderedEqual(a []string, b []string) bool {
+	// convert each slice into map of key --> count
+	am := make(map[string]uint)
+	for _, k := range a {
+		am[k] += 1
+	}
+	bm := make(map[string]uint)
+	for _, k := range b {
+		bm[k] += 1
+	}
+
+	return maps.Equal(am, bm)
+}
+
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
 func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64) (*resty.Response, orv.HelloResp) {
