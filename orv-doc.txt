@@ -30,7 +30,7 @@ const (
 
 const (
 	_API_NAME    string = "Orv"   // the API is for ORV
-	_API_VERSION string = "1.0.0" // the Orv version being served
+	_API_VERSION string = "1.0.1" // the Orv version being served
 )
 const CONTENT_TYPE string = "application/problem+json"
     the content type of responses from the VK
@@ -47,6 +47,9 @@ func ErrBadAddr(ap netip.AddrPort) error
 
 func ErrBadStaleTime() error
     invalid stale time
+
+func ErrDead() error
+    this VK has been terminated.
 
 func ErrEmptyServiceName(sn serviceName) error
     given service name is empty
@@ -188,7 +191,7 @@ type ListResponseResp struct {
 }
     Success response for /list.
 
-func List(addrStr string, hopcount uint64) (*resty.Response, ListResponseResp, error)
+func List(addrStr string, hopcount uint16) (*resty.Response, ListResponseResp, error)
     Spawns a new resty client and uses it to make a List request against the
     target address.
 
@@ -415,9 +418,10 @@ func SetPruneTimes(pt PruneTimes) VKOption
     Set the prune times of VaultKeeper to the values stored in pt
 
 type VaultKeeper struct {
-	log  *zerolog.Logger // output logger
-	id   uint64          // unique identifier
-	addr netip.AddrPort
+	alive atomic.Bool     // has this VK been terminated?
+	log   *zerolog.Logger // output logger
+	id    uint64          // unique identifier
+	addr  netip.AddrPort
 	// services
 	children *children
 
@@ -457,6 +461,9 @@ func (vk *VaultKeeper) AddrPort() netip.AddrPort
 func (vk *VaultKeeper) ChildrenSnapshot() ChildrenSnapshot
     Returns the name of each service offered and by whom.
 
+func (vk *VaultKeeper) Dead() bool
+    Has this VK been terminated?
+
 func (vk *VaultKeeper) Height() uint16
     Return's height of the VK.
 
@@ -483,7 +490,9 @@ func (vk *VaultKeeper) Parent() struct {
 
 func (vk *VaultKeeper) Start() error
     Starts the http api listener in the vk. Includes a small start up delay to
-    ensure the server is ready by the time this function returns.
+    ensure the server is ready by the time this function returns. WARNING(_):
+    This function is not safe to call multiple times. It should be integrated
+    with a .Stop() function to make this call safer.
 
 func (vk *VaultKeeper) Terminate()
     Terminates the vaultkeeper, cleaning up all resources and closing the API
@@ -548,6 +557,7 @@ type childVK struct {
 
 type children struct {
 	log      zerolog.Logger // child logger of vk.log
+	smpl     zerolog.Logger // sampled version of children.log
 	mu       sync.Mutex
 	services map[serviceName][]struct {
 		cID  childID
@@ -565,6 +575,9 @@ func newChildren(parentLogger *zerolog.Logger, leafPruneTime, cvkPruneTime time.
     Returns a ready-to-use children struct with the top level maps initialized.
     leafPruneTime is how much time a new leaf has from the moment it is added to
     the map until it is pruned (if it does not add a service).
+
+func (c *children) GetRandomProvider(sn serviceName) (addr string, found bool)
+    Given a service name, fetches a random provider of that service.
 
 func (c *children) HeartbeatCVK(cID childID) error
     Refreshes the prune timer of the cVKL associated to the given cID.
