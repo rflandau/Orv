@@ -33,7 +33,7 @@ if __name__ == '__main__':
         t1.start()
 
         # Main thread functionality to run Flask server
-        app.run(debug=False)
+        app.run(debug=False, port=1299)
 
     except KeyboardInterrupt as ki:
         print("Keyboard Interrupt performed. Exiting....")
