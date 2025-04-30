@@ -9,16 +9,19 @@ PKGNAME = orv
 MKARGS = -timeout 120s
 EX_EXEC = vaultkeeper
 
-.PHONY: build final checkpoint all final-race checkpoint-race all-race clean docs
-.SILENT: build final checkpoint all final-race checkpoint-race all-race clean docs
+.PHONY: build all test test-race clean docs
+.SILENT: build all test test-race clean docs
 
 # build the example vaultkeeper executable
-build-vk:
+build:
 	go build -C vk -o ../$(EX_EXEC) main.go
 
 # run all tests
 test:
 	go test -C pkg/$(PKGNAME) -v $(MKARGS)
+
+# run all tests
+all: test build
 
 # run all tests, but this time with the race parameter
 test-race:
