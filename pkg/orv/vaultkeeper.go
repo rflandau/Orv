@@ -158,7 +158,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 			ServicelessChild: DEFAULT_PRUNE_TIME_SERVICELESS_CHILD,
 			CVK:              DEFAULT_PRUNE_TIME_CVK,
 		},
-		helperDoneCh: make(chan bool),
+		helperDoneCh: make(chan bool, 1),
 	}
 	vk.alive.Store(true)
 
@@ -183,7 +183,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 			Uint64("vk", vk.id).
 			Timestamp().
 			Caller().
-			Logger().Level(zerolog.DebugLevel)
+			Logger().Level(zerolog.WarnLevel)
 		vk.log = &l
 	}
 
@@ -201,6 +201,7 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 			select {
 			case <-vk.helperDoneCh:
 				l.Debug().Msg("pruner shutting down...")
+				//close(vk.helperDoneCh)
 				return
 			default:
 				// check if any HELLOs need to be pruned
@@ -252,7 +253,7 @@ func (vk *VaultKeeper) startHeartbeater() {
 			l.Debug().Msg("heartbeater shutting down...")
 			return
 		case <-time.After(freq):
-			vk.structureRWMu.RLock()
+			vk.structureRWMu.Lock()
 			if !vk.isRoot() {
 				smpl.Debug().Msg("sending HB to parent...")
 
@@ -281,7 +282,7 @@ func (vk *VaultKeeper) startHeartbeater() {
 					smpl.Debug().Uint64("parent id", vk.parent.id).Msg("successfully heartbeated parent")
 				}
 			}
-			vk.structureRWMu.RUnlock()
+			vk.structureRWMu.Unlock()
 		}
 	}
 }
@@ -351,8 +352,8 @@ func (vk *VaultKeeper) Terminate() {
 		return
 	}
 	// kill the pruner and heartbeater
-	close(vk.helperDoneCh)
-	vk.helperDoneCh = nil
+	vk.helperDoneCh <- true
+	vk.helperDoneCh <- true
 	// kill resty
 	vk.restClient.Close()
 
