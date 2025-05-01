@@ -851,6 +851,13 @@ func TestVKJoinExistingServices(t *testing.T) {
 			t.Fatal("C does not have access to leafD's fileX")
 		}
 		// check that we can make a GET request for fileX
+		if resp, unpack, err := orv.Get("http://"+C.AddrPort().String(), 1, "fileX"); err != nil {
+			t.Fatal(err)
+		} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
+			t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+		} else if unpack.Body.Addr != leafD.services["fileX"].addr {
+			t.Fatalf("mismatching get addresses (got %v, expected %v)", unpack.Body.Addr, leafD.services["fileX"].addr)
+		}
 	}
 }
 
