@@ -10,9 +10,7 @@ Orv is an algorithm for building self-organizing, decentralized service discover
 
 Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
 
-TODO build an example Vault to showcase message flows. Or pull the diagrams from the proposal.
-
-TODO possible two diagrams, one of just the vault in operation and a more advanced one to show all the heartbeats and interaction models as well.
+![a diagram of an Orv vault](img/Orv.drawio.svg)
 
 ## The Name 
 
