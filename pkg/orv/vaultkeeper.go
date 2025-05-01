@@ -28,9 +28,9 @@ type (
 // Default durations for the prune timers to fire.
 // Records are not guaranteed be pruned at exactly this time, but its survival cannot be guaranteed after this point.
 const (
-	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 5
-	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 5
-	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 5
+	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 3
+	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 3
+	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 3
 )
 
 // Default frequency at which a VK sends heartbeats to its parent.
