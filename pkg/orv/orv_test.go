@@ -736,6 +736,124 @@ func TestListRequest(t *testing.T) {
 
 }
 
+// Tests that services registered to a VK prior to joining under a parent VK are properly registered with the parent.
+// Creates a line vault (VKA --> VKB --> VKC) and VKD. Attaches a leaf to VKD offering a couple services. Joins VKD to VKA.
+// After a short delay, queries VKC for the services of VKD.
+func TestVKJoinExistingServices(t *testing.T) {
+	// spawn the line vault
+	A, B, C := buildLineVault(t, 3)
+	// attach a service to A
+	leafA := leaf{1000, map[string]struct {
+		addr  string
+		stale string
+	}{"toaster oven": {"111.111.111.111:1000", "1s"}}}
+
+	leafA.JoinVault(t, A)
+	leafADone, leafAErr := sendServiceHeartbeats(A.AddrPort(), 500*time.Millisecond, leafA.id, []string{"toaster oven"})
+	t.Cleanup(func() { close(leafADone) })
+	time.Sleep(1 * time.Second)
+	checkHeartbeatError(t, leafAErr)
+	time.Sleep(1 * time.Second)
+	checkHeartbeatError(t, leafAErr)
+
+	// check that the line vault was built correctly
+	{
+		snap := C.ChildrenSnapshot()
+		if len(snap.CVKs) != 1 {
+			t.Fatalf("VKC has the wrong number of cVKs (got %d, expected 1)", len(snap.CVKs))
+		}
+		if _, exists := snap.CVKs[B.ID()]; !exists {
+			t.Fatal("VKC does not believe VKB is its child")
+		}
+		if B.Parent().Addr != C.AddrPort() {
+			t.Fatalf("B's parent is incorrect (got %v, expected %v)", B.Parent().Addr, C.AddrPort())
+		}
+		snap = B.ChildrenSnapshot()
+		if len(snap.CVKs) != 1 {
+			t.Fatalf("VKB has the wrong number of cVKs (got %d, expected 1)", len(snap.CVKs))
+		}
+		if _, exists := snap.CVKs[A.ID()]; !exists {
+			t.Fatal("VKB does not believe VKA is its child")
+		}
+		if A.Parent().Addr != B.AddrPort() {
+			t.Fatalf("A's parent is incorrect (got %v, expected %v)", A.Parent().Addr, B.AddrPort())
+		}
+	}
+
+	// spin up VKD
+	addrD, err := netip.ParseAddrPort("127.0.0.1:9000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	D, err := orv.NewVaultKeeper(10, addrD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := D.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp, _, err := orv.Status("http://" + D.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode() != orv.EXPECTED_STATUS_STATUS {
+		t.Log(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_STATUS))
+		t.FailNow()
+	}
+	// join a leaf to VKD
+	leafD := leaf{4000, map[string]struct {
+		addr  string
+		stale string
+	}{
+		"fileX": {"4.4.4.4:7777", "2s"},
+	}}
+	leafD.JoinVault(t, D)
+	leafDDone, leafDErr := sendServiceHeartbeats(D.AddrPort(), 500*time.Millisecond, leafD.id, []string{"fileX"})
+	t.Cleanup(func() { close(leafDDone) })
+	time.Sleep(1 * time.Second)
+	checkHeartbeatError(t, leafDErr)
+	// join VKD under VKA
+	if resp, err := D.Hello(A.AddrPort().String()); err != nil {
+		t.Cleanup(func() { resp.Body.Close() })
+		t.Fatal(err, resp.Body)
+	}
+	if err := D.Join(A.AddrPort().String()); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(orv.DEFAULT_PRUNE_TIME_CVK + 300*time.Millisecond)
+	{
+		// check that D is a child of A
+		snap := A.ChildrenSnapshot()
+		if len(snap.CVKs) != 1 {
+			t.Fatalf("VKA has the wrong number of cVKs (got %d, expected 1)", len(snap.CVKs))
+		}
+		// check that D believes A is its parent
+		if D.Parent().Addr != A.AddrPort() {
+			t.Fatal("VKD does not believe VKA is its child")
+		}
+	}
+	// check that D's services are available up the tree
+	{
+		// check that D believe it has access to fileX
+		if _, exists := D.ChildrenSnapshot().Services["fileX"]; !exists {
+			t.Fatal("D does not have access to leafD's fileX")
+		}
+
+		// check that A believe it has access to fileX
+		if _, exists := A.ChildrenSnapshot().Services["fileX"]; !exists {
+			t.Fatal("A does not have access to leafD's fileX")
+		}
+		// check that B believe it has access to fileX
+		if _, exists := B.ChildrenSnapshot().Services["fileX"]; !exists {
+			t.Fatal("B does not have access to leafD's fileX")
+		}
+		// check that C believe it has access to fileX
+		if _, exists := C.ChildrenSnapshot().Services["fileX"]; !exists {
+			t.Fatal("C does not have access to leafD's fileX")
+		}
+		// check that we can make a GET request for fileX
+	}
+}
+
 // Tests that a VK will automatically prune out individual services that do not heartbeat and all services learned by a child VK when the cVK does not heartbeat.
 //
 // Sets up a vault similar to SmallVault, but terminates the childVK and stops heartbeating a leaf service.
