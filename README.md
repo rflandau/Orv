@@ -178,6 +178,12 @@ REGISTERs have two forms:
 - Leaf -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080", stale:"3s"}`
 - VK -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080"}`
 
+### Registering Multiple Services at Once
+
+The spec should *eventually* support registering multiple services in a single REGISTER packet. While not a huge deal for most leaves, which will have service counts in the single or double digits, JOINing/MERGEing large vaults triggers a REGISTER for every service known to the now-child-root and can have hundreds of service providers.
+
+To alleviate the bursty messaging of large-scale join, Orv should support REGISTERs that hold many services to reduce overall message count.
+
 ## Heartbeats
 
 There are two kinds of heartbeats: service heartbeats and vault heartbeats. They are detailed below.
@@ -392,7 +398,6 @@ As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper p
 - [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
 - [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
 - [Deregistering](#deregistering-a-service): The VaultKeeper library does not support DEREGISTER packets and services can only be un-learned by being pruned (due to a lack of heartbeats).
-- Registering On VK Join: When a VK joins as a child to another VK, it is supposed to register its known services with its new parent. The VaultKeeper library currently does not support this, so only new registrations post-join will make it all the way up. This is a high-priority fix.
 
 ## The VaultKeeper Implementation
 
