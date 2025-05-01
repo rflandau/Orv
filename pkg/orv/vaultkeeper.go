@@ -428,6 +428,36 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 		// update parent information
 		vk.parent.id = joinResp.Body.Id
 		vk.parent.addr = addr
+		// send all known services to parent
+		parentURL = "http://" + addr.String() + EP_REGISTER
+		vk.children.mu.Lock()
+		for sn, sInfo := range vk.children.services {
+			for _, provider := range sInfo {
+				// send a register to the parent
+				resp, err := vk.restClient.R().SetBody(RegisterReq{
+					Body: struct {
+						Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
+						Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
+						Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
+						Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
+					}{
+						Id: vk.id, Service: sn, Address: provider.addr.String(), Stale: "",
+					},
+				}.Body).SetExpectResponseContentType(CONTENT_TYPE).Post(parentURL)
+				if err != nil || resp.StatusCode() != EXPECTED_STATUS_REGISTER {
+					vk.log.Warn().
+						Err(err).
+						Any("provider", provider).
+						Str("service", sn).
+						Int("status code", resp.StatusCode()).
+						Msg("failed to register service with new parent. Deregistering parent...")
+					vk.parent.id = 0
+					vk.parent.addr = netip.AddrPort{}
+					return fmt.Errorf("failed to register service %v (provider %v) with new parent (status code: %d): %w", sn, provider, resp.StatusCode(), err)
+				}
+			}
+		}
+		defer vk.children.mu.Unlock()
 	}
 	return nil
 }
