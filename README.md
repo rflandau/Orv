@@ -1,4 +1,6 @@
-# Orv: the Decentralized, Hierarchical, Self-Organizing, Service Discovery Tree
+![orv logo](img/logo.png)
+
+# Decentralized, Hierarchical, Self-Organizing, Service Discovery Trees
 
 Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
 
@@ -428,6 +430,10 @@ Logging is serviced by [Zerolog](github.com/rs/zerolog).
 Our API endpoints are handled by [Huma](https://huma.rocks/). *NOTE:* We ran into some issues with humatest and are not relying it for the testing infrastructure.
 
 Requests (both within a VK and from the client side) as well as API requests made in tests are built on top of [Resty](https://resty.dev/).
+
+### Attribution
+
+The Orv logo was created in [Photopea](https://www.photopea.com/) and uses the vault icon by [juicy_fish on Flaticon](https://www.flaticon.com/free-icons/vault).
 
 # Special Thanks
 
