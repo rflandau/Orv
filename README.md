@@ -278,7 +278,7 @@ For us to assume anything about this discovery mechanism would be to make assump
 
 ## Layer 5 vs Layer 4
 
-The prototype included in this repo is designed as an application layer implementation (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing a iterative messages (such as propagating requests up the vault) in a client-server paradigm.
+The prototype included in this repo is designed as an application layer implementation (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing an iterative messages (such as propagating requests up the vault) in a client-server paradigm.
 
 A layer 3 implementation of Orv would requires some changes to how VKs store information and answer requests; see the option for [VK hop tables](#vk-hop-tables-and-removing-root-omnipotence).
 
@@ -300,7 +300,7 @@ Take the following diagram as an example:
 
 ```mermaid
 flowchart BT
-    LeafB(LeafB<br>ServiceB) -->|"ServiceB via<br>[11::22:33]:80"| B((B)) -->|ServiceB via B| A((A))
+    LeafB(LeafB<br>ServiceB) -->|"ServiceB via<br>[11::22:33]:80"| B((B)) <-->|ServiceB via B| A((A))
     LeafA(LeafA<br>ServiceA) -->|"ServiceA via<br>[44::5:AB]:22"| A
 
 ```
