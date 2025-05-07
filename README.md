@@ -1,9 +1,3 @@
-Team: Network-bois
-
-Shrivyas | shrivyas@andrew.cmu.edu
-
-R Landau | rlandau@andrew.cmu.edu <-- the guy writing this README
-
 # Orv: the Decentralized, Hierarchical, Self-Organizing, Service Discovery Tree
 
 Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
@@ -16,7 +10,13 @@ Orv does not actually interact with services, it just finds other nodes that pur
 
 Honestly, we never really landed on a name. Orv came about as a temporary solution so I could stop calling it just "The Algorithm".
 
-By the end, we narrowed the name down to Orv (**O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults) or Izanami.
+By the end, we narrowed the name down to Orv (**O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults) or Izanami. Pick your favorite.
+
+## Authorship
+
+Shrivyas (shrivyas@andrew.cmu.edu) & R Landau (rlandau@andrew.cmu.edu/rflandau@pm.me) <-- the guy writing this README
+
+Shrivyas and I originated, designed, and prototyped Orv in two, very long weeks for Professor Patrick Tague's Distributed Systems course at Carnegie Mellon University as part of our masters program.
 
 # Terminology
 
@@ -419,59 +419,6 @@ To build the example VaultKeeper, use `make build`.
 
 To run the testing code, use `make test` or `make test-race` (the latter tests with Go's race condition checker enabled).
 
-### Test Descriptions
-
-As noted above, each test has a header comment with what it does. They have been copied down here for ease of use.
-
-1. TestEndpointArgs
-
-    Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
-
-    A la ClientArgs in lab3.
-
-2. TestMultiLeafMultiService
-    
-    Tests that a single VK can support multiple leaves and multiple services (some duplicates) on each leaf simultaneously.
-    
-    Each leaf will HELLO -> JOIN and then submit multiple REGISTERS. Each service will need to send heartbeats to the VK.
-    
-    After a short delay, the test checks if the VK still believe that all services are active.
-
-3. TestChildlessService
-    
-    Ensure that leaves that do not register a service are pruned after a short delay.
-
-4. TestSmallVaultDragonsHoard
-
-    Tests that we can build a small vault without merging.
-    
-    Composes a tree of the form LeafA --> VKA --> VKB <-- LeafB, including consistent heartbeats for leaves (and the self-managing heartbeats inherent to VKs).
-    
-    VKB and VKA do not merge; instead VKB is spawned with a Dragon's Hoard of 1 and VKA joins as a child.
-
-5. TestUnresponsiveParent
-    
-    Tests that child VKs properly drop an unresponsive parent
-
-    Builds a vault: VKA --> VKB --> VKC <-- VKD
-    
-    Kills VKC. VKs B and D should become root after a short delay. VKA should be unaffected.
-
-6. TestGetRequest
-
-    Tests that we can successfully make get requests against a vault.
-    
-    Builds a small vault, registers a couple services to it at different levels, and then checks that we can successfully query services at any level.
-    
-    Checks that Gets respect hop count, can get immediately available services (available from the first VK), and can bubble up to root.
-
-7. TestListRequest
-    
-    Tests that we can successfully make list requests against a vault.
-    
-    Builds a small line vault, registers a couple services to it at different levels, and then makes a couple List requests to test correct propagate (or the lack thereof) of the LIST request.
-    
-    Very similar to the GET test.
 ## Resources Used
 
 ### Libraries
