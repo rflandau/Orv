@@ -37,7 +37,7 @@ Vaults are designed to only ferry information *up* the tree (with [one, key exce
 The root of the tree is expected to know all services offered by the vault.
 
 > [!TIP]
-> Orv is highly flexible and could be tweaked to alter the traffic pattern (for example, by making the root contain less information and allowing some requests to travel down the vault). See Other Designs below for more information.
+> Orv is highly flexible and could be tweaked to alter the traffic pattern (for example, by making the root contain less information and allowing some requests to travel down the vault). See [Other Designs](#other-design-decisions) below for more information.
 
 ### The Exception
 
@@ -53,8 +53,8 @@ A multi-level vault will naturally begin to resemble a distributed cloud archite
 # Core Assumptions
 
 - Nodes are cooperative
-    - Like Raft, we are assuming that all peers are cooperative. This causes some cognitive dissonance with it being decentralized, but life goes on.
-- Discovery is extrinsic 
+    - Like [Raft](https://raft.github.io/), we are assuming that all peers are cooperative. This causes some cognitive dissonance with it being decentralized, but life goes on.
+- Discovery is extrinsic
     - While we have mechanisms for handling joins, we do not have a mechanism for node discovery, but assume one is available. See [below](#extrinsic-neighbournode-discovery) for the rationale.
 - Low-powered leaves
     - As we want to support IoT networks, we must assume that the leaves are low-powered and therefore should have minimal requirements. They cannot be assumed to be always listening, always accessible, or even terribly reliable.
@@ -68,15 +68,6 @@ A multi-level vault will naturally begin to resemble a distributed cloud archite
     - We assume each node can determine and utilize a unique identifier. This is a weighty assumption in a decentralized system.
     - If we receive a request from ID X on the opposite end of the tree than we last saw ID X, we assume that node has left its original sub-vault and rejoined a new sub-vault in this same vault.
 
-# Distributed Concepts
-
-Orv as a protocol is based heavily around the idea of redundancy, partial replication of data, dynamic cooperation, and segregation of duties. The prototype relies on numerous timers and a high degree of parallelism. We believe Orv is deeply intertwined with the ideals of a distributed, resilient system because it can operate autonomously and opaquely to the user, masking faults that can be papered over and only propagating faults that cannot be.
-
-- Staleness
-- Gossip-based knowledge
-- Heartbeats
-- Decentralized, dynamic cooperation
-
 # The Protocol
 
 Orv is, fundamentally, a protocol. As long as a machine or language can speak Orv, Orv will work with it.
@@ -84,7 +75,7 @@ Orv is, fundamentally, a protocol. As long as a machine or language can speak Or
 This section covers Orv's interaction models but if you just want to read about the packet types, take a look at their implementation in the [Go VaultKeeper prototype](pkg/orv/packets.go).
 
 > [!TIP]
-> Orv is implemented as a Layer 5 protocol (in the form of HTTP API) in the prototype contained within this repo.
+> Orv is implemented as a Layer 5 protocol (in the form of a HTTP API) in the prototype contained within this repo.
 > While some tweaks have been made to support the Client-Server nature of a REST API, it can still be considered a representative Orv implementation.
 > You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
 
