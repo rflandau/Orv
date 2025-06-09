@@ -31,6 +31,7 @@ const (
 	DEFAULT_PRUNE_TIME_PENDING_HELLO     time.Duration = time.Second * 3
 	DEFAULT_PRUNE_TIME_SERVICELESS_CHILD time.Duration = time.Second * 3
 	DEFAULT_PRUNE_TIME_CVK               time.Duration = time.Second * 3
+	DEFAULT_MAX_HEIGHT                   uint16        = 16
 )
 
 // Default frequency at which a VK sends heartbeats to its parent.
@@ -71,6 +72,7 @@ type VaultKeeper struct {
 
 	structureRWMu sync.RWMutex // locker for height+parent
 	height        uint16       // current height of this vk
+	maxHeight     uint16       // maximum height of this VK (will refuse merge requests that would put its height above this number)
 	parent        struct {
 		id   uint64 // 0 if we are root
 		addr netip.AddrPort
@@ -123,6 +125,15 @@ func SetHumaAPI(api huma.API) VKOption {
 	}
 }
 
+// SetMergeHeightLimit sets the maximum height this VK will allow itself to attain as root.
+// Any MERGE requests this VK receives that would put it above this number will be rejected.
+// DEFAULT(rflandau): 16
+func SetMergeHeightLimit(maxHeight uint16) VKOption {
+	return func(vk *VaultKeeper) {
+		vk.maxHeight = maxHeight
+	}
+}
+
 //#endregion options
 
 // Spawns and returns a new vault keeper instance.
@@ -148,7 +159,8 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		}{
 			mux: http.NewServeMux(),
 		},
-		height: 0,
+		height:    0,
+		maxHeight: DEFAULT_MAX_HEIGHT,
 
 		restClient: resty.New(),
 
