@@ -115,4 +115,13 @@ func HErrIDInUse(id childID, pkt_t PacketType) error {
 		})
 }
 
+// HErrBadHeightMerge indicates that the given height does not match our height.
+func HErrBadHeightMerge(ourHeight, theirHeight uint16) error {
+	return huma.ErrorWithHeaders(
+		huma.Error400BadRequest(
+			fmt.Sprintf("to merge as the new root of this VK, your height (%d) must match this VK's height(%d)", theirHeight, ourHeight)),
+		http.Header{hdrPkt_t: {PT_MERGE_DENY}},
+	)
+}
+
 //#endregion Huma Errors (with Hdrs)

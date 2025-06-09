@@ -94,6 +94,9 @@ const (
 	// Once received by the requester node, that node can safely consider itself to be the new root.
 	// The requester node must then update its height and send an INCREMENT to its pre-existing children.
 	PT_MERGE_ACCEPT PacketType = "MERGE_ACCEPT"
+	// Sent by a VK to decline a node's request to merge.
+	// Only used in root-root interactions.
+	PT_MERGE_DENY PacketType = "MERGE_DENY"
 	// Sent by a VK when it MERGEs with another VK in order to notify the pre-existing child VKs that their heights have increased by 1.
 	// Children who receive an INCREMENT must echo it to their child VKs.
 	// Do NOT send an INCREMENT down the new branch that was just attached because of the merge.

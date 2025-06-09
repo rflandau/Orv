@@ -121,13 +121,13 @@ sequenceDiagram
     participant VaultKeeper as Root VaultKeeper
     Node->>+VaultKeeper: HELLO{Id:123}
     VaultKeeper->>-Node: HELLO_ACK{Id:456, Height:3, Root:True}
-    Node->>+VaultKeeper: MERGE{Id:123, Height:3}
+    Node->>+VaultKeeper: MERGE{Id:123, Height:3, address: "111.111.111.111:9000"}
     VaultKeeper->>-Node: MERGE_ACCEPT{Id:456}
     Node->>Node: increment height
     Node-->>Children: INCREMENT{Id:123}
 ```
 
-MERGE Form: `MERGE{id:123, height:2}`
+MERGE Form: `MERGE{id:123, height:2, address: "111.111.111.111:9000"}`
 MERGE_ACCEPT Form: `MERGE_ACCEPT{Id:456}`
 
 #### Dragon's Hoard (Tree-Seeding)

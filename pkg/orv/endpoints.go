@@ -526,17 +526,18 @@ func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHea
 //#region MERGE
 
 // Request for /merge.
-type ServiceMergeReq struct {
+type MergeReq struct {
 	PktType PacketType `header:"Packet-Type"` // MERGE
 	Body    struct {
 		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the node requesting to merge with us (and take over as root)"`
 		Height uint16 `json:"height" required:"true" example:"2" doc:"the current height of the requestor node"`
+		VKAddr string `json:"vk-addr,omitempty" example:"174.1.3.4:8080" doc:"address of the listening VK service to send heartbeats to"`
 	}
 }
 
 // Response for /merge.
 // Represents a HELLO_ACCEPT, with the sender joining under the receiver.
-type ServiceMergeAck struct {
+type MergeAcceptResp struct {
 	PktType PacketType `header:"Packet-Type"` // MERGE_ACCEPT
 	Body    struct {
 		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the node accepting the merge request (and giving up its root status)"`
@@ -544,9 +545,41 @@ type ServiceMergeAck struct {
 }
 
 // Handle merge requests
-func (vk *VaultKeeper) handleMerge(_ context.Context, req *ServiceMergeReq) (*ServiceMergeAck, error) {
+func (vk *VaultKeeper) handleMerge(_ context.Context, req *MergeReq) (*MergeAcceptResp, error) {
+	// validate parameters
+	var pid uint64 = req.Body.Id
+	if pid == 0 || pid == vk.id {
+		return nil, HErrBadID(req.Body.Id, PT_JOIN_DENY)
+	}
+	addr, err := netip.ParseAddrPort(req.Body.VKAddr)
+	if err != nil {
+		return nil, HErrBadAddr(req.Body.VKAddr, PT_JOIN_DENY)
+	}
+	// check that our height matches the requestor's height
+	vk.structureRWMu.Lock()
+	defer vk.structureRWMu.Unlock()
+	if req.Body.Height != vk.height {
+		return nil, HErrBadHeightMerge(vk.height, req.Body.Height)
+	}
+
+	// set the sender as our root
+	vk.log.Debug().Uint64("parent id", pid).Msg("accepting new parent")
+	// update parent information
+	vk.parent.id = pid
+	vk.parent.addr = addr
+
+	// send back an accept
+	resp := &MergeAcceptResp{
+		PktType: PT_MERGE_ACCEPT,
+		Body: struct {
+			Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the node accepting the merge request (and giving up its root status)\""
+		}{
+			vk.id,
+		},
+	}
+
 	// TODO
-	return nil, nil
+	return resp, nil
 }
 
 //#endregion
