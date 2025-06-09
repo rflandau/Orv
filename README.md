@@ -127,7 +127,8 @@ sequenceDiagram
     Node-->>Children: INCREMENT{Id:123}
 ```
 
-Form: `MERGE{id:123, height:2}`
+MERGE Form: `MERGE{id:123, height:2}`
+MERGE_ACCEPT Form: `MERGE_ACCEPT{Id:456}`
 
 #### Dragon's Hoard (Tree-Seeding)
 

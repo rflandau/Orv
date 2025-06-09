@@ -26,6 +26,7 @@ const (
 	EP_SERVICE_HEARTBEAT Endpoint = "/service-heartbeat"
 	EP_LIST              Endpoint = "/list"
 	EP_GET               Endpoint = "/get"
+	EP_MERGE             Endpoint = "/merge"
 )
 
 // the HTTP codes to expect from a "good" response from each endpoint.
@@ -38,6 +39,7 @@ const (
 	EXPECTED_STATUS_SERVICE_HEARTBEAT int = http.StatusOK
 	EXPECTED_STATUS_LIST              int = http.StatusOK
 	EXPECTED_STATUS_GET               int = http.StatusOK
+	EXPECTED_STATUS_MERGE             int = http.StatusAccepted
 )
 
 // the content type of responses from the VK
@@ -101,6 +103,15 @@ func (vk *VaultKeeper) buildEndpoints() {
 		Summary:       EP_SERVICE_HEARTBEAT[1:],
 		DefaultStatus: EXPECTED_STATUS_SERVICE_HEARTBEAT,
 	}, vk.handleServiceHeartbeat)
+
+	// handle merge requests from a potential new root
+	huma.Register(vk.endpoint.api, huma.Operation{
+		OperationID:   EP_MERGE[1:],
+		Method:        http.MethodPost,
+		Path:          EP_MERGE,
+		Summary:       EP_MERGE[1:],
+		DefaultStatus: EXPECTED_STATUS_MERGE,
+	}, vk.handleMerge)
 
 	// handle list requests for listing available services
 	huma.Register(vk.endpoint.api, huma.Operation{
@@ -511,6 +522,34 @@ func (vk *VaultKeeper) handleServiceHeartbeat(_ context.Context, req *ServiceHea
 }
 
 //#endregion SERVICE_HEARTBEAT
+
+//#region MERGE
+
+// Request for /merge.
+type ServiceMergeReq struct {
+	PktType PacketType `header:"Packet-Type"` // MERGE
+	Body    struct {
+		Id     uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the node requesting to merge with us (and take over as root)"`
+		Height uint16 `json:"height" required:"true" example:"2" doc:"the current height of the requestor node"`
+	}
+}
+
+// Response for /merge.
+// Represents a HELLO_ACCEPT, with the sender joining under the receiver.
+type ServiceMergeAck struct {
+	PktType PacketType `header:"Packet-Type"` // MERGE_ACCEPT
+	Body    struct {
+		Id uint64 `json:"id" required:"true" example:"718926735" doc:"unique identifier of the node accepting the merge request (and giving up its root status)"`
+	}
+}
+
+// Handle merge requests
+func (vk *VaultKeeper) handleMerge(_ context.Context, req *ServiceMergeReq) (*ServiceMergeAck, error) {
+	// TODO
+	return nil, nil
+}
+
+//#endregion
 
 //#region LIST
 
