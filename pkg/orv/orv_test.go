@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/http"
 	"net/netip"
 	"network-bois-orv/pkg/orv"
 	"slices"
@@ -125,6 +126,13 @@ func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode i
 		t.Fatal("Register request failed: " + ErrBadResponseCode(resp.StatusCode(), expectedCode))
 	}
 	return resp, unpackedResp
+}
+
+// POSTs a MERGE to the target address, requesting they merge under the sender.
+// Only returns if the given status code was matched; Fatal if not.
+// Does not follow up with Increments.
+func makeMergeRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, senderID uint64, senderHeight uint16, senderVKAddress netip.AddrPort) {
+	// TODO
 }
 
 // Send service heartbeats (at given frequency) on behalf of the cID until any value arrives on the returned channel or a heartbeat fails.
@@ -851,6 +859,63 @@ func TestVKJoinExistingServices(t *testing.T) {
 			t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
 		} else if unpack.Body.Addr != leafD.services["fileX"].addr {
 			t.Fatalf("mismatching get addresses (got %v, expected %v)", unpack.Body.Addr, leafD.services["fileX"].addr)
+		}
+	}
+}
+
+// TestVKMerge checks that a VK can successfully request that an VK merge with it and that it is then recognized as the new root.
+// Does not test INCREMENT.
+func TestVKMerge(t *testing.T) {
+	// spawn one VK (that will send the MERGE)
+	var vkParent *orv.VaultKeeper
+	addrParent, err := netip.ParseAddrPort("[::1]:1201`")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vkParent, err = orv.NewVaultKeeper(1, addrParent)
+	if err != nil {
+		t.Fatal("failed to construct parent VK: ", err)
+	}
+	if err := vkParent.Start(); err != nil {
+		t.Fatal("failed to start parent VK: ", err)
+	}
+	t.Cleanup(vkParent.Terminate)
+
+	// spawn the second VK (that will receive the MERGE)
+	var vkNewChild *orv.VaultKeeper
+	addrNewChild, err := netip.ParseAddrPort("[::1]:1205")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vkNewChild, err = orv.NewVaultKeeper(5, addrNewChild)
+	if err != nil {
+		t.Fatal("failed to construct parent VK: ", err)
+	}
+	if err := vkNewChild.Start(); err != nil {
+		t.Fatal("failed to start parent VK: ", err)
+	}
+	t.Cleanup(vkNewChild.Terminate)
+
+	// send a merge prior to a HELLO
+	t.Log("sending a merge request prior to sending a HELLO...")
+	makeMergeRequest(t, addrNewChild, http.StatusBadRequest, vkParent.ID(), vkParent.Height(), vkParent.AddrPort())
+
+	// send a valid merge request
+	t.Log("sending a valid merge request...")
+	makeHelloRequest(t, addrNewChild, orv.EXPECTED_STATUS_HELLO, vkParent.ID())
+	makeMergeRequest(t, addrNewChild, orv.EXPECTED_STATUS_MERGE, vkParent.ID(), vkParent.Height(), vkParent.AddrPort())
+
+	// check that NewChild considers the other vk to be its parent
+	if p := vkNewChild.Parent(); p.Id != vkParent.ID() || p.Addr != vkParent.AddrPort() {
+		t.Fatalf("vkNewChild does not consider vkOrig to be its parent (ID: got %v, expected %v) (Addr: got %v, expected %v).", p.Id, vkParent.ID(), p.Addr, vkParent.AddrPort())
+	}
+	// check that Parent considers NewChild as its own
+	{
+		snap := vkParent.ChildrenSnapshot()
+		if childServices, found := snap.CVKs[vkNewChild.ID()]; !found || len(childServices) != 0 {
+			t.Fatalf("incorrect child status: found? %v | services (should be zero): %v", found, childServices)
 		}
 	}
 }
