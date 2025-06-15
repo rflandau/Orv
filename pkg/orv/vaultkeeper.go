@@ -476,6 +476,47 @@ func (vk *VaultKeeper) Join(addrStr string) (err error) {
 	return nil
 }
 
+// Merge causes the VaultKeeper to send a merge request to the VK at the given address.
+// If the peer responds affirmatively, we increment our height, add the peer as one of our direct children, and send INCRs to all pre-existing children.
+func (vk *VaultKeeper) Merge(addrStr string) (err error) {
+	if !vk.alive.Load() {
+		return ErrDead()
+	}
+	// validate the peer address
+	addr, err := netip.ParseAddrPort(addrStr)
+	if err != nil {
+		return err
+	}
+
+	parentURL := "http://" + addr.String() + EP_MERGE
+	vk.log.Info().Str("target VK", parentURL).Msg("requesting to merge and assume root of the new tree")
+	vk.structureRWMu.Lock()
+	defer vk.structureRWMu.Unlock()
+
+	var mergeResp MergeAcceptResp
+	res, err := vk.restClient.R().
+		SetBody(MergeReq{PktType: PT_MERGE, Body: struct {
+			Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the node requesting to merge with us (and take over as root)\""
+			Height uint16 "json:\"height\" required:\"true\" example:\"2\" doc:\"the current height of the requestor node\""
+			VKAddr string "json:\"vk-addr,omitempty\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service to send heartbeats to\""
+		}{
+			Id: vk.id, Height: vk.height, VKAddr: vk.addr.String(),
+		}}.Body). // default request content type is JSON
+		SetExpectResponseContentType(CONTENT_TYPE).
+		SetResult(&(mergeResp.Body)).
+		Post(parentURL)
+	if err != nil {
+		vk.log.Warn().Err(err).Any("response", mergeResp).Msg("failed to join under VK")
+		return fmt.Errorf("failed to join under VK: %v (response: %v)", err, mergeResp)
+	} else if res.StatusCode() != EXPECTED_STATUS_MERGE {
+		// TODO
+	} else { // success
+		// TODO
+	}
+
+	return nil
+}
+
 // Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
 func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
