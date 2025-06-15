@@ -137,9 +137,11 @@ func SetMergeHeightLimit(maxHeight uint16) VKOption {
 //#endregion options
 
 // Spawns and returns a new vault keeper instance.
+// The returned VaultKeeper has an internal heartbeater tht will automatically vk heartbeat to parent when a parent is assigned.
+// It will idle otherwise.
 //
 // Optionally takes additional options to modify the state of the VaultKeeper.
-// Conflicting options prefer options latter.
+// Conflicting options prefer later options.
 func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
 
 	// validate the given address
