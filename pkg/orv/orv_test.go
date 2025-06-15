@@ -18,12 +18,6 @@ import (
 
 //#region request helper functions and structs
 
-const (
-	HelloSuccessCode    int = 200
-	JoinSuccessCode     int = 202
-	RegisterSuccessCode int = 202
-)
-
 // represents a single leaf with any number of services
 type leaf struct {
 	id       uint64
@@ -61,13 +55,13 @@ func slicesUnorderedEqual(a []string, b []string) bool {
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64) (*resty.Response, orv.HelloResp) {
+func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, senderID uint64) (*resty.Response, orv.HelloResp) {
 	cli := resty.New()
 	unpackedResp := orv.HelloResp{}
 	resp, err := cli.R().
 		SetBody(orv.HelloReq{Body: struct {
 			Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
-		}{id}}.Body). // default request content type is JSON
+		}{senderID}}.Body). // default request content type is JSON
 		SetExpectResponseContentType(orv.CONTENT_TYPE).
 		SetResult(&(unpackedResp.Body)).
 		Post("http://" + targetAddr.String() + orv.EP_HELLO)
@@ -251,6 +245,7 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 
 //#region testing error messages
 
+// Returns a consistent string stating what response code we got and what we expected.
 func ErrBadResponseCode(got, expected int) string {
 	return fmt.Sprintf("incorrect response code (got: %d, expected %d)", got, expected)
 }
@@ -258,7 +253,6 @@ func ErrBadResponseCode(got, expected int) string {
 //#endregion
 
 // Simple but important test to guarantee proper acceptance and rejection of message types to each endpoint.
-// A la ClientArgs in lab3.
 func TestEndpointArgs(t *testing.T) {
 	vkAddr, err := netip.ParseAddrPort("[::1]:8080")
 	if err != nil {
