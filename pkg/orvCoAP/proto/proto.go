@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -36,17 +37,23 @@ type Header struct {
 	Type          MessageType
 }
 
+//#region errors
+
 var (
 	// ErrInvalidHopLimit means that the given hop limit was out of bounds.
 	ErrInvalidHopLimit      = errors.New("HopLimit must be 1 <= x <= 255")
 	ErrInvalidPayloadLength = errors.New("PayloadLength must be 0 <= x <= " + strconv.FormatUint(uint64(65535-FixedHeaderLen), 10) + " (uint16MAX - length of the fixed header)")
 )
 
+//#endregion errors
+
 // SerializeTo consumes the data required to compose an Orv header and returns a network-order byte string.
 // Also validates that the header has all required fields.
 func (hdr *Header) SerializeTo() ([]byte, error) {
 	if hdr.HopLimit < 1 {
 		return nil, ErrInvalidHopLimit
+	} else if hdr.PayloadLength > uint16(math.MaxUint16-FixedHeaderLen) {
+		return nil, ErrInvalidPayloadLength
 	}
 
 	buf := make([]byte, FixedHeaderLen)
@@ -64,20 +71,56 @@ func (hdr *Header) SerializeTo() ([]byte, error) {
 }
 
 // SerializeFrom attempts to populate the header's fields from the given byte array.
-// SerializeFrom does not drain rd.
+// Returns when rd is empty or we have read FixedHeaderLen bytes, whichever is first.
+// Does not drain rd.
 // Clobbers any existing data.
 func (hdr *Header) SerializeFrom(rd *bytes.Reader) (err error) {
+	remaining := rd.Len() // stop before we hit EOF
+	if remaining < 1 {
+		return nil
+	}
+
 	{ // Version
 		b, err := rd.ReadByte()
 		if err != nil {
 			return err
 		}
 		hdr.Version = VersionFromByte(b)
+		remaining -= 1
 	}
-
-	// Hop Limit
-	if hdr.HopLimit, err = rd.ReadByte(); err != nil {
-		return err
+	{ // Hop Limit
+		if remaining < 1 { // check that we have enough data remaining
+			return nil
+		}
+		if hdr.HopLimit, err = rd.ReadByte(); err != nil {
+			return err
+		}
+		remaining -= 1
+	}
+	{ // Payload Length
+		if remaining < 2 { // check that we have enough data remaining
+			return nil
+		}
+		MSB, err := rd.ReadByte()
+		if err != nil {
+			return err
+		}
+		remaining -= 1
+		LSB, err := rd.ReadByte()
+		if err != nil {
+			return err
+		}
+		remaining -= 1
+		hdr.PayloadLength = uint16(MSB)<<8 | uint16(LSB)
+	}
+	{ // Message Type
+		if remaining < 1 { // check that we have enough data remaining
+			return nil
+		}
+		if hdr.Type, err = rd.ReadByte(); err != nil {
+			return err
+		}
+		remaining -= 1
 	}
 
 	return nil
