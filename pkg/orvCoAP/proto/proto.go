@@ -23,12 +23,14 @@ import (
 	"strconv"
 )
 
-// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
-const FixedHeaderLen uint = 5
+const (
+	// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
+	FixedHeaderLen  uint = 5
+	DefaultHopLimit uint = 16
+)
 
 // A Header represents a deconstructed Orv packet header.
-// The state of Header is never guaranteed; call .Validate() to verify before using.
-// Use SerializeTo()/SerializeFrom().
+// The state of Header is never guaranteed; call .Validate() to verify before using..
 type Header struct {
 	// REQUIRED.
 	// The highest major and minor version of Orv the sender speaks.
@@ -58,18 +60,18 @@ var (
 
 //#endregion errors
 
-// SerializeTo consumes the data required to compose an Orv header and returns a network-order byte string.
-// Also validates that the header has all required fields.
-func (hdr *Header) SerializeTo() ([]byte, error) {
-	if hdr.HopLimit < 1 {
-		return nil, ErrInvalidHopLimit
-	} else if hdr.PayloadLength > uint16(math.MaxUint16-FixedHeaderLen) {
-		return nil, ErrInvalidPayloadLength
-	}
+// Serialize returns an Orv header in network-byte-order.
+//
+// NOTE: Does NOT imply .Validate() and thus does NOT error on invalid data.
+// Serialize can formulate an invalid packet if given bad data; it is the caller's responsibility to guarantee header's fields.
+//
+// Performs a single allocation of FixedHeaderLen size.
+func (hdr *Header) Serialize() ([]byte, error) {
+	out := make([]byte, FixedHeaderLen)
+	data := []byte{hdr.Version.Byte(), hdr.HopLimit, byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength), hdr.Type}
 
-	buf := make([]byte, FixedHeaderLen)
-	if count, err := binary.Encode(buf, binary.BigEndian,
-		[]byte{hdr.Version.Byte(), hdr.HopLimit, byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength), hdr.Type}); err != nil {
+	// compose data into out
+	if count, err := binary.Encode(out, binary.BigEndian, data); err != nil {
 		return nil, err
 	} else if count != int(FixedHeaderLen) {
 		var moreOrFewer = "fewer"
@@ -78,14 +80,15 @@ func (hdr *Header) SerializeTo() ([]byte, error) {
 		}
 		return nil, fmt.Errorf("encoded %s bytes (%d) than expected (%d)", moreOrFewer, count, FixedHeaderLen)
 	}
-	return buf, nil
+	return out, nil
 }
 
-// SerializeFrom attempts to populate the header's fields from the given byte array.
+// Deserialize greedily populates hdr's fields from the given byte array.
+// Clobbers existing data.
+//
 // Returns when rd is empty or we have read FixedHeaderLen bytes, whichever is first.
-// Does not drain rd.
-// Clobbers any existing data.
-func (hdr *Header) SerializeFrom(rd *bytes.Reader) (err error) {
+// Does NOT validate fields. Does not drain rd.
+func (hdr *Header) Deserialize(rd *bytes.Reader) (err error) {
 	remaining := rd.Len() // stop before we hit EOF
 	if remaining < 1 {
 		return nil

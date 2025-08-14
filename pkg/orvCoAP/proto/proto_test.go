@@ -24,7 +24,7 @@ func TestHeader_SerializeTo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.hdr.SerializeTo()
+			got, err := tt.hdr.Serialize()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Header.SerializeTo() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -53,7 +53,7 @@ func TestHeader_SerializeFrom(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hdr, err := (&tt.hdr).SerializeTo()
+			hdr, err := (&tt.hdr).Serialize()
 			if err != nil {
 				t.Fatalf("failed to serialize header %v: %v", tt.hdr, err)
 			}
@@ -61,7 +61,7 @@ func TestHeader_SerializeFrom(t *testing.T) {
 			// wrap the header and body in a reader
 			rd := bytes.NewReader(append(hdr, tt.body...))
 
-			if err := tt.hdr.SerializeFrom(rd); (err != nil) != tt.wantErr {
+			if err := tt.hdr.Deserialize(rd); (err != nil) != tt.wantErr {
 				t.Errorf("Header.SerializeFrom() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if remaining := rd.Len(); (remaining != 0) != tt.wantBytesRemaining {
@@ -101,7 +101,7 @@ func TestHeader_SerializeFrom(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				var result proto.Header
-				if err := result.SerializeFrom(bytes.NewReader(tt.buffer)); err != nil {
+				if err := result.Deserialize(bytes.NewReader(tt.buffer)); err != nil {
 					t.Error(err)
 				}
 				if result.Version.Major != tt.want.versionMajor {
