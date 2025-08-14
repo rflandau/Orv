@@ -14,6 +14,8 @@ type Version struct {
 // Byte returns Orv version as a single byte.
 // The most-significant nibble is major; the rest are minor.
 // Ex: 0b 0010 0001 equates to version 2.1
+//
+// Data beyond the LS nibble of each field is dropped.
 func (v Version) Byte() uint8 {
 	return v.Major<<4 | v.Minor&0b00001111
 }
