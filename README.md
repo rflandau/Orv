@@ -47,4 +47,8 @@ If you just want to run Orv yourself (or play with it using pre-constructed libr
 
 # Core Design Goals
 
-Orv is first-and-foremost an algo.
+Orv is first-and-foremost an algorithm. It can be tweaked, altered, and played with so that it better suits a particular problem space. That being said, there are some key design principles that permeate all variants (even if certain designs stick to them better than others).
+
+## Bubble-Up Paradigm
+
+## Lower Height == Lower Power
