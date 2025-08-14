@@ -27,14 +27,23 @@ import (
 const FixedHeaderLen uint = 5
 
 // A Header represents a deconstructed Orv packet header.
+// The state of Header is never guaranteed; call .Validate() to verify before using.
 // Use SerializeTo()/SerializeFrom().
 type Header struct {
-	Version  Version
+	// REQUIRED.
+	// The highest major and minor version of Orv the sender speaks.
+	Version Version
+	// The maximum number of hops this packet may traverse before being dropped.
+	// Defaults to DefaultHopLimit.
 	HopLimit uint8
-	// length of the payload.
-	// Must be <= (65535-FixedHeaderLen)
+	// Length of the payload.
+	// Must be <= (65535-FixedHeaderLen).
+	// Defaults to zero, thus telling the receiver not to scan any data after the header.
 	PayloadLength uint16
-	Type          MessageType
+	// REQUIRED.
+	// Type of message.
+	// See PACKETS.md for the available message types.
+	Type MessageType
 }
 
 //#region errors
