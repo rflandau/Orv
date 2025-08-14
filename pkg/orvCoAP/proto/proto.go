@@ -49,9 +49,11 @@ type Header struct {
 //#region errors
 
 var (
+	ErrInvalidVersionMajor = errors.New("major version must be 0 <= x <= 15")
+	ErrInvalidVersionMinor = errors.New("minor version must be 0 <= x <= 15")
 	// ErrInvalidHopLimit means that the given hop limit was out of bounds.
-	ErrInvalidHopLimit      = errors.New("HopLimit must be 1 <= x <= 255")
-	ErrInvalidPayloadLength = errors.New("PayloadLength must be 0 <= x <= " + strconv.FormatUint(uint64(65535-FixedHeaderLen), 10) + " (uint16MAX - length of the fixed header)")
+	ErrInvalidPayloadLength = errors.New("payload length must be 0 <= x <= " + strconv.FormatUint(uint64(65535-FixedHeaderLen), 10) + " (uint16MAX - length of the fixed header)")
+	ErrUnknownMessageType   = errors.New("type must be a valid MessageType")
 )
 
 //#endregion errors
@@ -135,13 +137,32 @@ func (hdr *Header) SerializeFrom(rd *bytes.Reader) (err error) {
 	return nil
 }
 
+// Validate tests each field in header, returning a list of issues.
+func (hdr *Header) Validate() (errors []error) {
+	if hdr.Version.Major > 15 {
+		errors = append(errors, ErrInvalidVersionMajor)
+	}
+	if hdr.Version.Minor > 15 {
+		errors = append(errors, ErrInvalidVersionMinor)
+	}
+	if hdr.PayloadLength > (math.MaxUint16 - uint16(FixedHeaderLen)) {
+		errors = append(errors, ErrInvalidPayloadLength)
+	}
+	if hdr.Type == UNKNOWN || MessageTypeString(hdr.Type) == "UNKNOWN" {
+		errors = append(errors, ErrUnknownMessageType)
+	}
+
+	return errors
+}
+
 //#region MessageType
 
 // MessageType enumerates the message types and the integers used to represent them in the Type field.
 type MessageType = uint8
 
 const (
-	Hello MessageType = iota
+	UNKNOWN MessageType = iota
+	Hello
 	HelloAck
 
 	Join
@@ -165,5 +186,48 @@ const (
 	VKHeartbeatAck
 	VKHeartbeatFault
 )
+
+// MessageTypeString returns the string representation of the given MessageType.
+// It is just a big switch statement.
+func MessageTypeString(mt MessageType) string {
+	switch mt {
+	case Hello:
+		return "HELLO"
+	case Join:
+		return "JOIN"
+	case JoinAccept:
+		return "JOIN_ACCEPT"
+	case JoinDeny:
+		return "JOIN_DENY"
+	case Register:
+		return "REGISTER"
+	case RegisterAccept:
+		return "REGISTER_ACCEPT"
+	case RegisterDeny:
+		return "REGISTER_DENY"
+	case Merge:
+		return "MERGE"
+	case MergeAccept:
+		return "MERGE_ACCEPT"
+	case Increment:
+		return "INCREMENT"
+	case IncrementACK:
+		return "INCREMENT_ACK"
+	case ServiceHeartbeat:
+		return "SERVICE_HEARTBEAT"
+	case ServiceHeartbeatAck:
+		return "SERVICE_HEARTBEAT_ACK"
+	case ServiceHeartbeatFault:
+		return "SERVICE_HEARTBEAT_FAULT"
+	case VKHeartbeat:
+		return "VK_HEARTBEAT"
+	case VKHeartbeatAck:
+		return "VK_HEARTBEAT_ACK"
+	case VKHeartbeatFault:
+		return "VK_HEARTBEAT_FAULT"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 //#endregion MessageType
