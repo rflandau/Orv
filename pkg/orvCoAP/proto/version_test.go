@@ -24,6 +24,9 @@ func TestVersion(t *testing.T) {
 	}{
 		{"invalid major", args{16, 1}, want{0b0, true}},
 		{"invalid minor", args{2, 255}, want{0b0, true}},
+		{"0.0", args{0, 0}, want{0b00000000, false}},
+		{"0.10", args{0, 10}, want{0b00001010, false}},
+		{"0.10", args{3, 0}, want{0b00110000, false}},
 		{"2.1", args{2, 1}, want{0b00100001, false}},
 		{"15.15", args{15, 15}, want{0b11111111, false}},
 	}
@@ -41,6 +44,7 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+// Tests parsing out Version from a byte.
 func TestVersionFromByte(t *testing.T) {
 	tests := []struct {
 		name string
