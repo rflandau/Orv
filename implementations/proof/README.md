@@ -1,4 +1,4 @@
-![orv logo](img/logo.png)
+![orv logo](../../img/logo.png)
 
 # Decentralized, Hierarchical, Self-Organizing, Service Discovery Trees
 
