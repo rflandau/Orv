@@ -2,6 +2,7 @@ package proto
 
 import "errors"
 
+// Version represents the Orv version number this node speaks.
 type Version struct {
 	// Orv version minor number.
 	// Only 4 least-significant bits are used.
