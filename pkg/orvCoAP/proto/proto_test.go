@@ -3,40 +3,71 @@ package proto_test
 import (
 	"bytes"
 	"math"
+	. "network-bois-orv/internal/testsupport"
 	"network-bois-orv/pkg/orvCoAP/proto"
-	"reflect"
+	"slices"
 	"testing"
 )
 
-func TestHeader_SerializeTo(t *testing.T) {
+// Tests that Serialize puts out the expected byte string fromm a given header struct.
+// Serialize does not validate data in header, so errors can only come from a failure to write and thus are always fatal.
+func TestHeader_SerializeWithValidate(t *testing.T) {
 	tests := []struct {
-		name    string
-		hdr     proto.Header
-		want    []byte
-		wantErr bool
+		name     string
+		hdr      proto.Header
+		want     []byte // the byte string Serialize should return
+		invalids uint   // the number of errors we expect .Validate() to return
 	}{
-		{"invalid hop limit", proto.Header{Version: proto.Version{0, 0}, HopLimit: 0}, nil, true},
-		{"invalid payload length", proto.Header{Version: proto.Version{0, 0}, HopLimit: 3, PayloadLength: math.MaxUint16}, nil, true},
-		{"only hop limit", proto.Header{Version: proto.Version{0, 0}, HopLimit: 5}, []byte{0b0, 0b101, 0, 0, 0}, false},
-		{"1.1, hp5", proto.Header{Version: proto.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, false},
-		{"1.1, hp255", proto.Header{Version: proto.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, false},
-		{"15.15, hp255", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, false},
+		{"only hop limit", proto.Header{Version: proto.Version{0, 0}, HopLimit: 5}, []byte{0b0, 0b101, 0, 0, 0}, 1},
+		{"1.1, hp5", proto.Header{Version: proto.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, 1},
+		{"1.1, hp255", proto.Header{Version: proto.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, 1},
+		{"15.15, hp255", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, 1},
+		{"15.15, hp255, HELLO type", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255, Type: proto.Hello}, []byte{0b11111111, 0b11111111, 0, 0, proto.Hello}, 0},
+		{"HELLO_ACK type", proto.Header{Type: proto.HelloAck}, []byte{0, 0, 0, 0, proto.HelloAck}, 0},
+		{"JOIN type", proto.Header{Type: proto.Join}, []byte{0, 0, 0, 0, proto.Join}, 0},
+		{"JOIN_ACCEPT type", proto.Header{Type: proto.JoinAccept}, []byte{0, 0, 0, 0, proto.JoinAccept}, 0},
+		{"JOIN_DENY type", proto.Header{Type: proto.JoinDeny}, []byte{0, 0, 0, 0, proto.JoinDeny}, 0},
+		{"payload 20B, REGISTER type", proto.Header{PayloadLength: 20, Type: proto.Register}, []byte{0, 0, 0, 20, proto.Register}, 0},
+		{"payload 20B, [overflow] type", proto.Header{PayloadLength: 20, Type: 250}, []byte{0, 0, 0, 20, 250}, 1},
+		{"payload 65000B, REGISTER_ACCEPT type", proto.Header{PayloadLength: 65000, Type: proto.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, proto.RegisterAccept}, 0},
+
+		{"bad major version",
+			proto.Header{
+				Version: proto.Version{33, 1},
+			},
+			[]byte{0b00010001, 0, 0, 0, 0}, // expect the 33 to be prefix-truncated to 1
+			2,
+		},
+		{"payload too large",
+			proto.Header{
+				Version:       proto.Version{15, 1},
+				HopLimit:      3,
+				PayloadLength: math.MaxUint16,
+				Type:          proto.VKHeartbeatFault,
+			},
+			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, proto.VKHeartbeatFault},
+			1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.hdr.Serialize()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Header.SerializeTo() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if vErrors := tt.hdr.Validate(); len(vErrors) != int(tt.invalids) {
+				t.Error("incorrect validation error count",
+					ExpectedActual(tt.invalids, len(vErrors)),
+					"errors: ", vErrors,
+				)
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Header.SerializeTo() = %v, want %v", got, tt.want)
+
+			if got, err := tt.hdr.Serialize(); err != nil {
+				t.Fatal(err)
+			} else if !slices.Equal(got, tt.want) {
+				t.Error("bad byte string", ExpectedActual(tt.want, got))
 			}
 		})
 	}
 }
 
-func TestHeader_SerializeFrom(t *testing.T) {
+func TestHeader_Deserialize(t *testing.T) {
 	tests := []struct {
 		name string
 		// the header to serialize.
