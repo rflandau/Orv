@@ -196,6 +196,8 @@ func MessageTypeString(mt MessageType) string {
 	switch mt {
 	case Hello:
 		return "HELLO"
+	case HelloAck:
+		return "HELLO_ACK"
 	case Join:
 		return "JOIN"
 	case JoinAccept:
