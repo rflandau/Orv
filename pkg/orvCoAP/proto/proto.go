@@ -38,7 +38,7 @@ type Header struct {
 	// The maximum number of hops this packet may traverse before being dropped.
 	// Defaults to DefaultHopLimit.
 	HopLimit uint8
-	// Length of the payload.
+	// Length of the payload in bytes.
 	// Must be <= (65535-FixedHeaderLen).
 	// Defaults to zero, thus telling the receiver not to scan any data after the header.
 	PayloadLength uint16
