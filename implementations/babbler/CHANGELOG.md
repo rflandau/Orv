@@ -1,3 +1,5 @@
+We may toss this file entirely as we are splitting by implementation.
+
 # 1.1
 
 - Updated versioning scheme to major.minor
