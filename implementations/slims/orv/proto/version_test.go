@@ -3,7 +3,8 @@
 package proto_test
 
 import (
-	"network-bois-orv/pkg/orvCoAP/proto"
+	"network-bois-orv/implementations/slims/orv/proto"
+
 	"testing"
 )
 

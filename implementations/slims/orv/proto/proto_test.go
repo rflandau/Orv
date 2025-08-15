@@ -3,8 +3,8 @@ package proto_test
 import (
 	"bytes"
 	"math"
+	"network-bois-orv/implementations/slims/orv/proto"
 	. "network-bois-orv/internal/testsupport"
-	"network-bois-orv/pkg/orvCoAP/proto"
 	"slices"
 	"testing"
 )
