@@ -2,11 +2,22 @@ package proto_test
 
 import (
 	"bytes"
+	"context"
+	"log"
 	"math"
 	"network-bois-orv/implementations/slims/orv/proto"
 	. "network-bois-orv/internal/testsupport"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/plgd-dev/go-coap/v3"
+	"github.com/plgd-dev/go-coap/v3/message"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
+	"github.com/plgd-dev/go-coap/v3/mux"
+	"github.com/plgd-dev/go-coap/v3/options"
+	"github.com/plgd-dev/go-coap/v3/udp"
 )
 
 // Tests that Serialize puts out the expected byte string fromm a given header struct.
@@ -149,4 +160,118 @@ func TestHeader_Deserialize(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestFullSend spins up a server and a client to send data back and forth, ensuring the Orv header can be constructed and read accurately.
+// The server accepts PUT and POST requests at /. Requests are deserialized, validated, and then echoed back over the wire (on the good path).
+func TestFullSend(t *testing.T) {
+	// generate server routes and handling
+	serverMux := mux.NewRouter()
+	serverMux.HandleFunc("/", func(w mux.ResponseWriter, r *mux.Message) {
+		{
+			format, err := r.ContentFormat()
+			if err != nil {
+				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to parse content format: "+err.Error()))
+				return
+			}
+			bdySz, err := r.BodySize()
+			if err != nil {
+				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to determine body size: "+err.Error()))
+				return
+			}
+			log.Printf("server received new packet:\ncode=%v\nformat=%v\nbody size=%v", r.Code().String(), format, bdySz)
+		}
+
+		// only accept PUT and POST
+		switch r.Code() {
+		case codes.PUT, codes.POST:
+			// continue
+		default:
+			w.SetResponse(codes.BadRequest, message.TextPlain, bytes.NewReader([]byte("only PUT and POST are acceptable at /")))
+			return
+		}
+
+		hdr := proto.Header{}
+		bdy, err := r.Message.ReadBody() // slurp body
+		if err != nil {
+			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
+			return
+		}
+		if err := hdr.Deserialize(bytes.NewReader(bdy)); err != nil {
+			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to deserialize body: "+err.Error())))
+			return
+		}
+		log.Printf("server decoded header: %#v", hdr)
+		if errs := hdr.Validate(); errs != nil {
+			var sb strings.Builder
+			for _, err := range errs {
+				sb.WriteString(err.Error() + "\n")
+			}
+			w.SetResponse(codes.BadRequest,
+				message.TextPlain,
+				strings.NewReader(sb.String()))
+			return
+		}
+		// re-serialize the header
+		respData, err := hdr.Serialize()
+		if err != nil {
+			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to re-serialize body: "+err.Error())))
+			return
+		}
+		if err := w.SetResponse(codes.Created, message.TextPlain, bytes.NewReader(respData)); err != nil {
+			log.Println(err)
+		}
+	})
+	// spin up the server
+	serverCtx := t.Context()
+	go coap.ListenAndServeWithOptions("udp", ":8080", options.WithContext(serverCtx), options.WithMux(serverMux))
+
+	type test struct {
+		header       *proto.Header
+		body         []byte
+		wantRespCode codes.Code
+	}
+	tests := []test{
+		{&proto.Header{Version: proto.Version{1, 1}, Type: proto.Hello}, nil, codes.Created},
+	}
+	for _, tt := range tests {
+		// serialize the header
+		hdr, err := tt.header.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// spawn a client to ping the server
+		conn, err := udp.Dial("localhost:8080")
+		if err != nil {
+			log.Fatalf("Error dialing: %v", err)
+		}
+		defer conn.Close()
+		// send the serialized header
+		resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
+		if err != nil {
+			t.Fatalf("failed to POST request: %v", err)
+		}
+		log.Printf("Response: %+v", resp)
+		// test the response fields
+		if resp.Code() != tt.wantRespCode {
+			body, err := resp.ReadBody()
+			if err != nil {
+				t.Error("failed to read response body: ", err)
+			}
+			t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
+		}
+		// test that we got our header back
+		var respHdr *proto.Header = &proto.Header{}
+		body, err := resp.ReadBody()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
+			t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
+		}
+	}
 }
