@@ -15,10 +15,10 @@ Includes structs that can be composed into a fixed header; you should never have
 package proto
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 )
@@ -88,53 +88,52 @@ func (hdr *Header) Serialize() ([]byte, error) {
 //
 // Returns when rd is empty or we have read FixedHeaderLen bytes, whichever is first.
 // Does NOT validate fields. Does not drain rd.
-func (hdr *Header) Deserialize(rd *bytes.Reader) (err error) {
-	remaining := rd.Len() // stop before we hit EOF
-	if remaining < 1 {
-		return nil
+// Swallows EOF errors and short reads.
+func (hdr *Header) Deserialize(rd io.Reader) (err error) {
+	var buf = make([]byte, 1)
+	readByte := func() (b byte, done bool, err error) {
+		if read, err := rd.Read(buf); err != nil {
+			if errors.Is(err, io.EOF) { // short read
+				return 0, true, nil
+			}
+			return 0, false, err // error occurred
+		} else if read != 1 { // short read
+			return 0, true, nil
+		}
+		return buf[0], false, nil // success
 	}
 
 	{ // Version
-		b, err := rd.ReadByte()
-		if err != nil {
+		b, done, err := readByte()
+		if done || err != nil {
 			return err
 		}
 		hdr.Version = VersionFromByte(b)
-		remaining -= 1
 	}
 	{ // Hop Limit
-		if remaining < 1 { // check that we have enough data remaining
-			return nil
-		}
-		if hdr.HopLimit, err = rd.ReadByte(); err != nil {
+		b, done, err := readByte()
+		if done || err != nil {
 			return err
 		}
-		remaining -= 1
+		hdr.HopLimit = b
 	}
 	{ // Payload Length
-		if remaining < 2 { // check that we have enough data remaining
-			return nil
-		}
-		MSB, err := rd.ReadByte()
-		if err != nil {
+		MSB, done, err := readByte()
+		if done || err != nil {
 			return err
 		}
-		remaining -= 1
-		LSB, err := rd.ReadByte()
-		if err != nil {
+		LSB, done, err := readByte()
+		if done || err != nil {
 			return err
 		}
-		remaining -= 1
 		hdr.PayloadLength = uint16(MSB)<<8 | uint16(LSB)
 	}
 	{ // Message Type
-		if remaining < 1 { // check that we have enough data remaining
-			return nil
-		}
-		if hdr.Type, err = rd.ReadByte(); err != nil {
+		b, done, err := readByte()
+		if done || err != nil {
 			return err
 		}
-		remaining -= 1
+		hdr.Type = b
 	}
 
 	return nil
