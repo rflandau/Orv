@@ -238,7 +238,7 @@ func TestFullSend(t *testing.T) {
 		{"0.15, 32 hops, UNKNOWN", &proto.Header{Version: proto.Version{0, 15}, HopLimit: 32, Type: proto.UNKNOWN}, nil, codes.BadRequest},
 		{"15.1, 32 hops, oversize payload, JOIN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.Join}, nil, codes.BadRequest},
 		{"15.1, 32 hops, oversize payload, UNKNOWN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, max size payload, UNKNOWN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(proto.FixedHeaderLen), Type: proto.JoinAccept}, nil, codes.Created},
+		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(proto.FixedHeaderLen), Type: proto.JoinAccept}, nil, codes.Created},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
