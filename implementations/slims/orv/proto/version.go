@@ -1,6 +1,27 @@
 package proto
 
-import "errors"
+import (
+	"errors"
+	"slices"
+)
+
+// major -> minors
+var supportedVersions = map[uint8][]uint8{
+	1: {2},
+}
+
+// IsVersionSupport returns if the given version is known to be supported by the current implementation.
+func IsVersionSupported(v Version) bool {
+	minors := supportedVersions[v.Major]
+	return slices.Contains(minors, v.Minor)
+}
+
+// VersionsSupported lists all Orv versions currently supported (which is just 1.2 atm).
+// Returns a mapping from major version to the minor versions it supports.
+// Ex: 1 -> [1, 2] implies that we support versions 1.1 and 1.2.
+func VersionsSupported() map[uint8][]uint8 {
+	return supportedVersions
+}
 
 // Version represents the Orv version number this node speaks.
 type Version struct {
