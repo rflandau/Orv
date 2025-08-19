@@ -2,10 +2,20 @@ package orv
 
 import (
 	"net/netip"
+	"network-bois-orv/implementations/slims/orv/proto"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/plgd-dev/go-coap/v3/message"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
+	"github.com/plgd-dev/go-coap/v3/mux"
+	"github.com/plgd-dev/go-coap/v3/net"
+	"github.com/plgd-dev/go-coap/v3/options"
+	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/plgd-dev/go-coap/v3/udp/server"
 	"github.com/rs/zerolog"
 )
 
@@ -16,16 +26,22 @@ type VaultKeeper struct {
 	log   *zerolog.Logger
 	id    uint64 // unique identifier of this node
 	addr  netip.AddrPort
+	net   struct {
+		alive    atomic.Bool // are we currently accepting connections?
+		listener *net.UDPConn
+		server   *server.Server
+	}
+	mux *mux.Router
 
 	structure struct {
 		mu         sync.RWMutex // lock that must be held to interact with the fields of structure
 		height     uint16       // current node height
-		parentID   uint64       // 0 if we are riit
+		parentID   uint64       // 0 if we are root
 		parentAddr netip.AddrPort
 	}
 }
 
-// Function to set various options on the vault keeper.
+// VKOption function to set various options on the vault keeper.
 // Uses defaults if an option is not set.
 type VKOption func(*VaultKeeper)
 
@@ -41,6 +57,11 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 	vk := &VaultKeeper{
 		id:   id,
 		addr: addr,
+		net: struct {
+			alive    atomic.Bool
+			listener *net.UDPConn
+			server   *server.Server
+		}{},
 		structure: struct {
 			mu         sync.RWMutex
 			height     uint16
@@ -70,9 +91,34 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		vk.log = &l
 	}
 
-	// spawn a listener on the address to receive packets
-	// TODO
+	// if a muxer was not established by the options, generate one with default handling
+	if vk.mux == nil {
+		vk.mux = mux.NewRouter()
+		vk.mux.Use(func(next mux.Handler) mux.Handler { // install logging middleware
+			return mux.HandlerFunc(func(w mux.ResponseWriter, r *mux.Message) {
+				sz, szErr := r.BodySize()
+				mt, mtErr := r.ContentFormat()
+				path, pathErr := r.Path()
+				vk.log.Debug().
+					Str("code", r.Code().String()).
+					Uint64("sequence", r.Sequence()).
+					Int64("body size", sz).AnErr("body size", szErr).
+					Str("media type", mt.String()).AnErr("media type", mtErr).
+					Str("path", path).AnErr("path", pathErr).
+					Msg("request received")
+				next.ServeCOAP(w, r)
+			})
+		})
+		vk.mux.Handle("/", mux.HandlerFunc(vk.handler))
+	}
 
+	// spawn a listener on the address to receive packets
+	vk.net.server = udp.NewServer(options.WithMux(vk.mux))
+	var err error
+	vk.net.listener, err = net.NewListenUDP("udp", addr.String())
+	if err != nil {
+		return nil, err
+	}
 	// generate a child handler
 	// TODO
 
@@ -86,6 +132,60 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 
 	return vk, nil
 
+}
+
+// handler is the core processing called for every message.
+// TODO
+func (vk *VaultKeeper) handler(w mux.ResponseWriter, r *mux.Message) {
+	// attempt to fetch an Orv header
+	hdr := proto.Header{}
+	if err := hdr.Deserialize(r.Body()); err != nil {
+		vk.log.Error().Err(err).Msg("failed to deserialize header")
+		if err := w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to deserialize header: "+err.Error())); err != nil {
+			vk.log.Error().Err(err).Msg("failed to set response")
+		}
+		return
+	}
+	// check required header fields
+	if hdr.Type == proto.UNKNOWN {
+		if err := w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("message type must be set")); err != nil {
+			vk.log.Error().Err(err).Msg("failed to set response")
+		}
+		return
+	}
+	// check that we support the requested version
+	// TODO
+
+	// switch on request type
+	// TODO
+}
+
+// Start causes the server to begin listening.
+// Ineffectual if already listening.
+func (vk *VaultKeeper) Start() {
+	if !vk.net.alive.CompareAndSwap(false, true) { // mark us as alive; quite if we were already alive
+		return
+	}
+	vk.log.Info().Msg("starting server...")
+	go func() {
+		if err := vk.net.server.Serve(vk.net.listener); err != nil {
+			vk.log.Info().Err(err).Msg("server outcome")
+		}
+
+	}()
+
+	time.Sleep(5 * time.Millisecond) // buy time for the server to actually start up
+}
+
+// Stop causes the server to stop accepting requests.
+// Ineffectual if not listening.
+func (vk *VaultKeeper) Stop() {
+	if !vk.net.alive.CompareAndSwap(true, false) {
+		return
+	}
+	vk.log.Info().Msg("shuttering server...")
+
+	vk.net.server.Stop()
 }
 
 // Pretty prints the state of the vk into the given zerolog event.
