@@ -25,6 +25,16 @@ func TestVaultKeeper_StartStop(t *testing.T) {
 	if err := ping("127.0.0.1:8081", 500*time.Millisecond); err == nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Error("bad ping result. Expected DeadlineExceeded error, found ", err)
 	}
+	vk.Start()
+	if err := ping("127.0.0.1:8081", 500*time.Millisecond); err != nil {
+		t.Error(err)
+	}
+
+	vk.Stop()
+	// ping the server again, but expect failure
+	if err := ping("127.0.0.1:8081", 500*time.Millisecond); err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Error("bad ping result. Expected DeadlineExceeded error, found ", err)
+	}
 }
 
 func ping(addr string, timeout time.Duration) error {
@@ -33,6 +43,7 @@ func ping(addr string, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := conn.Ping(ctx); err != nil {
