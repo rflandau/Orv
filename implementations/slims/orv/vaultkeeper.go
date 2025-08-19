@@ -129,28 +129,35 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 
 // handler is the core processing called for every message.
 // TODO
-func (vk *VaultKeeper) handler(w mux.ResponseWriter, r *mux.Message) {
+func (vk *VaultKeeper) handler(resp mux.ResponseWriter, r *mux.Message) {
 	// attempt to fetch an Orv header
 	hdr := proto.Header{}
 	if err := hdr.Deserialize(r.Body()); err != nil {
 		vk.log.Error().Err(err).Msg("failed to deserialize header")
-		if err := w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to deserialize header: "+err.Error())); err != nil {
-			vk.log.Error().Err(err).Msg("failed to set response")
-		}
-		return
-	}
-	// check required header fields
-	if hdr.Type == proto.UNKNOWN {
-		if err := w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("message type must be set")); err != nil {
-			vk.log.Error().Err(err).Msg("failed to set response")
-		}
+		vk.RespondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
 		return
 	}
 	// check that we support the requested version
-	// TODO
+	if !proto.IsVersionSupported(hdr.Version) {
+		vk.RespondError(resp, codes.NotAcceptable, "unsupported version")
+		return
+	}
 
 	// switch on request type
+	switch hdr.Type {
 	// TODO
+	default: // non-enumerated type or UNKNOWN
+		vk.RespondError(resp, codes.BadRequest, "message type must be set")
+		return
+	}
+}
+
+// RespondError is a helper function that sets the response on the given writer, logging errors that occur.
+// Responses contain the given code and message and are written as plain text.
+func (vk *VaultKeeper) RespondError(resp mux.ResponseWriter, code codes.Code, msg string) {
+	if err := resp.SetResponse(code, message.TextPlain, strings.NewReader(msg)); err != nil {
+		vk.log.Error().Str("body", msg).Err(err).Msg("failed to set response")
+	}
 }
 
 // Start causes the server to begin listening.
