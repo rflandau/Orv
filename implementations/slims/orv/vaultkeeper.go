@@ -112,13 +112,6 @@ func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKee
 		vk.mux.Handle("/", mux.HandlerFunc(vk.handler))
 	}
 
-	// spawn a listener on the address to receive packets
-	vk.net.server = udp.NewServer(options.WithMux(vk.mux))
-	var err error
-	vk.net.listener, err = net.NewListenUDP("udp", addr.String())
-	if err != nil {
-		return nil, err
-	}
 	// generate a child handler
 	// TODO
 
@@ -166,6 +159,13 @@ func (vk *VaultKeeper) Start() {
 	if !vk.net.alive.CompareAndSwap(false, true) { // mark us as alive; quite if we were already alive
 		return
 	}
+	// spawn a server and listener
+	vk.net.server = udp.NewServer(options.WithMux(vk.mux))
+	var err error
+	vk.net.listener, err = net.NewListenUDP("udp", vk.addr.String())
+	if err != nil {
+		//return err
+	}
 	vk.log.Info().Msg("starting server...")
 	go func() {
 		if err := vk.net.server.Serve(vk.net.listener); err != nil {
@@ -186,6 +186,9 @@ func (vk *VaultKeeper) Stop() {
 	vk.log.Info().Msg("shuttering server...")
 
 	vk.net.server.Stop()
+	vk.net.server = nil
+	vk.net.listener.Close()
+	vk.net.listener = nil
 }
 
 // Pretty prints the state of the vk into the given zerolog event.
