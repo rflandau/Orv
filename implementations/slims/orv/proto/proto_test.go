@@ -192,7 +192,7 @@ func TestFullSend(t *testing.T) {
 		}
 
 		hdr := proto.Header{}
-		bdy, err := r.Message.ReadBody() // slurp body
+		bdy, err := r.ReadBody() // slurp body
 		if err != nil {
 			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
 			return
@@ -227,51 +227,62 @@ func TestFullSend(t *testing.T) {
 	go coap.ListenAndServeWithOptions("udp", ":8080", options.WithContext(serverCtx), options.WithMux(serverMux))
 
 	type test struct {
+		name         string
 		header       *proto.Header
 		body         []byte
 		wantRespCode codes.Code
 	}
 	tests := []test{
-		{&proto.Header{Version: proto.Version{1, 1}, Type: proto.Hello}, nil, codes.Created},
+		{"1.1, HELLO", &proto.Header{Version: proto.Version{1, 1}, Type: proto.Hello}, nil, codes.Created},
+		{"0.15, 32 hops, HELLO_ACK", &proto.Header{Version: proto.Version{0, 15}, HopLimit: 32, Type: proto.HelloAck}, nil, codes.Created},
+		{"0.15, 32 hops, UNKNOWN", &proto.Header{Version: proto.Version{0, 15}, HopLimit: 32, Type: proto.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, JOIN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.Join}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, UNKNOWN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, max size payload, UNKNOWN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(proto.FixedHeaderLen), Type: proto.JoinAccept}, nil, codes.Created},
 	}
 	for _, tt := range tests {
-		// serialize the header
-		hdr, err := tt.header.Serialize()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// spawn a client to ping the server
-		conn, err := udp.Dial("localhost:8080")
-		if err != nil {
-			log.Fatalf("Error dialing: %v", err)
-		}
-		defer conn.Close()
-		// send the serialized header
-		resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
-		if err != nil {
-			t.Fatalf("failed to POST request: %v", err)
-		}
-		log.Printf("Response: %+v", resp)
-		// test the response fields
-		if resp.Code() != tt.wantRespCode {
-			body, err := resp.ReadBody()
+		t.Run(tt.name, func(t *testing.T) {
+			// serialize the header
+			hdr, err := tt.header.Serialize()
 			if err != nil {
-				t.Error("failed to read response body: ", err)
+				t.Fatal(err)
 			}
-			t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
-		}
-		// test that we got our header back
-		var respHdr *proto.Header = &proto.Header{}
-		body, err := resp.ReadBody()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
-			t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
-		}
+
+			// spawn a client to ping the server
+			conn, err := udp.Dial("localhost:8080")
+			if err != nil {
+				log.Fatalf("Error dialing: %v", err)
+			}
+			defer conn.Close()
+			// send the serialized header
+			resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
+			if err != nil {
+				t.Fatalf("failed to POST request: %v", err)
+			}
+			log.Printf("Response: %+v", resp)
+			// test the response fields
+			if resp.Code() != tt.wantRespCode {
+				body, err := resp.ReadBody()
+				if err != nil {
+					t.Error("failed to read response body: ", err)
+				}
+				t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
+			}
+			// test that we got our header back on a successful response
+			if resp.Code() == codes.Created {
+				var respHdr = &proto.Header{}
+				body, err := resp.ReadBody()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
+					t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
+				}
+			}
+		})
+
 	}
 }
