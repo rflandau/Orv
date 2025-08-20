@@ -5,10 +5,14 @@ import (
 	"slices"
 )
 
-// major -> minors
-var supportedVersions = map[uint8][]uint8{
-	1: {2},
-}
+var (
+	// major -> minors
+	supportedVersions = map[uint8][]uint8{
+		1: {2},
+	}
+	// the highest version contained within the list of all supported versions
+	HighestSupported Version = Version{1, 2}
+)
 
 // IsVersionSupport returns if the given version is known to be supported by the current implementation.
 func IsVersionSupported(v Version) bool {
