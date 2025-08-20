@@ -134,12 +134,12 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, r *mux.Message) {
 	hdr := proto.Header{}
 	if err := hdr.Deserialize(r.Body()); err != nil {
 		vk.log.Error().Err(err).Msg("failed to deserialize header")
-		vk.RespondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
+		vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
 		return
 	}
 	// check that we support the requested version
 	if !proto.IsVersionSupported(hdr.Version) {
-		vk.RespondError(resp, codes.NotAcceptable, "unsupported version")
+		vk.respondError(resp, codes.NotAcceptable, "unsupported version")
 		return
 	}
 
@@ -147,14 +147,14 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, r *mux.Message) {
 	switch hdr.Type {
 	// TODO
 	default: // non-enumerated type or UNKNOWN
-		vk.RespondError(resp, codes.BadRequest, "message type must be set")
+		vk.respondError(resp, codes.BadRequest, "message type must be set")
 		return
 	}
 }
 
-// RespondError is a helper function that sets the response on the given writer, logging errors that occur.
+// respondError is a helper function that sets the response on the given writer, logging errors that occur.
 // Responses contain the given code and message and are written as plain text.
-func (vk *VaultKeeper) RespondError(resp mux.ResponseWriter, code codes.Code, msg string) {
+func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, msg string) {
 	if err := resp.SetResponse(code, message.TextPlain, strings.NewReader(msg)); err != nil {
 		vk.log.Error().Str("body", msg).Err(err).Msg("failed to set response")
 	}
