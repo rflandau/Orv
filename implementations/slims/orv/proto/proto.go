@@ -25,8 +25,7 @@ import (
 
 const (
 	// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
-	FixedHeaderLen  uint = 5
-	DefaultHopLimit uint = 16
+	FixedHeaderLen uint = 5
 )
 
 // A Header represents a deconstructed Orv packet header.
