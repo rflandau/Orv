@@ -11,7 +11,7 @@ import (
 )
 
 func TestVaultKeeper_StartStop(t *testing.T) {
-	vk, err := NewVaultKeeper(1, netip.MustParseAddrPort("127.0.0.1:8081"))
+	vk, err := New(1, netip.MustParseAddrPort("127.0.0.1:8081"))
 	if err != nil {
 		t.Fatal(err)
 	}

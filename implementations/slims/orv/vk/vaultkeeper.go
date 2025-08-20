@@ -45,9 +45,9 @@ type VaultKeeper struct {
 // Uses defaults if an option is not set.
 type VKOption func(*VaultKeeper)
 
-// NewVaultKeeper generates a new VK instance, optionally modified with opts.
+// New generates a new VK instance, optionally modified with opts.
 // The returned VK is ready for use as soon as it is .Start()'d.
-func NewVaultKeeper(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
+func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
 	if !addr.IsValid() {
 		return nil, ErrBadAddr(addr)
 	}
