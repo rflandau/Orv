@@ -176,8 +176,9 @@ const (
 
 	Merge
 	MergeAccept
+	MergeDeny // TODO do we need this?
 	Increment
-	IncrementACK
+	IncrementAck
 
 	ServiceHeartbeat
 	ServiceHeartbeatAck
@@ -186,6 +187,14 @@ const (
 	VKHeartbeat
 	VKHeartbeatAck
 	VKHeartbeatFault
+
+	// client
+	Status
+	StatusResp
+	List
+	ListResp
+	Get
+	GetResp
 )
 
 // MessageTypeString returns the string representation of the given MessageType.
@@ -214,7 +223,7 @@ func MessageTypeString(mt MessageType) string {
 		return "MERGE_ACCEPT"
 	case Increment:
 		return "INCREMENT"
-	case IncrementACK:
+	case IncrementAck:
 		return "INCREMENT_ACK"
 	case ServiceHeartbeat:
 		return "SERVICE_HEARTBEAT"
