@@ -4,6 +4,18 @@ Implemented by the [CoAP prototype](pkg/orvCoAP).
 
 Types and formats make the assumptions inherent in the README. If you are implementing a modified version of Orv (such as with in-house routing, no root omnipotence, or sequence numbers), this spec sheet may not fit your needs.
 
+# A Note on Nomenclature
+
+Response packets have a variety of suffixes (ACK, Resp, Accept, Deny, Fault). While an argument could be made for making these uniform, I used varying verbiage to indicate varying expectations.
+
+- ACKs are just acknowledgements. They indicate receipt and little else. They are sometimes paired with FAULTs, which indicate that the original message was received (hence the sister ACK) but was faulty for one reason or another.
+
+- ACCEPT and DENY are paired, indicating an outcome from the logic of the receiver (the VK, generally).
+
+- RESP is only used for requests and contain either the answer or an error.
+
+# Packets
+
 ## HELLO
 
 Sent by a node not part of the vault to introduce itself.
