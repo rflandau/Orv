@@ -160,11 +160,9 @@ Service requests are requests that can be made by any client, whether or not the
 
 ## STATUS
 
-Used by clients and tests to fetch information about the current state of the receiver VK. STATUS can recur up the tree up to hop limit times or until it hits root, whichever is sooner.
+Used by clients and tests to fetch information about the current state of the receiver VK. STATUS can recur up the tree up to *hop limit* times or until it hits root, whichever is sooner. If hop limit is 0 or 1, requests will be halted at the first VK.
 
-### Payload 
-
-1. *hop limit*: (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
+STATUS does not have a payload.
 
 ## STATUS_RESP
 
