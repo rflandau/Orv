@@ -27,6 +27,22 @@ func VersionsSupported() map[uint8][]uint8 {
 	return supportedVersions
 }
 
+// VersionsSupportedAsBytes returns an array of packed bytes, one bye for each supported <major>.<minor>.
+// Each byte can be unpacked via proto.VersionFromByte().
+func VersionsSupportedAsBytes() []byte {
+	var versionsAsBytes []byte
+	for major, minors := range supportedVersions {
+		// corral minor versions of current major
+		var v = make([]byte, len(minors))
+		for i := range minors {
+			version := Version{major, minors[i]}
+			v[i] = version.Byte()
+		}
+		versionsAsBytes = append(versionsAsBytes, v...)
+	}
+	return versionsAsBytes
+}
+
 // Version represents the Orv version number this node speaks.
 type Version struct {
 	// Orv version minor number.
