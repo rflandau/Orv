@@ -21,6 +21,8 @@ import (
 	"io"
 	"math"
 	"strconv"
+
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -155,6 +157,16 @@ func (hdr *Header) Validate() (errors []error) {
 	}
 
 	return errors
+}
+
+// Zerolog attaches header's fields to the given log event.
+// The given event is returned so it can be chained.
+func (hdr *Header) Zerolog(ev *zerolog.Event) *zerolog.Event {
+	ev.Str("version", fmt.Sprintf("%d.%d", hdr.Version.Major, hdr.Version.Minor)).
+		Uint8("hop limit", hdr.HopLimit).
+		Uint16("payload length", hdr.PayloadLength).
+		Str("type", hdr.Type.String())
+	return ev
 }
 
 //#region MessageType
