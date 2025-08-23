@@ -68,7 +68,7 @@ var (
 // Performs a single allocation of FixedHeaderLen size.
 func (hdr *Header) Serialize() ([]byte, error) {
 	out := make([]byte, FixedHeaderLen)
-	data := []byte{hdr.Version.Byte(), hdr.HopLimit, byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength), hdr.Type}
+	data := []byte{hdr.Version.Byte(), hdr.HopLimit, byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength), byte(hdr.Type)}
 
 	// compose data into out
 	if count, err := binary.Encode(out, binary.BigEndian, data); err != nil {
@@ -133,7 +133,7 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 		if done || err != nil {
 			return err
 		}
-		hdr.Type = b
+		hdr.Type = MessageType(b)
 	}
 
 	return nil
@@ -150,7 +150,7 @@ func (hdr *Header) Validate() (errors []error) {
 	if hdr.PayloadLength > (math.MaxUint16 - uint16(FixedHeaderLen)) {
 		errors = append(errors, ErrInvalidPayloadLength)
 	}
-	if hdr.Type == UNKNOWN || MessageTypeString(hdr.Type) == "UNKNOWN" {
+	if hdr.Type == UNKNOWN || hdr.Type.String() == "UNKNOWN" {
 		errors = append(errors, ErrUnknownMessageType)
 	}
 
@@ -160,7 +160,7 @@ func (hdr *Header) Validate() (errors []error) {
 //#region MessageType
 
 // MessageType enumerates the message types and the integers used to represent them in the Type field.
-type MessageType = uint8
+type MessageType uint8
 
 const (
 	UNKNOWN MessageType = iota
@@ -200,7 +200,7 @@ const (
 
 // MessageTypeString returns the string representation of the given MessageType.
 // It is just a big switch statement.
-func MessageTypeString(mt MessageType) string {
+func (mt MessageType) String() string {
 	switch mt {
 	case Hello:
 		return "HELLO"
