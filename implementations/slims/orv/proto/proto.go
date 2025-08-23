@@ -25,7 +25,8 @@ import (
 
 const (
 	// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
-	FixedHeaderLen uint = 5
+	FixedHeaderLen   uint   = 5
+	MaxPayloadLength uint16 = math.MaxUint16 - uint16(FixedHeaderLen)
 )
 
 // A Header represents a deconstructed Orv packet header.
