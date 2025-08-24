@@ -3,6 +3,7 @@ package vaultkeeper
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/plgd-dev/go-coap/v3/udp"
@@ -18,9 +19,9 @@ import (
 // Request payloads are encoded via protobuf.
 
 type HelloAck struct {
-	id      orv.NodeID
-	height  uint16
-	version byte // major+minor as a byte
+	ID      orv.NodeID
+	Height  uint16
+	Version byte // major+minor as a byte
 }
 
 // Hello sends a HELLO packet to the given address, returning the target node's response or an error.
@@ -61,16 +62,23 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 	defer conn.Close()
 
 	resp, err := conn.Post(ctx, "/", orv.ResponseMediaType(), bytes.NewReader(append(reqHdrB, body...)))
+	respBody := resp.Body()
+	var hdrBytes = make([]byte, protocol.FixedHeaderLen)
+	if n, err := respBody.Read(hdrBytes); err != nil {
+		return HelloAck{}, err
+	} else if n != int(protocol.FixedHeaderLen) {
+		return HelloAck{}, fmt.Errorf("incorrect read count (%d, expected %d)", n, protocol.FixedHeaderLen)
+	}
 
 	// read the header
 	respHeader := protocol.Header{}
-	if err := respHeader.Deserialize(resp.Body()); err != nil {
+	if err := respHeader.Deserialize(bytes.NewBuffer(hdrBytes)); err != nil {
 		return HelloAck{}, err
 	}
 	// read the payload
 	// TODO the response body should already be read forward 5 bytes, but we need to confirm that
 	var ret HelloAck
-	if respBody, err := io.ReadAll(resp.Body()); err != nil {
+	if respBody, err := io.ReadAll(respBody); err != nil {
 		return HelloAck{}, err
 	} else {
 		var r payloads_proto.HelloAck
@@ -79,9 +87,9 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 		}
 		// narrow the type to a HelloAck
 		ret = HelloAck{
-			id:      r.Id,
-			height:  uint16(r.Height),
-			version: byte(r.Version),
+			ID:      r.Id,
+			Height:  uint16(r.Height),
+			Version: byte(r.Version),
 		}
 	}
 	return ret, nil
