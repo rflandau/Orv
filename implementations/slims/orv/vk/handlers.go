@@ -1,0 +1,128 @@
+package vaultkeeper
+
+// handlers.go contains the switch on type for incoming packets and the subroutines invoked by each case/packet type.
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"network-bois-orv/implementations/slims/orv"
+	"network-bois-orv/implementations/slims/orv/proto"
+	"strconv"
+
+	"github.com/plgd-dev/go-coap/v3/message/codes"
+	"github.com/plgd-dev/go-coap/v3/mux"
+)
+
+// handler is the core processing called for each received message.
+// It is functionally a really long switch statement that invokes the appropriate handler subroutine for the message type.
+func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
+	// attempt to fetch an Orv header
+	reqHdr := proto.Header{}
+	reqBody := req.Body()
+	{
+		if err := reqHdr.Deserialize(reqBody); err != nil {
+			vk.log.Error().Err(err).Msg("failed to deserialize header")
+			vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
+			return
+		}
+		reqHdr.Zerolog(vk.log.Debug().Str("token", req.Token().String())).Send()
+
+	}
+	// check that we support the requested version
+	if !proto.IsVersionSupported(reqHdr.Version) {
+		vk.respondError(resp, codes.NotAcceptable, "unsupported version")
+		return
+	}
+
+	// switch on request type.
+	// Each sub-handler is expected to respond on its own.
+	switch reqHdr.Type {
+	// client requests that do not require a handshake
+	case proto.Status:
+		vk.status(reqHdr, req, resp)
+	// ...
+	default: // non-enumerated type or UNKNOWN
+		vk.respondError(resp, codes.BadRequest, "message type must be set")
+		return
+	}
+
+	// length-check the payload body
+	/*payloadLen := len(respBody)
+	if payloadLen > int(proto.MaxPayloadLength) {
+		vk.log.Warn().
+			Str("request type", reqHdr.Type.String()).
+			Int("body size", payloadLen).
+			Int("payload length limit", int(proto.MaxPayloadLength)).
+			Msg("response body exceeds payload length")
+		vk.respondError(resp, codes.InternalServerError, "response body exceeded max payload length")
+		return
+	}
+
+	// generate the header
+	respHdr := proto.Header{
+		Version:       proto.HighestSupported,
+		HopLimit:      1,
+		PayloadLength: uint16(payloadLen),
+	}
+	respHdrB, err := respHdr.Serialize()
+	if err != nil {
+		vk.log.Warn().Str("request type", proto.MessageTypeString(reqHdr.Type)).Int("body size", payloadLen).Int("payload length limit", int(proto.MaxPayloadLength)).Msg("response body exceeds payload length")
+		vk.respondError()
+	}
+	// write back the header and body
+	if err := resp.SetResponse(respCode, orv.ResponseMediaType(), bytes.NewReader(append(respHdrB, respBody...))); err != nil {
+		vk.log.Error().Err(err).Msg("failed to respond successfully")
+		vk.respondError(resp, codes.InternalServerError, err.Error())
+	}*/
+}
+
+// status answers STATUS packets by serializing most of the data in vk as json.
+// Holds a read lock on structure.
+func (vk *VaultKeeper) status(reqHdr proto.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+	// drain the rest of the body
+	var (
+		drained   = make([]byte, 1024)
+		totalRead int
+	)
+	for {
+		n, err := req.Body().Read(drained)
+		totalRead += n
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		vk.log.Debug().Str("buffer", string(drained)).Int("total read", totalRead).Msg("drained body buffer")
+	}
+
+	// ensure we were not given a payload
+	if reqHdr.PayloadLength != 0 || totalRead != 0 {
+		vk.respondError(respWriter, codes.BadRequest,
+			"STATUS does not accept a payload"+
+				"(read "+strconv.FormatInt(int64(totalRead), 10)+" bytes with a declared payload length of "+strconv.FormatUint(uint64(reqHdr.PayloadLength), 10)+")")
+		return
+	}
+
+	vk.structure.mu.RLock()
+	// gather data
+	st := orv.StatusResponse{
+		ID:                vk.id,
+		Height:            vk.structure.height,
+		VersionsSupported: proto.VersionsSupportedAsBytes(),
+	}
+	vk.structure.mu.RUnlock()
+
+	// serialize as json
+	var b *bytes.Buffer
+	ec := json.NewEncoder(b)
+
+	if err := ec.Encode(st); err != nil {
+		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+		return
+	}
+
+	vk.respondSuccess(respWriter,
+		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
+		proto.Header{Version: proto.HighestSupported, HopLimit: 1, PayloadLength: uint16(b.Len()), Type: proto.StatusResp},
+		b.Bytes())
+}

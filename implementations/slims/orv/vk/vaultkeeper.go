@@ -1,6 +1,8 @@
+// TODO annotate package
 package vaultkeeper
 
 import (
+	"bytes"
 	"net/netip"
 	"network-bois-orv/implementations/slims/orv/proto"
 	"os"
@@ -100,6 +102,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 				mt, mtErr := r.ContentFormat()
 				path, pathErr := r.Path()
 				vk.log.Debug().
+					Str("token", r.Token().String()).
 					Str("code", r.Code().String()).
 					Uint64("sequence", r.Sequence()).
 					Int64("body size", sz).AnErr("body size", szErr).
@@ -127,36 +130,28 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 }
 
-// handler is the core processing called for every message.
-// TODO
-func (vk *VaultKeeper) handler(resp mux.ResponseWriter, r *mux.Message) {
-	// attempt to fetch an Orv header
-	hdr := proto.Header{}
-	if err := hdr.Deserialize(r.Body()); err != nil {
-		vk.log.Error().Err(err).Msg("failed to deserialize header")
-		vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
-		return
-	}
-	// check that we support the requested version
-	if !proto.IsVersionSupported(hdr.Version) {
-		vk.respondError(resp, codes.NotAcceptable, "unsupported version")
-		return
-	}
-
-	// switch on request type
-	switch hdr.Type {
-	// TODO
-	default: // non-enumerated type or UNKNOWN
-		vk.respondError(resp, codes.BadRequest, "message type must be set")
-		return
-	}
-}
-
-// respondError is a helper function that sets the response on the given writer, logging errors that occur.
+// respondError is a helper function that sets the response on the given writer and logs if SetResponse fails.
 // Responses contain the given code and message and are written as plain text.
 func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, msg string) {
 	if err := resp.SetResponse(code, message.TextPlain, strings.NewReader(msg)); err != nil {
 		vk.log.Error().Str("body", msg).Err(err).Msg("failed to set response")
+	}
+}
+
+// respondSuccess is a helper function that sets the response on the given writer and logs if SetResponse fails.
+// Responses contain the given code and ReadSeeker and are written as an OctetStream.
+func (vk *VaultKeeper) respondSuccess(resp mux.ResponseWriter, code codes.Code, hdr proto.Header, body []byte) {
+	hdrB, err := hdr.Serialize()
+	if err != nil {
+		vk.log.Error().Msg("failed to serialize header")
+		return
+	}
+	if err := resp.SetResponse(code, message.TextPlain, bytes.NewReader(append(hdrB, body...))); err != nil {
+		vk.log.Error().
+			Bytes("body", body).
+			Str("body string", string(body)).
+			Err(err).
+			Msg("failed to set response")
 	}
 }
 
