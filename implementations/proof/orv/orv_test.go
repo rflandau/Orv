@@ -8,7 +8,7 @@ import (
 	"io"
 	"maps"
 	"net/netip"
-	"network-bois-orv/pkg/orv"
+	"network-bois-orv/implementations/proof/orv"
 	"slices"
 	"testing"
 	"time"

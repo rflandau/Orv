@@ -11,7 +11,7 @@ package main
 import (
 	"fmt"
 	"net/netip"
-	"network-bois-orv/pkg/orv"
+	"network-bois-orv/implementations/proof/orv"
 	"os"
 	"os/signal"
 
