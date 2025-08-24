@@ -1,10 +1,10 @@
-// Package proto contains tools for interacting with the L5 orv header.
-// Includes structs that can be composed into a fixed header; you should never have to interact with the raw bits or endian-ness of the header.
-package proto_test
+package proto
 
 import (
-	"network-bois-orv/implementations/slims/orv/proto"
-
+	"maps"
+	. "network-bois-orv/internal/testsupport"
+	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -33,7 +33,7 @@ func TestVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v, err := proto.NewVersion(tt.args.major, tt.args.minor)
+			v, err := NewVersion(tt.args.major, tt.args.minor)
 			if (err != nil) != tt.want.err {
 				t.Errorf("NewVersion() error = %v, wantErr %v", err, tt.want.err)
 				return
@@ -50,21 +50,81 @@ func TestVersionFromByte(t *testing.T) {
 	tests := []struct {
 		name string
 		b    byte
-		want proto.Version
+		want Version
 	}{
-		{"0.0", 0b00000000, proto.Version{0, 0}},
-		{"0.0", 0b0, proto.Version{0, 0}},
-		{"0.1", 0b1, proto.Version{0, 1}},
-		{"1.0", 0b00010000, proto.Version{1, 0}},
-		{"1.1", 0b00010001, proto.Version{1, 1}},
-		{"15.15", 0b11111111, proto.Version{15, 15}},
+		{"0.0", 0b00000000, Version{0, 0}},
+		{"0.0", 0b0, Version{0, 0}},
+		{"0.1", 0b1, Version{0, 1}},
+		{"1.0", 0b00010000, Version{1, 0}},
+		{"1.1", 0b00010001, Version{1, 1}},
+		{"15.15", 0b11111111, Version{15, 15}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := proto.VersionFromByte(tt.b)
+			t.Parallel()
+			got := VersionFromByte(tt.b)
 			if got.Major != tt.want.Major || got.Minor != tt.want.Minor {
 				t.Fatalf("expected %v, actual %v", tt.want, got)
 			}
 		})
 	}
+}
+
+// Tests that VersionsSupportedAsBytes stably sorts highest to lowest.
+// Because we use a package variable, we have to change it manually here, so cannot run these in parallel.
+func TestVersionsSupportedAsBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		version  map[uint8][]uint8
+		expected []byte
+	}{
+		{"multiple versions", map[uint8][]uint8{1: {2}, 2: {1, 5}}, []byte{0b00100101, 0b00100001, 0b00010010}},
+		{"single version", map[uint8][]uint8{1: {2}}, []byte{0b00010010}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			supportedVersions = tt.version
+
+			vs := VersionsSupportedAsBytes()
+			if slices.Compare(vs, tt.expected) != 0 {
+				t.Fatal(ExpectedActual(tt.expected, vs))
+			}
+		})
+	}
+
+}
+
+func TestVersionSupported(t *testing.T) {
+	vs := VersionsSupported()
+	if !maps.EqualFunc(supportedVersions, vs, func(a, b []byte) bool {
+		return slices.Equal(a, b)
+	}) {
+		t.Fatal(ExpectedActual(supportedVersions, vs))
+	}
+
+}
+func TestIsVersionSupported(t *testing.T) {
+	supportedVersions = map[uint8][]uint8{
+		1:  {1, 2},
+		15: {15},
+	}
+	test := []struct {
+		version   Version
+		supported bool
+	}{
+		{Version{1, 1}, true},
+		{Version{1, 2}, true},
+		{Version{1, 3}, false},
+		{Version{1, 7}, false},
+		{Version{2, 1}, false},
+		{Version{15, 15}, true},
+	}
+	for i, tt := range test {
+		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
+			if IsVersionSupported(tt.version) != tt.supported {
+				t.Fatal(ExpectedActual(IsVersionSupported(tt.version), tt.supported))
+			}
+		})
+	}
+
 }
