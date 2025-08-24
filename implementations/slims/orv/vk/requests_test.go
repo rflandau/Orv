@@ -1,73 +1,42 @@
 package vaultkeeper_test
 
 import (
-	"context"
-	"net"
 	"net/netip"
-	"reflect"
-	"sync"
-	"sync/atomic"
 	"testing"
 
-	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/plgd-dev/go-coap/v3/tcp/server"
-	"github.com/rs/zerolog"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	vaultkeeper "github.com/rflandau/Orv/implementations/slims/orv/vk"
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func TestVaultKeeper_Hello(t *testing.T) {
 	// TODO spin up two VKs and call Hello() on one
 	// check the response for teh sender and the Hello table of the receiver
 
-	type fields struct {
-		alive atomic.Bool
-		log   *zerolog.Logger
-		id    uint64
-		addr  netip.AddrPort
-		net   struct {
-			alive    atomic.Bool
-			listener *net.UDPConn
-			server   *server.Server
-		}
-		mux       *mux.Router
-		structure struct {
-			mu         sync.RWMutex
-			height     uint16
-			parentID   uint64
-			parentAddr netip.AddrPort
-		}
+	targetVKAddr := netip.MustParseAddrPort("[::0]:8081")
+	targetVK, err := vaultkeeper.New(1, targetVKAddr)
+	if err != nil {
+		t.Fatal(err)
 	}
-	type args struct {
-		addrPort string
-		ctx      context.Context
+	targetVK.Start()
+	defer targetVK.Stop()
+	senderVK, err := vaultkeeper.New(2, netip.MustParseAddrPort("[::0]:8082"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	tests := []struct {
-		name         string
-		fields       fields
-		args         args
-		wantResponse HelloAck
-		wantErr      bool
-	}{
-		// TODO: Add test cases.
+	senderVK.Start()
+	defer senderVK.Stop()
+
+	resp, err := senderVK.Hello(targetVKAddr.String(), t.Context())
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			vk := &VaultKeeper{
-				alive:     tt.fields.alive,
-				log:       tt.fields.log,
-				id:        tt.fields.id,
-				addr:      tt.fields.addr,
-				net:       tt.fields.net,
-				mux:       tt.fields.mux,
-				structure: tt.fields.structure,
-			}
-			gotResponse, err := vk.Hello(tt.args.addrPort, tt.args.ctx)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("VaultKeeper.Hello() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(gotResponse, tt.wantResponse) {
-				t.Errorf("VaultKeeper.Hello() = %v, want %v", gotResponse, tt.wantResponse)
-			}
-		})
+	if resp.Height != 0 {
+		t.Error(ExpectedActual(0, resp.Height))
+
+	} else if resp.ID != 2 {
+		t.Error(ExpectedActual(2, resp.ID))
+	} else if resp.Version != protocol.HighestSupported.Byte() {
+		t.Error(ExpectedActual(protocol.HighestSupported.Byte(), resp.Version))
 	}
 }
