@@ -3,20 +3,19 @@ package vaultkeeper
 import (
 	"bytes"
 	"context"
+	"io"
 
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/rflandau/Orv/implementations/slims/orv"
+	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 )
 
 // File requests.go contains methods for vaultkeepers to make requests and send packets to other vaultkeepers.
 // These subroutines are used to communicate with other nodes.
 // Request payloads are encoded via protobuf.
-
-type Hello struct {
-	id orv.NodeID
-}
 
 type HelloAck struct {
 	id      orv.NodeID
@@ -31,9 +30,10 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 	}
 
 	// compose the body
-	var body []byte
-	reqBody := Hello{}
-	// TODO serialize via protobuf
+	body, err := proto.Marshal(&payloads_proto.Hello{Id: vk.id})
+	if err != nil {
+		return HelloAck{}, err
+	}
 
 	// only sanity check length in debug mode
 	if vk.log.GetLevel() == zerolog.DebugLevel {
@@ -68,6 +68,21 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 		return HelloAck{}, err
 	}
 	// read the payload
-	// TODO
-
+	// TODO the response body should already be read forward 5 bytes, but we need to confirm that
+	var ret HelloAck
+	if respBody, err := io.ReadAll(resp.Body()); err != nil {
+		return HelloAck{}, err
+	} else {
+		var r payloads_proto.HelloAck
+		if err := proto.Unmarshal(respBody, &r); err != nil {
+			return HelloAck{}, err
+		}
+		// narrow the type to a HelloAck
+		ret = HelloAck{
+			id:      r.Id,
+			height:  uint16(r.Height),
+			version: byte(r.Version),
+		}
+	}
+	return ret, nil
 }
