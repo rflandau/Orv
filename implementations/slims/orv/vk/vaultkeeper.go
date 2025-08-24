@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"net/netip"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/plgd-dev/go-coap/v3/udp/server"
+	"github.com/rflandau/Orv/implementations/slims/orv"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rs/zerolog"
 )
@@ -133,9 +133,27 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 // respondError is a helper function that sets the response on the given writer and logs if SetResponse fails.
 // Responses contain the given code and message and are written as plain text.
-func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, msg string) {
-	if err := resp.SetResponse(code, message.TextPlain, strings.NewReader(msg)); err != nil {
-		vk.log.Error().Str("body", msg).Err(err).Msg("failed to set response")
+func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, reason string) {
+	// length-check the message
+	if len(reason) > int(protocol.MaxPayloadLength) {
+		vk.log.Warn().Int("reason length", len(reason)).Msg("reason is too long for the payload and will be truncated")
+		reason = reason[:protocol.FixedHeaderLen]
+	}
+
+	// compose a header
+	hdrB, err := (&protocol.Header{
+		Version:       protocol.HighestSupported,
+		HopLimit:      1,
+		PayloadLength: uint16(len(reason)),
+		Type:          protocol.Fault,
+	}).Serialize()
+	if err != nil {
+		vk.log.Error().Err(err).Msg("failed to serialize FAULT header")
+		return
+	}
+
+	if err := resp.SetResponse(code, orv.ResponseMediaType(), bytes.NewReader(append(hdrB, []byte(reason)...))); err != nil {
+		vk.log.Error().Str("body", reason).Err(err).Msg("failed to set response")
 	}
 }
 
