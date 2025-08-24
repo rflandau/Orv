@@ -1,42 +1,55 @@
 package orv
 
 import (
+	"bytes"
 	"context"
-	"network-bois-orv/implementations/slims/orv"
-	"reflect"
+	"encoding/json"
+	"net/netip"
+	"network-bois-orv/implementations/proof/orv"
+	"network-bois-orv/implementations/slims/orv/proto"
+	vaultkeeper "network-bois-orv/implementations/slims/orv/vk"
+	. "network-bois-orv/internal/testsupport"
+	"slices"
 	"testing"
+	"time"
 )
 
 func TestStatus(t *testing.T) {
 	// Spawn a VK to hit
-	// TODO
+	vk, err := vaultkeeper.New(1, netip.MustParseAddrPort("[::0]:8081"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	type args struct {
-		vkAddr string
-		ctx    context.Context
+	vk.Start()
+
+	// ensure we can ping the vk
+	if err := CoAPPing("[::0]:8081", 300*time.Millisecond); err != nil {
+		t.Fatal(err)
 	}
-	tests := []struct {
-		name        string
-		args        args
-		wantSr      orv.StatusResponse
-		wantRawJSON []byte
-		wantErr     bool
-	}{
-		// TODO: Add test cases.
+
+	// submit a status request
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	resp, rawJSON, err := Status("[::0]:8081", ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotSr, gotRawJSON, err := Status(tt.args.vkAddr, tt.args.ctx)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Status() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(gotSr, tt.wantSr) {
-				t.Errorf("Status() gotSr = %v, want %v", gotSr, tt.wantSr)
-			}
-			if !reflect.DeepEqual(gotRawJSON, tt.wantRawJSON) {
-				t.Errorf("Status() gotRawJSON = %v, want %v", gotRawJSON, tt.wantRawJSON)
-			}
-		})
+	// validate the fields in resp
+	if resp.Height != 0 {
+		t.Error("bad height", ExpectedActual(0, resp.Height))
+	}
+	if resp.ID != 1 {
+		t.Error("bad vkID", ExpectedActual(1, resp.ID))
+	}
+	actualVersions := proto.VersionsSupportedAsBytes()
+	if slices.Compare(actualVersions, resp.VersionsSupported) != 0 {
+		t.Error("mismatching version list", ExpectedActual(resp.VersionsSupported, actualVersions))
+	}
+	// unmarshal the JSON ourself to ensure it matches resp
+	dc := json.NewDecoder(bytes.NewReader(rawJSON))
+	var unmarshaled orv.StatusResp
+	if err := dc.Decode(&unmarshaled); err != nil {
+		t.Error(err)
 	}
 }
