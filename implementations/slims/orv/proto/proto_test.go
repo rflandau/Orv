@@ -33,14 +33,14 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 		{"1.1, hp5", proto.Header{Version: proto.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, 1},
 		{"1.1, hp255", proto.Header{Version: proto.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, 1},
 		{"15.15, hp255", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, 1},
-		{"15.15, hp255, HELLO type", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255, Type: proto.Hello}, []byte{0b11111111, 0b11111111, 0, 0, proto.Hello}, 0},
-		{"HELLO_ACK type", proto.Header{Type: proto.HelloAck}, []byte{0, 0, 0, 0, proto.HelloAck}, 0},
-		{"JOIN type", proto.Header{Type: proto.Join}, []byte{0, 0, 0, 0, proto.Join}, 0},
-		{"JOIN_ACCEPT type", proto.Header{Type: proto.JoinAccept}, []byte{0, 0, 0, 0, proto.JoinAccept}, 0},
-		{"JOIN_DENY type", proto.Header{Type: proto.JoinDeny}, []byte{0, 0, 0, 0, proto.JoinDeny}, 0},
-		{"payload 20B, REGISTER type", proto.Header{PayloadLength: 20, Type: proto.Register}, []byte{0, 0, 0, 20, proto.Register}, 0},
+		{"15.15, hp255, HELLO type", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255, Type: proto.Hello}, []byte{0b11111111, 0b11111111, 0, 0, byte(proto.Hello)}, 0},
+		{"HELLO_ACK type", proto.Header{Type: proto.HelloAck}, []byte{0, 0, 0, 0, byte(proto.HelloAck)}, 0},
+		{"JOIN type", proto.Header{Type: proto.Join}, []byte{0, 0, 0, 0, byte(proto.Join)}, 0},
+		{"JOIN_ACCEPT type", proto.Header{Type: proto.JoinAccept}, []byte{0, 0, 0, 0, byte(proto.JoinAccept)}, 0},
+		{"JOIN_DENY type", proto.Header{Type: proto.JoinDeny}, []byte{0, 0, 0, 0, byte(proto.JoinDeny)}, 0},
+		{"payload 20B, REGISTER type", proto.Header{PayloadLength: 20, Type: proto.Register}, []byte{0, 0, 0, 20, byte(proto.Register)}, 0},
 		{"payload 20B, [overflow] type", proto.Header{PayloadLength: 20, Type: 250}, []byte{0, 0, 0, 20, 250}, 1},
-		{"payload 65000B, REGISTER_ACCEPT type", proto.Header{PayloadLength: 65000, Type: proto.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, proto.RegisterAccept}, 0},
+		{"payload 65000B, REGISTER_ACCEPT type", proto.Header{PayloadLength: 65000, Type: proto.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, byte(proto.RegisterAccept)}, 0},
 
 		{"bad major version",
 			proto.Header{
@@ -56,7 +56,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				PayloadLength: math.MaxUint16,
 				Type:          proto.VKHeartbeatFault,
 			},
-			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, proto.VKHeartbeatFault},
+			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, byte(proto.VKHeartbeatFault)},
 			1,
 		},
 	}
@@ -136,7 +136,7 @@ func TestHeader_Deserialize(t *testing.T) {
 			{"version + hop limit + payload length", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF}, want{
 				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023,
 			}},
-			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, proto.Increment}, want{
+			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, byte(proto.Increment)}, want{
 				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023, typ: proto.Increment,
 			}},
 		}
