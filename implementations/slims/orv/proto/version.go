@@ -28,6 +28,7 @@ func VersionsSupported() map[uint8][]uint8 {
 }
 
 // VersionsSupportedAsBytes returns an array of packed bytes, one bye for each supported <major>.<minor>.
+// Versions are sorted from highest to lowest.
 // Each byte can be unpacked via proto.VersionFromByte().
 func VersionsSupportedAsBytes() []byte {
 	var versionsAsBytes []byte
@@ -40,6 +41,15 @@ func VersionsSupportedAsBytes() []byte {
 		}
 		versionsAsBytes = append(versionsAsBytes, v...)
 	}
+
+	slices.SortStableFunc(versionsAsBytes, func(a byte, b byte) int {
+		if a < b {
+			return 1
+		} else if a > b {
+			return -1
+		}
+		return 0
+	})
 	return versionsAsBytes
 }
 
