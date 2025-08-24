@@ -6,9 +6,11 @@ Types and formats make the assumptions inherent in the README. If you are implem
 
 # A Note on Nomenclature
 
-Response packets have a variety of suffixes (ACK, Resp, Accept, Deny, Fault). While an argument could be made for making these uniform, I used varying verbiage to indicate varying expectations.
+TODO remove this section?
 
-- ACKs are just acknowledgements. They indicate receipt and little else. They are sometimes paired with FAULTs, which indicate that the original message was received (hence the sister ACK) but was faulty for one reason or another.
+Response packets have a variety of suffixes (ACK, Resp, Accept). While an argument could be made for making these uniform, I used varying verbiage to indicate varying expectations.
+
+- ACKs are just acknowledgements. They indicate receipt and little else.
 
 - ACCEPT and DENY are paired, indicating an outcome from the logic of the receiver (the VK, generally).
 
@@ -16,7 +18,24 @@ Response packets have a variety of suffixes (ACK, Resp, Accept, Deny, Fault). Wh
 
 # Packets
 
+## FAULT
+
+**Type Number:** 1
+
+Sent by a vk as a negative response to a request. Indicates that the request was denied or otherwise failed. This may be because of server error, a bad request, or just that the vk is unable to process the request at this moment.
+
+FAULT may be sent in response to any number of request packets.
+
+### Payload
+
+1. *packet type*: the type of the original packet (in uint form).
+    - example (in response to a HELLO): 2 
+1. *reason*: (OPTIONAL) reason for rejecting this JOIN request.
+    - example (for REGISTER): "bad stale time"
+    - example (for VK_HEARTBEAT): "not my child"
 ## HELLO
+
+**Type Number:** 2
 
 Sent by a node not part of the vault to introduce itself.
 VKs respond to HELLOs with HELLO_ACK.
@@ -30,6 +49,8 @@ Requester nodes typically follow up with a JOIN or MERGE, but do not have to.
 
 ## HELLO_ACK
 
+**Type Number:** 3
+
 Sent by VKs in response to a node's HELLO to acknowledge receipt and relay basic information to the requester node.
 
 ### Payload
@@ -42,6 +63,8 @@ Sent by VKs in response to a node's HELLO to acknowledge receipt and relay basic
     - example: 0b0010 0001 (2.1)
 
 ## JOIN
+
+**Type Number:** 4
 
 Sent by a node not part of the vault to request to join under the receiver VK. Sender must have already introduced itself via a recent HELLO.
 
@@ -59,6 +82,8 @@ Repeated or duplicate joins for a node already registered as a child of the VK a
 
 ## JOIN_ACCEPT
 
+**Type Number:** 5
+
 Sent by VKs in response to a node's JOIN request to accept the request.
 
 Once received by a node, that node can safely mark the VK as its parent.
@@ -69,17 +94,9 @@ Once received by a node, that node can safely mark the VK as its parent.
     - example: 456
 2. *height*: the height of the requester's new parent
 
-## JOIN_DENY
-
-Used by VKs to deny a node's JOIN request Common reasons include mismatched height and max child limit reached.
-
-Once received by a node, that node must resend a HELLO if it wishes to continue interacting with this VK.
-
-### Payload
-
-1. *reason*: (OPTIONAL) reason for rejecting this JOIN request.
-
 ## REGISTER
+
+**Type Number:** 6
 
 Sent by a child node already part of a vault to tell its parent VK about a new service. This REGISTER echoes up the tree until it has reached root.
 
@@ -100,6 +117,8 @@ If an existing service is registered to the same child node, the new information
 
 ## REGISTER_ACCEPT
 
+**Type Number:** 7
+
 Sent by a parent VK to confirm registration of the service offered by the child.
 
 ### Payload
@@ -108,28 +127,36 @@ Sent by a parent VK to confirm registration of the service offered by the child.
     - example: 123
 2. *service*: name of the service that was registered.
     - example: "SSH"
-
-## REGISTER_DENY
-
-Sent by a parent VK to deny registration of the service the child attempted to register.
-
-Common reasons include the sender not being a child of the receiver and invalid data in the request.
-
-### Payload
-
-1. *reason*: (OPTIONAL) reason for rejecting this REGISTER request.
-    - example: "bad stale time"
+    
 
 ## MERGE
+
+**Type Number:** 8
+
 ## MERGE_ACCEPT
+
+**Type Number:** 9
+
 ## INCREMENT
+
+**Type Number:** 10
+
 ## INCREMENT_ACK
 
+**Type Number:** 11
+
+
 ## SERVICE_HEARTBEAT
+
+**Type Number:** 12
+
 ## SERVICE_HEARTBEAT_ACK
-## SERVICE_HEARTBEAT_FAULT
+
+**Type Number:** 13
 
 ## VK_HEARTBEAT
+
+**Type Number:** 14
 
 Sent by child VKs to alert their parent that they are still alive.
 
@@ -140,20 +167,13 @@ Sent by child VKs to alert their parent that they are still alive.
 
 ## VK_HEARTBEAT_ACK
 
+**Type Number:** 15
+
 Sent by a parent VK to confirm receipt of a child's VK_HEARTBEAT.
 
 ### Payload
 
 1. *id*: unique identifier of the parent vk that refreshed the child (as triggered by prior VK_HEARTBEAT)
-
-## VK_HEARTBEAT_FAULT
-
-Sent by a parent VK to alert the cVK that their heartbeat was not processed.
-
-### Payload
-
-1. *reason*: (OPTIONAL) reason for rejecting this VK_HEARTBEAT request.
-    - example: "not my child"
 
 # Service Requests
 
@@ -161,11 +181,15 @@ Service requests are requests that can be made by any client, whether or not the
 
 ## STATUS
 
+**Type Number:** 16
+
 Used by clients and tests to fetch information about the current state of the receiver VK. STATUS can recur up the tree up to *hop limit* times or until it hits root, whichever is sooner. If hop limit is 0 or 1, requests will be halted at the first VK.
 
 STATUS does not have a payload.
 
 ## STATUS_RESP
+
+**Type Number:** 17
 
 Returns the status of the current node.
 All fields (other than id) are optional and may be omitted at the VK's discretion.
@@ -186,6 +210,8 @@ All fields (other than id) are optional and may be omitted at the VK's discretio
 
 ## LIST
 
+**Type Number:** 18
+
 Sent by a client to learn what services are available. Lists targeting higher-hop nodes should return a superset of services from lower nodes (assuming your Orv implementation has root omnipotence and/or does not rely on downward traversal outside of INCREMENTs).
 
 Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will only query the client's immediate contact. Like STATUS, hop count is limited by vault height.
@@ -195,3 +221,13 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 1. *hop limit*: (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
 
 ## LIST_RESPONSE
+
+**Type Number:** 19
+
+## GET
+
+**Type Number:** 20
+
+## GET_RESPONSE
+
+**Type Number:** 21

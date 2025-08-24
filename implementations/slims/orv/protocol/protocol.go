@@ -176,30 +176,26 @@ type MessageType uint8
 
 const (
 	UNKNOWN MessageType = iota
+	Fault
 	Hello
 	HelloAck
 
 	Join
 	JoinAccept
-	JoinDeny
 
 	Register
 	RegisterAccept
-	RegisterDeny
 
 	Merge
 	MergeAccept
-	MergeDeny // TODO do we need this?
 	Increment
 	IncrementAck
 
 	ServiceHeartbeat
 	ServiceHeartbeatAck
-	ServiceHeartbeatFault
 
 	VKHeartbeat
 	VKHeartbeatAck
-	VKHeartbeatFault
 
 	// client
 	Status
@@ -214,6 +210,8 @@ const (
 // It is just a big switch statement.
 func (mt MessageType) String() string {
 	switch mt {
+	case Fault:
+		return "FAULT"
 	case Hello:
 		return "HELLO"
 	case HelloAck:
@@ -222,14 +220,10 @@ func (mt MessageType) String() string {
 		return "JOIN"
 	case JoinAccept:
 		return "JOIN_ACCEPT"
-	case JoinDeny:
-		return "JOIN_DENY"
 	case Register:
 		return "REGISTER"
 	case RegisterAccept:
 		return "REGISTER_ACCEPT"
-	case RegisterDeny:
-		return "REGISTER_DENY"
 	case Merge:
 		return "MERGE"
 	case MergeAccept:
@@ -242,14 +236,10 @@ func (mt MessageType) String() string {
 		return "SERVICE_HEARTBEAT"
 	case ServiceHeartbeatAck:
 		return "SERVICE_HEARTBEAT_ACK"
-	case ServiceHeartbeatFault:
-		return "SERVICE_HEARTBEAT_FAULT"
 	case VKHeartbeat:
 		return "VK_HEARTBEAT"
 	case VKHeartbeatAck:
 		return "VK_HEARTBEAT_ACK"
-	case VKHeartbeatFault:
-		return "VK_HEARTBEAT_FAULT"
 	default:
 		return "UNKNOWN"
 	}
