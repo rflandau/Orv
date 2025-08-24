@@ -1,12 +1,10 @@
-package proto_test
+package protocol_test
 
 import (
 	"bytes"
 	"context"
 	"log"
 	"math"
-	"network-bois-orv/implementations/slims/orv/proto"
-	. "network-bois-orv/internal/testsupport"
 	"reflect"
 	"slices"
 	"strings"
@@ -18,6 +16,8 @@ import (
 	"github.com/plgd-dev/go-coap/v3/mux"
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 // Tests that Serialize puts out the expected byte string fromm a given header struct.
@@ -25,38 +25,38 @@ import (
 func TestHeader_SerializeWithValidate(t *testing.T) {
 	tests := []struct {
 		name     string
-		hdr      proto.Header
+		hdr      protocol.Header
 		want     []byte // the byte string Serialize should return
 		invalids uint   // the number of errors we expect .Validate() to return
 	}{
-		{"only hop limit", proto.Header{Version: proto.Version{0, 0}, HopLimit: 5}, []byte{0b0, 0b101, 0, 0, 0}, 1},
-		{"1.1, hp5", proto.Header{Version: proto.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, 1},
-		{"1.1, hp255", proto.Header{Version: proto.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, 1},
-		{"15.15, hp255", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, 1},
-		{"15.15, hp255, HELLO type", proto.Header{Version: proto.Version{15, 15}, HopLimit: 255, Type: proto.Hello}, []byte{0b11111111, 0b11111111, 0, 0, byte(proto.Hello)}, 0},
-		{"HELLO_ACK type", proto.Header{Type: proto.HelloAck}, []byte{0, 0, 0, 0, byte(proto.HelloAck)}, 0},
-		{"JOIN type", proto.Header{Type: proto.Join}, []byte{0, 0, 0, 0, byte(proto.Join)}, 0},
-		{"JOIN_ACCEPT type", proto.Header{Type: proto.JoinAccept}, []byte{0, 0, 0, 0, byte(proto.JoinAccept)}, 0},
-		{"JOIN_DENY type", proto.Header{Type: proto.JoinDeny}, []byte{0, 0, 0, 0, byte(proto.JoinDeny)}, 0},
-		{"payload 20B, REGISTER type", proto.Header{PayloadLength: 20, Type: proto.Register}, []byte{0, 0, 0, 20, byte(proto.Register)}, 0},
-		{"payload 20B, [overflow] type", proto.Header{PayloadLength: 20, Type: 250}, []byte{0, 0, 0, 20, 250}, 1},
-		{"payload 65000B, REGISTER_ACCEPT type", proto.Header{PayloadLength: 65000, Type: proto.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, byte(proto.RegisterAccept)}, 0},
+		{"only hop limit", protocol.Header{Version: protocol.Version{0, 0}, HopLimit: 5}, []byte{0b0, 0b101, 0, 0, 0}, 1},
+		{"1.1, hp5", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, 1},
+		{"1.1, hp255", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, 1},
+		{"15.15, hp255", protocol.Header{Version: protocol.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, 1},
+		{"15.15, hp255, HELLO type", protocol.Header{Version: protocol.Version{15, 15}, HopLimit: 255, Type: protocol.Hello}, []byte{0b11111111, 0b11111111, 0, 0, byte(protocol.Hello)}, 0},
+		{"HELLO_ACK type", protocol.Header{Type: protocol.HelloAck}, []byte{0, 0, 0, 0, byte(protocol.HelloAck)}, 0},
+		{"JOIN type", protocol.Header{Type: protocol.Join}, []byte{0, 0, 0, 0, byte(protocol.Join)}, 0},
+		{"JOIN_ACCEPT type", protocol.Header{Type: protocol.JoinAccept}, []byte{0, 0, 0, 0, byte(protocol.JoinAccept)}, 0},
+		{"JOIN_DENY type", protocol.Header{Type: protocol.JoinDeny}, []byte{0, 0, 0, 0, byte(protocol.JoinDeny)}, 0},
+		{"payload 20B, REGISTER type", protocol.Header{PayloadLength: 20, Type: protocol.Register}, []byte{0, 0, 0, 20, byte(protocol.Register)}, 0},
+		{"payload 20B, [overflow] type", protocol.Header{PayloadLength: 20, Type: 250}, []byte{0, 0, 0, 20, 250}, 1},
+		{"payload 65000B, REGISTER_ACCEPT type", protocol.Header{PayloadLength: 65000, Type: protocol.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, byte(protocol.RegisterAccept)}, 0},
 
 		{"bad major version",
-			proto.Header{
-				Version: proto.Version{33, 1},
+			protocol.Header{
+				Version: protocol.Version{33, 1},
 			},
 			[]byte{0b00010001, 0, 0, 0, 0}, // expect the 33 to be prefix-truncated to 1
 			2,
 		},
 		{"payload too large",
-			proto.Header{
-				Version:       proto.Version{15, 1},
+			protocol.Header{
+				Version:       protocol.Version{15, 1},
 				HopLimit:      3,
 				PayloadLength: math.MaxUint16,
-				Type:          proto.VKHeartbeatFault,
+				Type:          protocol.VKHeartbeatFault,
 			},
-			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, byte(proto.VKHeartbeatFault)},
+			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, byte(protocol.VKHeartbeatFault)},
 			1,
 		},
 	}
@@ -83,15 +83,15 @@ func TestHeader_Deserialize(t *testing.T) {
 		name string
 		// the header to serialize.
 		// The result of SerializeTo() is fed into SerializeFrom() to ensure it matches this original struct
-		hdr proto.Header
+		hdr protocol.Header
 		// the data to append to hdr after SerializeTo() but before SerializeFrom()
 		body               []byte
 		wantErr            bool
 		wantBytesRemaining bool
 	}{
-		{"version + hop limit", proto.Header{Version: proto.Version{1, 1}, HopLimit: 16}, nil, false, false},
-		{"version + hop limit + zero payload length", proto.Header{Version: proto.Version{1, 1}, HopLimit: 16}, nil, false, false},
-		{"version + hop limit + zero payload length + type", proto.Header{Version: proto.Version{1, 1}, HopLimit: 16, Type: proto.HelloAck}, nil, false, false},
+		{"version + hop limit", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16}, nil, false, false},
+		{"version + hop limit + zero payload length", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16}, nil, false, false},
+		{"version + hop limit + zero payload length + type", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16, Type: protocol.HelloAck}, nil, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestHeader_Deserialize(t *testing.T) {
 			versionMinor  uint8
 			hopLimit      uint8
 			payloadLength uint16
-			typ           proto.MessageType
+			typ           protocol.MessageType
 		}
 		tests := []struct {
 			name   string
@@ -136,13 +136,13 @@ func TestHeader_Deserialize(t *testing.T) {
 			{"version + hop limit + payload length", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF}, want{
 				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023,
 			}},
-			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, byte(proto.Increment)}, want{
-				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023, typ: proto.Increment,
+			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, byte(protocol.Increment)}, want{
+				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023, typ: protocol.Increment,
 			}},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				var result proto.Header
+				var result protocol.Header
 				if err := result.Deserialize(bytes.NewReader(tt.buffer)); err != nil {
 					t.Error(err)
 				}
@@ -191,7 +191,7 @@ func TestFullSend(t *testing.T) {
 			return
 		}
 
-		hdr := proto.Header{}
+		hdr := protocol.Header{}
 		bdy, err := r.ReadBody() // slurp body
 		if err != nil {
 			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
@@ -228,17 +228,17 @@ func TestFullSend(t *testing.T) {
 
 	type test struct {
 		name         string
-		header       *proto.Header
+		header       *protocol.Header
 		body         []byte
 		wantRespCode codes.Code
 	}
 	tests := []test{
-		{"1.1, HELLO", &proto.Header{Version: proto.Version{1, 1}, Type: proto.Hello}, nil, codes.Created},
-		{"0.15, 32 hops, HELLO_ACK", &proto.Header{Version: proto.Version{0, 15}, HopLimit: 32, Type: proto.HelloAck}, nil, codes.Created},
-		{"0.15, 32 hops, UNKNOWN", &proto.Header{Version: proto.Version{0, 15}, HopLimit: 32, Type: proto.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, JOIN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.Join}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, UNKNOWN", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: proto.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &proto.Header{Version: proto.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(proto.FixedHeaderLen), Type: proto.JoinAccept}, nil, codes.Created},
+		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: protocol.Hello}, nil, codes.Created},
+		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: protocol.HelloAck}, nil, codes.Created},
+		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: protocol.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: protocol.Join}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: protocol.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: protocol.JoinAccept}, nil, codes.Created},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -270,7 +270,7 @@ func TestFullSend(t *testing.T) {
 			}
 			// test that we got our header back on a successful response
 			if resp.Code() == codes.Created {
-				var respHdr = &proto.Header{}
+				var respHdr = &protocol.Header{}
 				body, err := resp.ReadBody()
 				if err != nil {
 					t.Fatal(err)

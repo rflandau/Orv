@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/netip"
-	"network-bois-orv/implementations/proof/orv"
-	"network-bois-orv/implementations/slims/orv/proto"
-	vaultkeeper "network-bois-orv/implementations/slims/orv/vk"
-	. "network-bois-orv/internal/testsupport"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/rflandau/Orv/implementations/proof/orv"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	vaultkeeper "github.com/rflandau/Orv/implementations/slims/orv/vk"
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func TestStatus(t *testing.T) {
@@ -42,7 +43,7 @@ func TestStatus(t *testing.T) {
 	if resp.ID != 1 {
 		t.Error("bad vkID", ExpectedActual(1, resp.ID))
 	}
-	actualVersions := proto.VersionsSupportedAsBytes()
+	actualVersions := protocol.VersionsSupportedAsBytes()
 	if slices.Compare(actualVersions, resp.VersionsSupported) != 0 {
 		t.Error("mismatching version list", ExpectedActual(resp.VersionsSupported, actualVersions))
 	}

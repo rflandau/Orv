@@ -12,7 +12,7 @@ Includes structs that can be composed into a fixed header; you should never have
 		|     Type      |
 		+-+-+-+-+-+-+-+-+
 */
-package proto
+package protocol
 
 import (
 	"encoding/binary"

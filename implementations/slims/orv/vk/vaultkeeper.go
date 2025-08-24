@@ -1,10 +1,10 @@
-// TODO annotate package
+// Package vaultkeeper implements a vaultkeeper, the primary node of a vault.
+// A vaultkeeper can be spun up with New and directed using the subroutines in requests.go.
 package vaultkeeper
 
 import (
 	"bytes"
 	"net/netip"
-	"network-bois-orv/implementations/slims/orv/proto"
 	"os"
 	"strings"
 	"sync"
@@ -18,6 +18,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/plgd-dev/go-coap/v3/udp/server"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rs/zerolog"
 )
 
@@ -140,7 +141,7 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, ms
 
 // respondSuccess is a helper function that sets the response on the given writer and logs if SetResponse fails.
 // Responses contain the given code and ReadSeeker and are written as an OctetStream.
-func (vk *VaultKeeper) respondSuccess(resp mux.ResponseWriter, code codes.Code, hdr proto.Header, body []byte) {
+func (vk *VaultKeeper) respondSuccess(resp mux.ResponseWriter, code codes.Code, hdr protocol.Header, body []byte) {
 	hdrB, err := hdr.Serialize()
 	if err != nil {
 		vk.log.Error().Msg("failed to serialize header")

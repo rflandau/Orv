@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"network-bois-orv/implementations/slims/orv"
-	"network-bois-orv/implementations/slims/orv/proto"
 
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/rflandau/Orv/implementations/slims/orv"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 )
 
 // The client file provides static subroutines for interacting with a Vault Keeper.
@@ -22,11 +22,11 @@ import (
 // The raw response is returned in any case.
 func Status(vkAddr string, ctx context.Context) (sr orv.StatusResponse, rawJSON []byte, _ error) {
 	// generate a request header
-	hdr := proto.Header{
-		Version:       proto.HighestSupported,
+	hdr := protocol.Header{
+		Version:       protocol.HighestSupported,
 		HopLimit:      1,
 		PayloadLength: 0,
-		Type:          proto.Status,
+		Type:          protocol.Status,
 	}
 	hdrSrl, err := hdr.Serialize()
 	if err != nil {
@@ -48,7 +48,7 @@ func Status(vkAddr string, ctx context.Context) (sr orv.StatusResponse, rawJSON 
 	}
 	rd := bytes.NewReader(raw)
 	// stream the Orv header
-	respHdr := proto.Header{}
+	respHdr := protocol.Header{}
 	if err := respHdr.Deserialize(rd); err != nil {
 		return orv.StatusResponse{}, nil, err
 	}
@@ -57,5 +57,5 @@ func Status(vkAddr string, ctx context.Context) (sr orv.StatusResponse, rawJSON 
 	dc := json.NewDecoder(rd)
 	err = dc.Decode(&sr)
 	// assuming we parsed the Orv header properly, we should be able to drop the first X bytes
-	return sr, raw[proto.FixedHeaderLen:], err
+	return sr, raw[protocol.FixedHeaderLen:], err
 }

@@ -1,4 +1,4 @@
-module network-bois-orv
+module github.com/rflandau/Orv
 
 go 1.24.1
 
@@ -22,4 +22,5 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 )

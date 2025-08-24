@@ -38,7 +38,8 @@ Sent by VKs in response to a node's HELLO to acknowledge receipt and relay basic
     - example: 456
 2. *height*: the height of the node answering the greeting
     - example: 3
-
+3. *version*: version of Orv the VK is running
+    - example: 0b0010 0001 (2.1)
 
 ## JOIN
 

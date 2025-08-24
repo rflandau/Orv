@@ -1,0 +1,15 @@
+syntax = "proto3";
+package orv;
+
+// generate with protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
+
+option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/payloads.proto";
+message Hello {
+    uint64 id = 1;
+}
+
+message HelloAck {
+    uint64 id = 1;
+	uint32 height = 2;  // will be cast down to a uint16
+	uint32 version = 3; // major+minor as a byte; will be cast down to a byte
+}

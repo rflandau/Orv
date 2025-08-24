@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/netip"
-	. "network-bois-orv/internal/testsupport"
 	"testing"
 	"time"
+
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func TestVaultKeeper_StartStop(t *testing.T) {

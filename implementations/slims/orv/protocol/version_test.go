@@ -1,11 +1,12 @@
-package proto
+package protocol
 
 import (
 	"maps"
-	. "network-bois-orv/internal/testsupport"
 	"slices"
 	"strconv"
 	"testing"
+
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 // Tests creating a new version from uint8 major and minors and that the byte .Byte() returns is as expected.

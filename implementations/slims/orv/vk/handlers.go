@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"network-bois-orv/implementations/slims/orv"
-	"network-bois-orv/implementations/slims/orv/proto"
 	"strconv"
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
+	"github.com/rflandau/Orv/implementations/slims/orv"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 )
 
 // handler is the core processing called for each received message.
 // It is functionally a really long switch statement that invokes the appropriate handler subroutine for the message type.
 func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	// attempt to fetch an Orv header
-	reqHdr := proto.Header{}
+	reqHdr := protocol.Header{}
 	reqBody := req.Body()
 	{
 		if err := reqHdr.Deserialize(reqBody); err != nil {
@@ -31,7 +31,7 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 
 	}
 	// check that we support the requested version
-	if !proto.IsVersionSupported(reqHdr.Version) {
+	if !protocol.IsVersionSupported(reqHdr.Version) {
 		vk.respondError(resp, codes.NotAcceptable, "unsupported version")
 		return
 	}
@@ -40,9 +40,9 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	// Each sub-handler is expected to respond on its own.
 	switch reqHdr.Type {
 	// client requests that do not require a handshake
-	case proto.Status:
+	case protocol.Status:
 		vk.status(reqHdr, req, resp)
-	// ...
+	// TODO ...
 	default: // non-enumerated type or UNKNOWN
 		vk.respondError(resp, codes.BadRequest, "message type must be set")
 		return
@@ -80,7 +80,7 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 
 // status answers STATUS packets by serializing most of the data in vk as json.
 // Holds a read lock on structure.
-func (vk *VaultKeeper) status(reqHdr proto.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+func (vk *VaultKeeper) status(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
 	// drain the rest of the body
 	var (
 		drained   = make([]byte, 1024)
@@ -108,7 +108,7 @@ func (vk *VaultKeeper) status(reqHdr proto.Header, req *mux.Message, respWriter 
 	st := orv.StatusResponse{
 		ID:                vk.id,
 		Height:            vk.structure.height,
-		VersionsSupported: proto.VersionsSupportedAsBytes(),
+		VersionsSupported: protocol.VersionsSupportedAsBytes(),
 	}
 	vk.structure.mu.RUnlock()
 
@@ -123,6 +123,6 @@ func (vk *VaultKeeper) status(reqHdr proto.Header, req *mux.Message, respWriter 
 
 	vk.respondSuccess(respWriter,
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		proto.Header{Version: proto.HighestSupported, HopLimit: 1, PayloadLength: uint16(b.Len()), Type: proto.StatusResp},
+		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(b.Len()), Type: protocol.StatusResp},
 		b.Bytes())
 }
