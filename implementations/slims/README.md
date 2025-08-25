@@ -4,9 +4,19 @@ Slims is a an Orv implementation using a custom layer 5 protocol.
 
 ## Payload Serialization
 
-Payloads, within a CoAP header, are composed of the Orv header (with custom serialization via Header.Serialize() and Header.Deserialize()) and a body serialized as a protobuffer.
+TODO
 
-Protocol Buffers are smaller than JSON, but implementations with stringent memory constraints could shrink payloads further by hand-packing the bits into a declared schema (like we have done for the Orv headers).
+Payloads, within a CoAP header, are composed of the Orv header (with custom serialization via Header.Serialize() and Header.Deserialize()) and a body serialized as a flatbuffer.
+
+### Versus Protocol Buffer
+
+Given a target where efficiency is key, the extra burden from flatbuffers seems like a worthwhile tradeoff. 
+
+TODO Benchmarks and links
+
+### Further Compression
+
+Protocol Buffers and Flatbuffers are smaller than JSON, but implementations with stringent memory constraints could shrink payloads further by hand-packing the bits into a declared schema (like we have done for the Orv headers).
 
 ## Version Negotiation
 
@@ -17,13 +27,10 @@ Versions are negotiated implicitly. A client requests the version it would like 
 *TODO:* expand on this after full implementation.
 As we are only going to support 1 version, this is more of a what-if discussion.
 
-## Changes from Proof
-
-On top of the other design difference described in this file, it is worth pointing out some notable changes between the vision implemented by Proof and the vision implemented by Slims.
 
 ### FAULT Packet
 
-_DENY and _FAULT packets no longer exist, replaced instead by a single FAULT packet that is sent in response to any request packet. This change draws inspiration on the use of ICMP packets to indicate failure when another L4 packet was used in the request.
+_DENY and _FAULT packets (used in Proof to replace negatively to their paired resposne (ex: JOIN_ACCEPT and JOIN_DENY)) no longer exist, replaced instead by a single FAULT packet that is sent in response to any request packet. This change draws inspiration on the use of ICMP packets to indicate failure when another L4 packet was used in the request.
 
 #### FAULTs Do Not Reset Interaction
 
