@@ -4,14 +4,12 @@ package vaultkeeper
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"strconv"
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/rflandau/Orv/implementations/slims/orv"
 	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"google.golang.org/protobuf/proto"
@@ -109,26 +107,28 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 
 	vk.structure.mu.RLock()
 	// gather data
-	st := orv.StatusResponse{
-		ID:                vk.id,
-		Height:            vk.structure.height,
+	st := payloads_proto.StatusResp{
+		Id:                vk.id,
+		Height:            uint32(vk.structure.height),
 		VersionsSupported: protocol.VersionsSupportedAsBytes(),
 	}
 	vk.structure.mu.RUnlock()
 
-	// serialize as json
-	var b *bytes.Buffer
-	ec := json.NewEncoder(b)
-
-	if err := ec.Encode(st); err != nil {
+	// serialize via protobuf
+	b, err := proto.Marshal(&st)
+	if err != nil {
 		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+		return
+	}
+	if len(b) > int(protocol.MaxPayloadLength) {
+		vk.respondError(respWriter, codes.InternalServerError, "payload exceeded max length")
 		return
 	}
 
 	vk.respondSuccess(respWriter,
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(b.Len()), Type: protocol.StatusResp},
-		b.Bytes())
+		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(len(b)), Type: protocol.StatusResp},
+		b)
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.

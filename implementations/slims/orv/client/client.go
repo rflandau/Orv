@@ -3,12 +3,12 @@ package orv
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/udp"
-	"github.com/rflandau/Orv/implementations/slims/orv"
+	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // The client file provides static subroutines for interacting with a Vault Keeper.
@@ -20,7 +20,7 @@ import (
 //
 // The response is unmarshaled if it can be; an error is returned otherwise.
 // The raw response is returned in any case.
-func Status(vkAddr string, ctx context.Context) (sr orv.StatusResponse, rawJSON []byte, _ error) {
+func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, error) {
 	// generate a request header
 	hdr := protocol.Header{
 		Version:       protocol.HighestSupported,
@@ -30,32 +30,34 @@ func Status(vkAddr string, ctx context.Context) (sr orv.StatusResponse, rawJSON 
 	}
 	hdrSrl, err := hdr.Serialize()
 	if err != nil {
-		return orv.StatusResponse{}, nil, err
+		return nil, err
 	}
 
 	// submit request
 	conn, err := udp.Dial(vkAddr)
 	if err != nil {
-		return orv.StatusResponse{}, nil, err
+		return nil, err
 	}
 	resp, err := conn.Post(ctx, "/", message.AppOctets, bytes.NewReader(hdrSrl))
 	if err != nil {
-		return orv.StatusResponse{}, nil, err
+		return nil, err
 	}
 	raw, err := resp.ReadBody()
 	if err != nil {
-		return orv.StatusResponse{}, nil, err
+		return nil, err
 	}
+
 	rd := bytes.NewReader(raw)
 	// stream the Orv header
 	respHdr := protocol.Header{}
 	if err := respHdr.Deserialize(rd); err != nil {
-		return orv.StatusResponse{}, nil, err
+		return nil, err
 	}
 
-	// the remainder should be the payload as JSON
-	dc := json.NewDecoder(rd)
-	err = dc.Decode(&sr)
+	var sr payloads_proto.StatusResp
+	if err := proto.Unmarshal(raw[protocol.FixedHeaderLen:], &sr); err != nil {
+		return nil, err
+	}
 	// assuming we parsed the Orv header properly, we should be able to drop the first X bytes
-	return sr, raw[protocol.FixedHeaderLen:], err
+	return &sr, err
 }
