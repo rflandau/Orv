@@ -11,10 +11,10 @@ package main
 import (
 	"fmt"
 	"net/netip"
-	"network-bois-orv/implementations/proof/orv"
 	"os"
 	"os/signal"
 
+	"github.com/rflandau/Orv/implementations/proof/orv"
 	"github.com/rs/zerolog"
 )
 

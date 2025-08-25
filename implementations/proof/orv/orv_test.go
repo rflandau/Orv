@@ -8,11 +8,11 @@ import (
 	"io"
 	"maps"
 	"net/netip"
-	"network-bois-orv/implementations/proof/orv"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/proof/orv"
 	"resty.dev/v3"
 )
 
