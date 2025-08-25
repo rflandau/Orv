@@ -146,7 +146,6 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, re
 	// compose a header
 	hdrB, err := (&protocol.Header{
 		Version:       protocol.HighestSupported,
-		HopLimit:      1,
 		PayloadLength: uint16(len(reason)),
 		Type:          mt.Fault,
 	}).Serialize()

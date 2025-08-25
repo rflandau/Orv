@@ -7,10 +7,8 @@ Includes structs that can be composed into a fixed header; you should never have
 	    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
 
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-		| Major | Minor |   Hop Limit   |    Total Length in Octets   |
+		| Major | Minor |     Type      |    Total Length in Octets   |
 		+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-		|     Type      |
-		+-+-+-+-+-+-+-+-+
 */
 package protocol
 
@@ -28,35 +26,29 @@ import (
 
 const (
 	// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
-	FixedHeaderLen   uint   = 5
+	FixedHeaderLen   uint   = 4
 	MaxPayloadLength uint16 = math.MaxUint16 - uint16(FixedHeaderLen)
 )
 
 // A Header represents a deconstructed Orv packet header.
 // The state of Header is never guaranteed; call .Validate() to verify before using..
 type Header struct {
-	// REQUIRED.
 	// The highest major and minor version of Orv the sender speaks.
 	Version Version
-	// The maximum number of hops this packet may traverse before being dropped.
-	// Defaults to DefaultHopLimit.
-	HopLimit uint8
+	// Type of message.
+	// See PACKETS.md for the available message types.
+	Type mt.MessageType
 	// Length of the payload in bytes.
 	// Must be <= (65535-FixedHeaderLen).
 	// Defaults to zero, thus telling the receiver not to scan any data after the header.
 	PayloadLength uint16
-	// REQUIRED.
-	// Type of message.
-	// See PACKETS.md for the available message types.
-	Type mt.MessageType
 }
 
 //#region errors
 
 var (
-	ErrInvalidVersionMajor = errors.New("major version must be 0 <= x <= 15")
-	ErrInvalidVersionMinor = errors.New("minor version must be 0 <= x <= 15")
-	// ErrInvalidHopLimit means that the given hop limit was out of bounds.
+	ErrInvalidVersionMajor  = errors.New("major version must be 0 <= x <= 15")
+	ErrInvalidVersionMinor  = errors.New("minor version must be 0 <= x <= 15")
 	ErrInvalidPayloadLength = errors.New("payload length must be 0 <= x <= " + strconv.FormatUint(uint64(65535-FixedHeaderLen), 10) + " (uint16MAX - length of the fixed header)")
 	ErrUnknownMessageType   = errors.New("type must be a valid MessageType")
 )
@@ -71,7 +63,7 @@ var (
 // Performs a single allocation of FixedHeaderLen size.
 func (hdr *Header) Serialize() ([]byte, error) {
 	out := make([]byte, FixedHeaderLen)
-	data := []byte{hdr.Version.Byte(), hdr.HopLimit, byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength), byte(hdr.Type)}
+	data := []byte{hdr.Version.Byte(), byte(hdr.Type), byte(hdr.PayloadLength >> 8), byte(hdr.PayloadLength)}
 
 	// compose data into out
 	if count, err := binary.Encode(out, binary.BigEndian, data); err != nil {
@@ -113,12 +105,12 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 		}
 		hdr.Version = VersionFromByte(b)
 	}
-	{ // Hop Limit
+	{ // Message Type
 		b, done, err := readByte()
 		if done || err != nil {
 			return err
 		}
-		hdr.HopLimit = b
+		hdr.Type = mt.MessageType(b)
 	}
 	{ // Payload Length
 		MSB, done, err := readByte()
@@ -130,13 +122,6 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 			return err
 		}
 		hdr.PayloadLength = uint16(MSB)<<8 | uint16(LSB)
-	}
-	{ // Message Type
-		b, done, err := readByte()
-		if done || err != nil {
-			return err
-		}
-		hdr.Type = mt.MessageType(b)
 	}
 
 	return nil
@@ -164,7 +149,6 @@ func (hdr *Header) Validate() (errors []error) {
 // The given event is returned so it can be chained.
 func (hdr *Header) Zerolog(ev *zerolog.Event) *zerolog.Event {
 	ev.Str("version", fmt.Sprintf("%d.%d", hdr.Version.Major, hdr.Version.Minor)).
-		Uint8("hop limit", hdr.HopLimit).
 		Uint16("payload length", hdr.PayloadLength).
 		Str("type", hdr.Type.String())
 	return ev

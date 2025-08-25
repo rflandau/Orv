@@ -43,7 +43,6 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloA
 	// compose the header
 	reqHdr := protocol.Header{
 		Version:       protocol.HighestSupported,
-		HopLimit:      1,
 		PayloadLength: uint16(len(body)),
 		Type:          mt.Hello,
 	}

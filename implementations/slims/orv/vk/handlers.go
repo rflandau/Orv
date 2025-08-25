@@ -128,7 +128,7 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 
 	vk.respondSuccess(respWriter,
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(len(b)), Type: mt.StatusResp},
+		protocol.Header{Version: protocol.HighestSupported, PayloadLength: uint16(len(b)), Type: mt.StatusResp},
 		b)
 }
 

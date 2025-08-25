@@ -25,7 +25,6 @@ func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, err
 	// generate a request header
 	hdr := protocol.Header{
 		Version:       protocol.HighestSupported,
-		HopLimit:      1,
 		PayloadLength: 0,
 		Type:          mt.Status,
 	}
