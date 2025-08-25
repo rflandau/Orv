@@ -72,7 +72,6 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloA
 	}
 	// read the payload
 	var respBody bytes.Buffer
-	// TODO the response body should already be read forward 5 bytes, but we need to confirm that
 	if _, err := io.Copy(&respBody, resp.Body()); err != nil {
 		return nil, err
 	}
