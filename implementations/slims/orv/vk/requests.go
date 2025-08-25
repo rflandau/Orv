@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/rflandau/Orv/implementations/slims/orv"
@@ -21,7 +22,7 @@ import (
 // Request payloads are encoded via protobuf.
 
 // Hello sends a HELLO packet to the given address, returning the target node's response or an error.
-func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response *pb.HelloAck, err error) {
+func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloAck, err error) {
 	if !vk.alive.Load() {
 		return nil, ErrDead
 	}
@@ -58,9 +59,8 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response *pb
 	defer conn.Close()
 
 	resp, err := conn.Post(ctx, "/", orv.ResponseMediaType(), bytes.NewReader(append(reqHdrB, body...)))
-	respBody := resp.Body()
 	var hdrBytes = make([]byte, protocol.FixedHeaderLen)
-	if n, err := respBody.Read(hdrBytes); err != nil {
+	if n, err := resp.Body().Read(hdrBytes); err != nil {
 		return nil, err
 	} else if n != int(protocol.FixedHeaderLen) {
 		return nil, fmt.Errorf("incorrect read count (%d, expected %d)", n, protocol.FixedHeaderLen)
@@ -72,29 +72,35 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response *pb
 		return nil, err
 	}
 	// read the payload
-	// if the packet type is FAULT, unmarshal as a fault
-	if respHeader.Type == mt.Fault {
-
-	} else if respHeader.Type == mt.HelloAck {
-
-	} else {
-		return nil, errors.New("unexpected response message type: " + respHeader.Type.String())
-	}
+	var respBody bytes.Buffer
 	// TODO the response body should already be read forward 5 bytes, but we need to confirm that
-	var ret pb.HelloAck
-	if respBody, err := io.ReadAll(respBody); err != nil {
+	if _, err := io.Copy(&respBody, resp.Body()); err != nil {
 		return nil, err
-	} else {
-		var r pb.HelloAck
-		if err := proto.Unmarshal(respBody, &r); err != nil {
+	}
+	// if the packet type is FAULT, unmarshal as a fault
+	switch respHeader.Type {
+	case mt.Fault:
+		// fetch the reason
+		var f pb.Fault
+		if err := proto.Unmarshal(respBody.Bytes(), &f); err != nil {
 			return nil, err
 		}
-		// narrow the type to a HelloAck
-		ret = pb.HelloAck{
+		f.Reason = strings.TrimSpace(f.Reason)
+		if f.Reason == "" {
+			return nil, errors.New("FAULT occurred, but no reason was given")
+		}
+		return nil, errors.New(f.Reason)
+	case mt.HelloAck:
+		var r pb.HelloAck
+		if err := proto.Unmarshal(respBody.Bytes(), &r); err != nil {
+			return nil, err
+		}
+		return &pb.HelloAck{
 			Id:      r.Id,
 			Height:  r.Height,
 			Version: r.Version,
-		}
+		}, nil
 	}
-	return &ret, nil
+	return nil, errors.New("unexpected response message type: " + respHeader.Type.String())
+
 }
