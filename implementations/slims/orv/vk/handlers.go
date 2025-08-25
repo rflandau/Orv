@@ -16,14 +16,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// handler is the core processing called for each received message.
-// It is functionally a really long switch statement that invokes the appropriate handler subroutine for the message type.
+// handler is the core processing called for each request.
+// When a request arrives, it is logged and the Orv header is deserialized from it.
+// Version is validated, then the request is passed to the appropriate subhandler.
 func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	// attempt to fetch an Orv header
 	reqHdr := protocol.Header{}
-	reqBody := req.Body()
 	{
-		if err := reqHdr.Deserialize(reqBody); err != nil {
+		if err := reqHdr.Deserialize(req.Body()); err != nil {
 			vk.log.Error().Err(err).Msg("failed to deserialize header")
 			vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
 			return
@@ -134,15 +134,25 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.
 func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+	if reqHdr.PayloadLength == 0 {
+		vk.respondError(respWriter, codes.BadRequest, "HELLO requires a payload")
+	}
+
 	// unpack the body
 	var bd bytes.Buffer
-	if _, err := io.Copy(&bd, req.Body()); err != nil {
+	if n, err := io.Copy(&bd, req.Body()); err != nil {
 		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+		return
+	} else if n != int64(reqHdr.PayloadLength) {
+		vk.respondError(respWriter, codes.BadRequest, "declared payload length ("+strconv.FormatUint(uint64(reqHdr.PayloadLength), 10)+") did not match actual payload ("+strconv.FormatInt(n, 10)+")")
 		return
 	}
 
 	var pbReq pb.Hello
-	proto.Unmarshal(bd.Bytes(), &pbReq)
+	if err := proto.Unmarshal(bd.Bytes(), &pbReq); err != nil {
+		vk.respondError(respWriter, codes.BadRequest, err.Error())
+		return
+	}
 	// TODO
 
 	vk.respondError(respWriter, codes.InternalServerError, "NYI")
