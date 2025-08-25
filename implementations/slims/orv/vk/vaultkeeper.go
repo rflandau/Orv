@@ -18,9 +18,11 @@ import (
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/plgd-dev/go-coap/v3/udp/server"
 	"github.com/rflandau/Orv/implementations/slims/orv"
+	"github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 )
 
 // A VaultKeeper (VK) is a node with organizational and routing capability.
@@ -153,7 +155,13 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, re
 		return
 	}
 
-	if err := resp.SetResponse(code, orv.ResponseMediaType(), bytes.NewReader(append(hdrB, []byte(reason)...))); err != nil {
+	body, err := proto.Marshal(&pb.Fault{Reason: reason})
+	if err != nil {
+		vk.log.Error().Err(err).Msg("failed to marshal pb.Fault as body")
+		return
+	}
+
+	if err := resp.SetResponse(code, orv.ResponseMediaType(), bytes.NewReader(append(hdrB, body...))); err != nil {
 		vk.log.Error().Str("body", reason).Err(err).Msg("failed to set response")
 	}
 }
@@ -196,7 +204,7 @@ func (vk *VaultKeeper) Start() {
 
 	}()
 
-	time.Sleep(5 * time.Millisecond) // buy time for the server to actually start up
+	time.Sleep(30 * time.Millisecond) // buy time for the server to actually start up
 }
 
 // Stop causes the server to stop accepting requests.
