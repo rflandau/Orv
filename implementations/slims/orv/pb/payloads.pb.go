@@ -21,6 +21,50 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type Fault struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Fault) Reset() {
+	*x = Fault{}
+	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Fault) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Fault) ProtoMessage() {}
+
+func (x *Fault) ProtoReflect() protoreflect.Message {
+	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Fault.ProtoReflect.Descriptor instead.
+func (*Fault) Descriptor() ([]byte, []int) {
+	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Fault) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 // Response to a STATUS request
 type StatusResp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -35,7 +79,7 @@ type StatusResp struct {
 
 func (x *StatusResp) Reset() {
 	*x = StatusResp{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	mi := &file_orv_pb_payloads_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -47,7 +91,7 @@ func (x *StatusResp) String() string {
 func (*StatusResp) ProtoMessage() {}
 
 func (x *StatusResp) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	mi := &file_orv_pb_payloads_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60,7 +104,7 @@ func (x *StatusResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResp.ProtoReflect.Descriptor instead.
 func (*StatusResp) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{0}
+	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *StatusResp) GetId() uint64 {
@@ -93,7 +137,7 @@ type Hello struct {
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[1]
+	mi := &file_orv_pb_payloads_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -105,7 +149,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[1]
+	mi := &file_orv_pb_payloads_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,7 +162,7 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{1}
+	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Hello) GetId() uint64 {
@@ -139,7 +183,7 @@ type HelloAck struct {
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[2]
+	mi := &file_orv_pb_payloads_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +195,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[2]
+	mi := &file_orv_pb_payloads_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +208,7 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{2}
+	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HelloAck) GetId() uint64 {
@@ -192,7 +236,9 @@ var File_orv_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_orv_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x15orv/pb/payloads.proto\x12\x03orv\"c\n" +
+	"\x15orv/pb/payloads.proto\x12\x03orv\"\x1f\n" +
+	"\x05Fault\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"c\n" +
 	"\n" +
 	"StatusResp\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
@@ -217,11 +263,12 @@ func file_orv_pb_payloads_proto_rawDescGZIP() []byte {
 	return file_orv_pb_payloads_proto_rawDescData
 }
 
-var file_orv_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_orv_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_orv_pb_payloads_proto_goTypes = []any{
-	(*StatusResp)(nil), // 0: orv.StatusResp
-	(*Hello)(nil),      // 1: orv.Hello
-	(*HelloAck)(nil),   // 2: orv.HelloAck
+	(*Fault)(nil),      // 0: orv.Fault
+	(*StatusResp)(nil), // 1: orv.StatusResp
+	(*Hello)(nil),      // 2: orv.Hello
+	(*HelloAck)(nil),   // 3: orv.HelloAck
 }
 var file_orv_pb_payloads_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -242,7 +289,7 @@ func file_orv_pb_payloads_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orv_pb_payloads_proto_rawDesc), len(file_orv_pb_payloads_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

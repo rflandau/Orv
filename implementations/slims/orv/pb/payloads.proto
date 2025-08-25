@@ -5,6 +5,10 @@ package orv;
 
 option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
 
+message Fault{
+	string reason = 1;
+}
+
 // client requests
 
 // Response to a STATUS request
