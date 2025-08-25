@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"time"
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
@@ -15,6 +16,8 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
+
+const helloPruneTime time.Duration = 3 * time.Second
 
 // handler is the core processing called for each request.
 // When a request arrives, it is logged and the Orv header is deserialized from it.
@@ -153,7 +156,11 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 		vk.respondError(respWriter, codes.BadRequest, err.Error())
 		return
 	}
-	// TODO
 
-	vk.respondError(respWriter, codes.InternalServerError, "NYI")
+	vk.log.Debug().Uint64("requestor id", pbReq.Id).Str("type", mt.Hello.String()).Send()
+
+	vk.pendingHellos.Store(pbReq.Id, true, helloPruneTime)
+
+	// TODO fill out header and body
+	vk.respondSuccess(respWriter, codes.Created, protocol.Header{}, nil)
 }
