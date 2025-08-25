@@ -12,7 +12,9 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
 	"github.com/rflandau/Orv/implementations/slims/orv"
+	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // handler is the core processing called for each received message.
@@ -41,7 +43,9 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	switch reqHdr.Type {
 	// client requests that do not require a handshake
 	case protocol.Status:
-		vk.status(reqHdr, req, resp)
+		vk.serveStatus(reqHdr, req, resp)
+	case protocol.Hello:
+		vk.serveHello(reqHdr, req, resp)
 	// TODO ...
 	default: // non-enumerated type or UNKNOWN
 		vk.respondError(resp, codes.BadRequest, "message type must be set")
@@ -78,9 +82,9 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	}*/
 }
 
-// status answers STATUS packets by serializing most of the data in vk as json.
+// serveStatus answers STATUS packets by serializing most of the data in vk as json.
 // Holds a read lock on structure.
-func (vk *VaultKeeper) status(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
 	// drain the rest of the body
 	var (
 		drained   = make([]byte, 1024)
@@ -125,4 +129,19 @@ func (vk *VaultKeeper) status(reqHdr protocol.Header, req *mux.Message, respWrit
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
 		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(b.Len()), Type: protocol.StatusResp},
 		b.Bytes())
+}
+
+// serveHello answers HELLO packets by inserting the requestor into the serveHello table.
+func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+	// unpack the body
+	var bd *bytes.Buffer
+	if _, err := io.Copy(bd, req.Body()); err != nil {
+		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+		return
+	}
+
+	var pbReq payloads_proto.Hello
+	proto.Unmarshal(bd.Bytes(), &pbReq)
+	// TODO
+
 }
