@@ -125,7 +125,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 	// spawn the heartbeater service
 	// TODO
 
-	vk.log.Debug().Func(vk.LogDump).Msg("vk created")
+	vk.log.Debug().Func(vk.Zerolog).Msg("vk created")
 
 	return vk, nil
 
@@ -214,7 +214,7 @@ func (vk *VaultKeeper) Stop() {
 
 // Pretty prints the state of the vk into the given zerolog event.
 // Used for debugging purposes.
-func (vk *VaultKeeper) LogDump(e *zerolog.Event) {
+func (vk *VaultKeeper) Zerolog(e *zerolog.Event) {
 	e.Uint16("height", vk.structure.height)
 	/*vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
