@@ -17,6 +17,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
@@ -33,14 +34,14 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 		{"1.1, hp5", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 5}, []byte{0b00010001, 0b101, 0, 0, 0}, 1},
 		{"1.1, hp255", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 255}, []byte{0b00010001, 0b11111111, 0, 0, 0}, 1},
 		{"15.15, hp255", protocol.Header{Version: protocol.Version{15, 15}, HopLimit: 255}, []byte{0b11111111, 0b11111111, 0, 0, 0}, 1},
-		{"15.15, hp255, HELLO type", protocol.Header{Version: protocol.Version{15, 15}, HopLimit: 255, Type: protocol.Hello}, []byte{0b11111111, 0b11111111, 0, 0, byte(protocol.Hello)}, 0},
-		{"HELLO_ACK type", protocol.Header{Type: protocol.HelloAck}, []byte{0, 0, 0, 0, byte(protocol.HelloAck)}, 0},
-		{"JOIN type", protocol.Header{Type: protocol.Join}, []byte{0, 0, 0, 0, byte(protocol.Join)}, 0},
-		{"JOIN_ACCEPT type", protocol.Header{Type: protocol.JoinAccept}, []byte{0, 0, 0, 0, byte(protocol.JoinAccept)}, 0},
-		{"FAULT type", protocol.Header{Type: protocol.Fault}, []byte{0, 0, 0, 0, byte(protocol.Fault)}, 0},
-		{"payload 20B, REGISTER type", protocol.Header{PayloadLength: 20, Type: protocol.Register}, []byte{0, 0, 0, 20, byte(protocol.Register)}, 0},
+		{"15.15, hp255, HELLO type", protocol.Header{Version: protocol.Version{15, 15}, HopLimit: 255, Type: mt.Hello}, []byte{0b11111111, 0b11111111, 0, 0, byte(mt.Hello)}, 0},
+		{"HELLO_ACK type", protocol.Header{Type: mt.HelloAck}, []byte{0, 0, 0, 0, byte(mt.HelloAck)}, 0},
+		{"JOIN type", protocol.Header{Type: mt.Join}, []byte{0, 0, 0, 0, byte(mt.Join)}, 0},
+		{"JOIN_ACCEPT type", protocol.Header{Type: mt.JoinAccept}, []byte{0, 0, 0, 0, byte(mt.JoinAccept)}, 0},
+		{"FAULT type", protocol.Header{Type: mt.Fault}, []byte{0, 0, 0, 0, byte(mt.Fault)}, 0},
+		{"payload 20B, REGISTER type", protocol.Header{PayloadLength: 20, Type: mt.Register}, []byte{0, 0, 0, 20, byte(mt.Register)}, 0},
 		{"payload 20B, [overflow] type", protocol.Header{PayloadLength: 20, Type: 250}, []byte{0, 0, 0, 20, 250}, 1},
-		{"payload 65000B, REGISTER_ACCEPT type", protocol.Header{PayloadLength: 65000, Type: protocol.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, byte(protocol.RegisterAccept)}, 0},
+		{"payload 65000B, REGISTER_ACCEPT type", protocol.Header{PayloadLength: 65000, Type: mt.RegisterAccept}, []byte{0, 0, 0b11111101, 0b11101000, byte(mt.RegisterAccept)}, 0},
 
 		{"bad major version",
 			protocol.Header{
@@ -54,9 +55,9 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				Version:       protocol.Version{15, 1},
 				HopLimit:      3,
 				PayloadLength: math.MaxUint16,
-				Type:          protocol.Fault,
+				Type:          mt.Fault,
 			},
-			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, byte(protocol.Fault)},
+			[]byte{0b11110001, 3, math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111, byte(mt.Fault)},
 			1,
 		},
 	}
@@ -91,7 +92,7 @@ func TestHeader_Deserialize(t *testing.T) {
 	}{
 		{"version + hop limit", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16}, nil, false, false},
 		{"version + hop limit + zero payload length", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16}, nil, false, false},
-		{"version + hop limit + zero payload length + type", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16, Type: protocol.HelloAck}, nil, false, false},
+		{"version + hop limit + zero payload length + type", protocol.Header{Version: protocol.Version{1, 1}, HopLimit: 16, Type: mt.HelloAck}, nil, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,7 +122,7 @@ func TestHeader_Deserialize(t *testing.T) {
 			versionMinor  uint8
 			hopLimit      uint8
 			payloadLength uint16
-			typ           protocol.MessageType
+			typ           mt.MessageType
 		}
 		tests := []struct {
 			name   string
@@ -136,8 +137,8 @@ func TestHeader_Deserialize(t *testing.T) {
 			{"version + hop limit + payload length", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF}, want{
 				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023,
 			}},
-			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, byte(protocol.Increment)}, want{
-				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023, typ: protocol.Increment,
+			{"version + hop limit + payload length + type", []byte{0b01000001, 15, 64023 >> 8, 64023 & 0xFF, byte(mt.Increment)}, want{
+				err: false, versionMajor: 4, versionMinor: 1, hopLimit: 15, payloadLength: 64023, typ: mt.Increment,
 			}},
 		}
 		for _, tt := range tests {
@@ -233,12 +234,12 @@ func TestFullSend(t *testing.T) {
 		wantRespCode codes.Code
 	}
 	tests := []test{
-		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: protocol.Hello}, nil, codes.Created},
-		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: protocol.HelloAck}, nil, codes.Created},
-		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: protocol.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: protocol.Join}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: protocol.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: protocol.JoinAccept}, nil, codes.Created},
+		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, codes.Created},
+		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: mt.HelloAck}, nil, codes.Created},
+		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, HopLimit: 32, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, HopLimit: 32, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

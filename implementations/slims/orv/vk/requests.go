@@ -10,6 +10,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/orv"
 	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -48,7 +49,7 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 		Version:       protocol.HighestSupported,
 		HopLimit:      1,
 		PayloadLength: uint16(len(body)),
-		Type:          protocol.Hello,
+		Type:          mt.Hello,
 	}
 	reqHdrB, err := reqHdr.Serialize()
 	if err != nil {
@@ -76,6 +77,10 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 		return HelloAck{}, err
 	}
 	// read the payload
+	// if the packet type is FAULT, unmarshal as a fault
+	if respHeader.Type == mt.Fault {
+
+	}
 	// TODO the response body should already be read forward 5 bytes, but we need to confirm that
 	var ret HelloAck
 	if respBody, err := io.ReadAll(respBody); err != nil {

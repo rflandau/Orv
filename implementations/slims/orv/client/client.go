@@ -8,6 +8,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/udp"
 	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,7 +27,7 @@ func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, err
 		Version:       protocol.HighestSupported,
 		HopLimit:      1,
 		PayloadLength: 0,
-		Type:          protocol.Status,
+		Type:          mt.Status,
 	}
 	hdrSrl, err := hdr.Serialize()
 	if err != nil {

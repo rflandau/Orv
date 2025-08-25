@@ -12,6 +12,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/mux"
 	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -40,9 +41,9 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	// Each sub-handler is expected to respond on its own.
 	switch reqHdr.Type {
 	// client requests that do not require a handshake
-	case protocol.Status:
+	case mt.Status:
 		vk.serveStatus(reqHdr, req, resp)
-	case protocol.Hello:
+	case mt.Hello:
 		vk.serveHello(reqHdr, req, resp)
 	// TODO ...
 	default: // non-enumerated type or UNKNOWN
@@ -127,15 +128,15 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 
 	vk.respondSuccess(respWriter,
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(len(b)), Type: protocol.StatusResp},
+		protocol.Header{Version: protocol.HighestSupported, HopLimit: 1, PayloadLength: uint16(len(b)), Type: mt.StatusResp},
 		b)
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.
 func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
 	// unpack the body
-	var bd *bytes.Buffer
-	if _, err := io.Copy(bd, req.Body()); err != nil {
+	var bd bytes.Buffer
+	if _, err := io.Copy(&bd, req.Body()); err != nil {
 		vk.respondError(respWriter, codes.InternalServerError, err.Error())
 		return
 	}
@@ -144,4 +145,5 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 	proto.Unmarshal(bd.Bytes(), &pbReq)
 	// TODO
 
+	vk.respondError(respWriter, codes.InternalServerError, "NYI")
 }

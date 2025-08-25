@@ -22,6 +22,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"github.com/rs/zerolog"
 )
 
@@ -47,7 +48,7 @@ type Header struct {
 	// REQUIRED.
 	// Type of message.
 	// See PACKETS.md for the available message types.
-	Type MessageType
+	Type mt.MessageType
 }
 
 //#region errors
@@ -135,7 +136,7 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 		if done || err != nil {
 			return err
 		}
-		hdr.Type = MessageType(b)
+		hdr.Type = mt.MessageType(b)
 	}
 
 	return nil
@@ -152,7 +153,7 @@ func (hdr *Header) Validate() (errors []error) {
 	if hdr.PayloadLength > (math.MaxUint16 - uint16(FixedHeaderLen)) {
 		errors = append(errors, ErrInvalidPayloadLength)
 	}
-	if hdr.Type == UNKNOWN || hdr.Type.String() == "UNKNOWN" {
+	if hdr.Type == mt.UNKNOWN || hdr.Type.String() == "UNKNOWN" {
 		errors = append(errors, ErrUnknownMessageType)
 	}
 
@@ -170,79 +171,3 @@ func (hdr *Header) Zerolog(ev *zerolog.Event) *zerolog.Event {
 }
 
 //#region MessageType
-
-// MessageType enumerates the message types and the integers used to represent them in the Type field.
-type MessageType uint8
-
-const (
-	UNKNOWN MessageType = iota
-	Fault
-	Hello
-	HelloAck
-
-	Join
-	JoinAccept
-
-	Register
-	RegisterAccept
-
-	Merge
-	MergeAccept
-	Increment
-	IncrementAck
-
-	ServiceHeartbeat
-	ServiceHeartbeatAck
-
-	VKHeartbeat
-	VKHeartbeatAck
-
-	// client
-	Status
-	StatusResp
-	List
-	ListResp
-	Get
-	GetResp
-)
-
-// MessageTypeString returns the string representation of the given MessageType.
-// It is just a big switch statement.
-func (mt MessageType) String() string {
-	switch mt {
-	case Fault:
-		return "FAULT"
-	case Hello:
-		return "HELLO"
-	case HelloAck:
-		return "HELLO_ACK"
-	case Join:
-		return "JOIN"
-	case JoinAccept:
-		return "JOIN_ACCEPT"
-	case Register:
-		return "REGISTER"
-	case RegisterAccept:
-		return "REGISTER_ACCEPT"
-	case Merge:
-		return "MERGE"
-	case MergeAccept:
-		return "MERGE_ACCEPT"
-	case Increment:
-		return "INCREMENT"
-	case IncrementAck:
-		return "INCREMENT_ACK"
-	case ServiceHeartbeat:
-		return "SERVICE_HEARTBEAT"
-	case ServiceHeartbeatAck:
-		return "SERVICE_HEARTBEAT_ACK"
-	case VKHeartbeat:
-		return "VK_HEARTBEAT"
-	case VKHeartbeatAck:
-		return "VK_HEARTBEAT_ACK"
-	default:
-		return "UNKNOWN"
-	}
-}
-
-//#endregion MessageType

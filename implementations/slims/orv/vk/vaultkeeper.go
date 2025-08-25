@@ -19,6 +19,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/udp/server"
 	"github.com/rflandau/Orv/implementations/slims/orv"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
+	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"github.com/rs/zerolog"
 )
 
@@ -145,7 +146,7 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, re
 		Version:       protocol.HighestSupported,
 		HopLimit:      1,
 		PayloadLength: uint16(len(reason)),
-		Type:          protocol.Fault,
+		Type:          mt.Fault,
 	}).Serialize()
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize FAULT header")
