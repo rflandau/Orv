@@ -3,7 +3,7 @@ package orv;
 
 // generate with protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
 
-option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/payloads.proto";
+option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
 
 // client requests
 

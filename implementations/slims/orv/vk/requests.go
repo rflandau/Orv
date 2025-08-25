@@ -8,7 +8,7 @@ import (
 
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/rflandau/Orv/implementations/slims/orv"
-	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
+	"github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"github.com/rs/zerolog"
@@ -32,7 +32,7 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 	}
 
 	// compose the body
-	body, err := proto.Marshal(&payloads_proto.Hello{Id: vk.id})
+	body, err := proto.Marshal(&pb.Hello{Id: vk.id})
 	if err != nil {
 		return HelloAck{}, err
 	}
@@ -86,7 +86,7 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (response Hel
 	if respBody, err := io.ReadAll(respBody); err != nil {
 		return HelloAck{}, err
 	} else {
-		var r payloads_proto.HelloAck
+		var r pb.HelloAck
 		if err := proto.Unmarshal(respBody, &r); err != nil {
 			return HelloAck{}, err
 		}

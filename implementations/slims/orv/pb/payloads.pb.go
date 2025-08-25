@@ -4,7 +4,7 @@
 // 	protoc        v3.21.12
 // source: orv/pb/payloads.proto
 
-package payloads_proto
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -203,7 +203,7 @@ const file_orv_pb_payloads_proto_rawDesc = "" +
 	"\bHelloAck\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
 	"\x06height\x18\x02 \x01(\rR\x06height\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\rR\aversionBEZCgithub.com/rflandau/Orv/implementations/slims/orv/pb/payloads.protob\x06proto3"
+	"\aversion\x18\x03 \x01(\rR\aversionB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_orv_pb_payloads_proto_rawDescOnce sync.Once

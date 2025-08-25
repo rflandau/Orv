@@ -10,7 +10,7 @@ import (
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
-	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
+	"github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	"google.golang.org/protobuf/proto"
@@ -108,7 +108,7 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 
 	vk.structure.mu.RLock()
 	// gather data
-	st := payloads_proto.StatusResp{
+	st := pb.StatusResp{
 		Id:                vk.id,
 		Height:            uint32(vk.structure.height),
 		VersionsSupported: protocol.VersionsSupportedAsBytes(),
@@ -141,7 +141,7 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 		return
 	}
 
-	var pbReq payloads_proto.Hello
+	var pbReq pb.Hello
 	proto.Unmarshal(bd.Bytes(), &pbReq)
 	// TODO
 
