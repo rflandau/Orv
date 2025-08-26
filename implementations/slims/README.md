@@ -1,5 +1,12 @@
 Slims is a an Orv implementation using a custom layer 5 protocol.
 
+# TODO
+
+- protobuf -> flatbuf
+- test pending tables
+- rename implementation packages to avoid confusion
+- install magefile (automated testing with -race; protobuf compilation)
+
 # Implementation Design
 
 ## Payload Serialization
@@ -20,13 +27,16 @@ Protocol Buffers and Flatbuffers are smaller than JSON, but implementations with
 
 ## Version Negotiation
 
-Version negotiation between nodes is OpenFlow-ish. OpenFlow packets *each* contain a header. Orv packets only include version on initial handshake; it is assumed that communications after that point will use the agreed-upon version.
+Version negotiation between nodes is OpenFlow-ish. ~~OpenFlow packets *each* contain version in the header. Orv packets only include version on initial handshake; it is assumed that communications after that point will use the agreed-upon version.~~
 
-Versions are negotiated implicitly. A client requests the version it would like to use. If the target VK supports that version, its HELLO_ACK will echo the version. If it does not, the target VK's HELLO_ACK will include its highest supported version if the client's version was higher or its lowest supported version if it is lower. If the client is requesting an unsupported intermediary version, the VK will respond with the closest version it has in either direction. TODO: finalize the intermediary version handling.
+Versions are negotiated implicitly. A client requests the version it would like to use. The vk will respond according to the following rules:
 
-*TODO:* expand on this after full implementation.
-As we are only going to support 1 version, this is more of a what-if discussion.
+1. If the vk supports the requested version, HELLO_ACK will echo that version.
+2. If the version is higher than the VK supports, the VK will send its highest supported version.
+3. If the version is lower than the VK supports, the VK will send its lowest supported version.
+4. If the version is between two versions the VK supports, it will send the next lower version that it supports.
 
+Of course, this is all theoretical as the implementation only supports one version at the moment.
 
 ### FAULT Packet
 

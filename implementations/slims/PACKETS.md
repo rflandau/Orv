@@ -40,6 +40,8 @@ FAULT may be sent in response to any number of request packets.
 Sent by a node not part of the vault to introduce itself.
 VKs respond to HELLOs with HELLO_ACK.
 
+The Version field in the header has special meaning for HELLOs: the node sets Header version to the highest version they support/ wish to use. 
+
 Requester nodes typically follow up with a JOIN or MERGE, but do not have to.
 
 ### Payload
@@ -53,14 +55,21 @@ Requester nodes typically follow up with a JOIN or MERGE, but do not have to.
 
 Sent by VKs in response to a node's HELLO to acknowledge receipt and relay basic information to the requester node.
 
+The Version field in the header has special meaning for HELLO_ACKs:
+
+1. If the vk supports the requested version, HELLO_ACK will echo that version.
+2. If the version is higher than the VK supports, the VK will send its highest supported version.
+3. If the version is lower than the VK supports, the VK will send its lowest supported version.
+4. If the version is between two versions the VK supports, it will send the next lower version that it supports.
+
+The vk sets the response's Header version to the version given by the requestor node if the VK supports that version.
+
 ### Payload
 
 1. *id*: unique identifier of the VK answering the hello
     - example: 456
 2. *height*: the height of the node answering the greeting
     - example: 3
-3. *version*: version of Orv the VK is running
-    - example: 0b0010 0001 (2.1)
 
 ## JOIN
 
