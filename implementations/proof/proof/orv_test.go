@@ -1,7 +1,7 @@
 /*
 Tests for the Orv package
 */
-package orv_test
+package proof_test
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rflandau/Orv/implementations/proof/orv"
+	"github.com/rflandau/Orv/implementations/proof/proof"
 	"resty.dev/v3"
 )
 
@@ -36,11 +36,11 @@ type leaf struct {
 // HELLOs and JOINs under the given VK, calling Fatal if any step fails.
 // REGISTERs each service defined in the leaf.
 // Does not start a heartbeater for any service.
-func (l *leaf) JoinVault(t *testing.T, parent *orv.VaultKeeper) {
-	makeHelloRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_HELLO, l.id)
-	makeJoinRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_JOIN, l.id, 0, "", false)
+func (l *leaf) JoinVault(t *testing.T, parent *proof.VaultKeeper) {
+	makeHelloRequest(t, parent.AddrPort(), proof.EXPECTED_STATUS_HELLO, l.id)
+	makeJoinRequest(t, parent.AddrPort(), proof.EXPECTED_STATUS_JOIN, l.id, 0, "", false)
 	for k, v := range l.services {
-		makeRegisterRequest(t, parent.AddrPort(), orv.EXPECTED_STATUS_REGISTER, l.id, k, v.addr, v.stale)
+		makeRegisterRequest(t, parent.AddrPort(), proof.EXPECTED_STATUS_REGISTER, l.id, k, v.addr, v.stale)
 	}
 }
 
@@ -61,16 +61,16 @@ func slicesUnorderedEqual(a []string, b []string) bool {
 
 // POSTs a HELLO to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64) (*resty.Response, orv.HelloResp) {
+func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64) (*resty.Response, proof.HelloResp) {
 	cli := resty.New()
-	unpackedResp := orv.HelloResp{}
+	unpackedResp := proof.HelloResp{}
 	resp, err := cli.R().
-		SetBody(orv.HelloReq{Body: struct {
+		SetBody(proof.HelloReq{Body: struct {
 			Id uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 		}{id}}.Body). // default request content type is JSON
-		SetExpectResponseContentType(orv.CONTENT_TYPE).
+		SetExpectResponseContentType(proof.CONTENT_TYPE).
 		SetResult(&(unpackedResp.Body)).
-		Post("http://" + targetAddr.String() + orv.EP_HELLO)
+		Post("http://" + targetAddr.String() + proof.EP_HELLO)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,20 +83,20 @@ func makeHelloRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int,
 
 // POSTs a JOIN to the endpoint embedded in the huma api.
 // Only returns if the given status code was matched; Fatal if not
-func makeJoinRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (*resty.Response, orv.JoinAcceptResp) {
+func makeJoinRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, height uint16, vkaddr string, isvk bool) (*resty.Response, proof.JoinAcceptResp) {
 	t.Helper()
 	cli := resty.New()
-	unpackedResp := orv.JoinAcceptResp{}
+	unpackedResp := proof.JoinAcceptResp{}
 	resp, err := cli.R().
-		SetBody(orv.JoinReq{Body: struct {
+		SetBody(proof.JoinReq{Body: struct {
 			Id     uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 			Height uint16 "json:\"height,omitempty\" dependentRequired:\"is-vk\" example:\"3\" doc:\"height of the vk attempting to join the vault\""
 			VKAddr string "json:\"vk-addr,omitempty\" dependentRequired:\"is-vk\" example:\"174.1.3.4:8080\" doc:\"address of the listening VK service that can receive INCRs\""
 			IsVK   bool   "json:\"is-vk,omitempty\" example:\"false\" doc:\"is this node a VaultKeeper or a leaf? If true, height and VKAddr are required\""
 		}{id, height, vkaddr, isvk}}.Body). // default request content type is JSON
-		SetExpectResponseContentType(orv.CONTENT_TYPE).
+		SetExpectResponseContentType(proof.CONTENT_TYPE).
 		SetResult(&(unpackedResp.Body)).
-		Post("http://" + targetAddr.String() + orv.EP_JOIN)
+		Post("http://" + targetAddr.String() + proof.EP_JOIN)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,20 +109,20 @@ func makeJoinRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, 
 
 // POSTs a REGISTER to the endpoint embedded in the huma api, registering a new service under the given id.
 // Only returns if the given status code was matched; Fatal if not
-func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, sn string, apStr, staleStr string) (*resty.Response, orv.RegisterAcceptResp) {
+func makeRegisterRequest(t *testing.T, targetAddr netip.AddrPort, expectedCode int, id uint64, sn string, apStr, staleStr string) (*resty.Response, proof.RegisterAcceptResp) {
 	t.Helper()
 	cli := resty.New()
-	unpackedResp := orv.RegisterAcceptResp{}
+	unpackedResp := proof.RegisterAcceptResp{}
 	resp, err := cli.R().
-		SetBody(orv.RegisterReq{Body: struct {
+		SetBody(proof.RegisterReq{Body: struct {
 			Id      uint64 "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier for this specific node\""
 			Service string "json:\"service\" required:\"true\" example:\"SSH\" doc:\"the name of the service to be registered\""
 			Address string "json:\"address\" required:\"true\" example:\"172.1.1.54:22\" doc:\"the address the service is bound to. Only populated from leaf to parent.\""
 			Stale   string "json:\"stale\" example:\"1m5s45ms\" doc:\"after how much time without a heartbeat is this service eligible for pruning\""
 		}{id, sn, apStr, staleStr}}.Body). // default request content type is JSON
-		SetExpectResponseContentType(orv.CONTENT_TYPE).
+		SetExpectResponseContentType(proof.CONTENT_TYPE).
 		SetResult(&(unpackedResp.Body)).
-		Post("http://" + targetAddr.String() + orv.EP_REGISTER)
+		Post("http://" + targetAddr.String() + proof.EP_REGISTER)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,13 +148,13 @@ func sendServiceHeartbeats(targetAddr netip.AddrPort, frequency time.Duration, c
 			case <-time.After(frequency):
 				// submit a heartbeat
 				resp, err := cli.R().
-					SetBody(orv.ServiceHeartbeatReq{Body: struct {
+					SetBody(proof.ServiceHeartbeatReq{Body: struct {
 						Id       uint64   "json:\"id\" required:\"true\" example:\"718926735\" doc:\"unique identifier of the child VK being refreshed\""
 						Services []string "json:\"services\" required:\"true\" example:\"[\\\"serviceA\\\", \\\"serviceB\\\"]\" doc:\"the name of the services to refresh\""
 					}{cID, services}}.Body). // default request content type is JSON
-					SetExpectResponseContentType(orv.CONTENT_TYPE).
-					Post("http://" + targetAddr.String() + orv.EP_SERVICE_HEARTBEAT)
-				if err != nil || resp.StatusCode() != orv.EXPECTED_STATUS_SERVICE_HEARTBEAT {
+					SetExpectResponseContentType(proof.CONTENT_TYPE).
+					Post("http://" + targetAddr.String() + proof.EP_SERVICE_HEARTBEAT)
+				if err != nil || resp.StatusCode() != proof.EXPECTED_STATUS_SERVICE_HEARTBEAT {
 					errResp <- resp
 				}
 			}
@@ -181,7 +181,7 @@ func checkHeartbeatError(t *testing.T, errResp chan *resty.Response) {
 // The given height sets the height of C, with B.height-=1 and A.height-=2.
 // Returns handles to all 3.
 // Calls Fatal if any step fails
-func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
+func buildLineVault(t *testing.T, height uint16) (A, B, C *proof.VaultKeeper) {
 	if height < 2 {
 		t.Fatal("height must be greater than 2 to build the line vault")
 	}
@@ -189,7 +189,7 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkA, err := orv.NewVaultKeeper(1, vkAAddr, orv.Height(height-2))
+	vkA, err := proof.NewVaultKeeper(1, vkAAddr, proof.Height(height-2))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -202,7 +202,7 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(height-1))
+	vkB, err := proof.NewVaultKeeper(2, vkBAddr, proof.Height(height-1))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -215,7 +215,7 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkC, err := orv.NewVaultKeeper(3, vkCAddr, orv.Height(height))
+	vkC, err := proof.NewVaultKeeper(3, vkCAddr, proof.Height(height))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -227,8 +227,8 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 	// Join A under B
 	if resp, err := vkA.Hello(vkBAddr.String()); err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_HELLO {
-		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), orv.EXPECTED_STATUS_HELLO)
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_HELLO {
+		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), proof.EXPECTED_STATUS_HELLO)
 	}
 	if err := vkA.Join(vkBAddr.String()); err != nil {
 		t.Fatal(err)
@@ -237,8 +237,8 @@ func buildLineVault(t *testing.T, height uint16) (A, B, C *orv.VaultKeeper) {
 	// Join B under C
 	if resp, err := vkB.Hello(vkCAddr.String()); err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_HELLO {
-		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), orv.EXPECTED_STATUS_HELLO)
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_HELLO {
+		t.Fatalf("bad status code (got %d, expected %d)", resp.StatusCode(), proof.EXPECTED_STATUS_HELLO)
 	}
 	if err := vkB.Join(vkCAddr.String()); err != nil {
 		t.Fatal(err)
@@ -265,7 +265,7 @@ func TestEndpointArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vk, err := orv.NewVaultKeeper(1, vkAddr)
+	vk, err := proof.NewVaultKeeper(1, vkAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestMultiLeafMultiService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vk, err := orv.NewVaultKeeper(1, addr)
+	vk, err := proof.NewVaultKeeper(1, addr)
 	if err != nil {
 		t.Fatal("failed to construct parent VK: ", err)
 	}
@@ -393,20 +393,20 @@ func TestMultiLeafMultiService(t *testing.T) {
 			"some longish service name": {addr: "127.0.0.1:6021", stale: "1s"},
 			"who even knows, man":       {addr: "127.0.0.1:6022", stale: "800ms"}}}
 	// register each leaf under the VK and start heartbeats for it
-	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lA.id)
-	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lA.id, "ssh", lA.services["ssh"].addr, lA.services["ssh"].stale)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lA.id, "http", lA.services["http"].addr, lA.services["http"].stale)
-	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lB.id)
-	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lB.id, "ssh", lB.services["ssh"].addr, lB.services["ssh"].stale)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lB.id, "dns", lB.services["dns"].addr, lB.services["dns"].stale)
+	makeHelloRequest(t, addr, proof.EXPECTED_STATUS_HELLO, lA.id)
+	makeJoinRequest(t, addr, proof.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lA.id, "ssh", lA.services["ssh"].addr, lA.services["ssh"].stale)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lA.id, "http", lA.services["http"].addr, lA.services["http"].stale)
+	makeHelloRequest(t, addr, proof.EXPECTED_STATUS_HELLO, lB.id)
+	makeJoinRequest(t, addr, proof.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lB.id, "ssh", lB.services["ssh"].addr, lB.services["ssh"].stale)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lB.id, "dns", lB.services["dns"].addr, lB.services["dns"].stale)
 	lADone, lAErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lA.id, slices.Collect(maps.Keys(lA.services)))
 	lBDone, lBErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lB.id, slices.Collect(maps.Keys(lB.services)))
-	makeHelloRequest(t, addr, orv.EXPECTED_STATUS_HELLO, lC.id)
-	makeJoinRequest(t, addr, orv.EXPECTED_STATUS_JOIN, lC.id, 0, "", false)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lC.id, "some longish service name", lC.services["some longish service name"].addr, lC.services["some longish service name"].stale)
-	makeRegisterRequest(t, addr, orv.EXPECTED_STATUS_REGISTER, lC.id, "who even knows, man", lC.services["who even knows, man"].addr, lC.services["who even knows, man"].stale)
+	makeHelloRequest(t, addr, proof.EXPECTED_STATUS_HELLO, lC.id)
+	makeJoinRequest(t, addr, proof.EXPECTED_STATUS_JOIN, lC.id, 0, "", false)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lC.id, "some longish service name", lC.services["some longish service name"].addr, lC.services["some longish service name"].stale)
+	makeRegisterRequest(t, addr, proof.EXPECTED_STATUS_REGISTER, lC.id, "who even knows, man", lC.services["who even knows, man"].addr, lC.services["who even knows, man"].stale)
 	lCDone, lCErr := sendServiceHeartbeats(addr, 300*time.Millisecond, lC.id, slices.Collect(maps.Keys(lC.services)))
 	t.Cleanup(func() { close(lADone) })
 	t.Cleanup(func() { close(lBDone) })
@@ -447,7 +447,7 @@ func TestChildlessService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vk, err := orv.NewVaultKeeper(1, vkAddr, orv.SetPruneTimes(orv.PruneTimes{
+	vk, err := proof.NewVaultKeeper(1, vkAddr, proof.SetPruneTimes(proof.PruneTimes{
 		PendingHello: 2 * time.Second, ServicelessChild: 1 * time.Second, CVK: 10 * time.Second}))
 	if err != nil {
 		t.Fatal(err)
@@ -484,7 +484,7 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vkA, err := orv.NewVaultKeeper(1, vkAAddr)
+	vkA, err := proof.NewVaultKeeper(1, vkAAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(vkA.Terminate)
-	vkB, err := orv.NewVaultKeeper(2, vkBAddr, orv.Height(1))
+	vkB, err := proof.NewVaultKeeper(2, vkBAddr, proof.Height(1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,9 +513,9 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 		addr  string
 		stale string
 	}{"temp": {"2.2.2.2:99", "2s"}}}
-	makeHelloRequest(t, vkBAddr, orv.EXPECTED_STATUS_HELLO, lB.id)
-	makeJoinRequest(t, vkBAddr, orv.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
-	makeRegisterRequest(t, vkBAddr, orv.EXPECTED_STATUS_REGISTER, lB.id, "temp", lB.services["temp"].addr, lB.services["temp"].stale)
+	makeHelloRequest(t, vkBAddr, proof.EXPECTED_STATUS_HELLO, lB.id)
+	makeJoinRequest(t, vkBAddr, proof.EXPECTED_STATUS_JOIN, lB.id, 0, "", false)
+	makeRegisterRequest(t, vkBAddr, proof.EXPECTED_STATUS_REGISTER, lB.id, "temp", lB.services["temp"].addr, lB.services["temp"].stale)
 	lBDone, lBErr := sendServiceHeartbeats(vkBAddr, 500*time.Millisecond, lB.id, []string{"temp"})
 	t.Cleanup(func() { close(lBDone) })
 	// join leaf A under A
@@ -523,9 +523,9 @@ func TestSmallVaultDragonsHoard(t *testing.T) {
 		addr  string
 		stale string
 	}{"temp": {"1.1.1.1:99", "1s700ms"}}}
-	makeHelloRequest(t, vkAAddr, orv.EXPECTED_STATUS_HELLO, lA.id)
-	makeJoinRequest(t, vkAAddr, orv.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
-	makeRegisterRequest(t, vkAAddr, orv.EXPECTED_STATUS_REGISTER, lA.id, "temp", lA.services["temp"].addr, lA.services["temp"].stale)
+	makeHelloRequest(t, vkAAddr, proof.EXPECTED_STATUS_HELLO, lA.id)
+	makeJoinRequest(t, vkAAddr, proof.EXPECTED_STATUS_JOIN, lA.id, 0, "", false)
+	makeRegisterRequest(t, vkAAddr, proof.EXPECTED_STATUS_REGISTER, lA.id, "temp", lA.services["temp"].addr, lA.services["temp"].stale)
 	lADone, lAErr := sendServiceHeartbeats(vkAAddr, 500*time.Millisecond, lA.id, []string{"temp"})
 	t.Cleanup(func() { close(lADone) })
 
@@ -586,7 +586,7 @@ func TestUnresponsiveParent(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to parse addrport: ", err)
 	}
-	vkD, err := orv.NewVaultKeeper(4, vkDAddr, orv.Height(1))
+	vkD, err := proof.NewVaultKeeper(4, vkDAddr, proof.Height(1))
 	if err != nil {
 		t.Fatal("failed to create VK: ", err)
 	}
@@ -649,31 +649,31 @@ func TestGetRequest(t *testing.T) {
 	checkHeartbeatError(t, lASvcErr)
 
 	// issue a GET against A for a service offered by leafA
-	resp, grr, err := orv.Get("http://"+vkA.AddrPort().String(), 1, "oven")
+	resp, grr, err := proof.Get("http://"+vkA.AddrPort().String(), 1, "oven")
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
-		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_GET))
 	} else if grr.Body.Addr != lA.services["oven"].addr {
 		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, lA.services["oven"].addr)
 	}
 
 	// issue a GET against B, with the intention of it bubbling up to C
-	_, grr, err = orv.Get("http://"+vkB.AddrPort().String(), 5, "File Server")
+	_, grr, err = proof.Get("http://"+vkB.AddrPort().String(), 5, "File Server")
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
-		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_GET))
 	} else if grr.Body.Addr != lC.services["File Server"].addr {
 		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, lC.services["File Server"].addr)
 	}
 	// issue a GET with a hop count of 1 against A for a service only available at C
 	// This should fail to find any services, but return a 200 anyways.
-	_, grr, err = orv.Get("http://"+vkA.AddrPort().String(), 1, "File Server")
+	_, grr, err = proof.Get("http://"+vkA.AddrPort().String(), 1, "File Server")
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
-		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_GET {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_GET))
 	} else if grr.Body.Addr != "" {
 		t.Fatalf("mismatching get addresses (got %v, expected %v)", grr.Body.Addr, "")
 	}
@@ -714,22 +714,22 @@ func TestListRequest(t *testing.T) {
 	leafCServices := slices.Collect(maps.Keys(lC.services))
 	allServices := append(leafAServices, leafCServices...)
 	// issue a LIST against vkA, which should only pick up the services offered by A
-	resp, grr, err := orv.List("http://"+vkA.AddrPort().String(), 1)
+	resp, grr, err := proof.List("http://"+vkA.AddrPort().String(), 1)
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_LIST {
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_LIST {
 		t.Log(resp.String())
-		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_LIST))
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_LIST))
 	} else if !slicesUnorderedEqual(grr.Body.Services, leafAServices) {
 		t.Fatalf("mismatching list services (got %v, expected %v)", grr.Body.Services, leafAServices)
 	}
 
 	// issue a LIST against vkA, which should echo up to root get all services
-	resp, grr, err = orv.List("http://"+vkA.AddrPort().String(), 5)
+	resp, grr, err = proof.List("http://"+vkA.AddrPort().String(), 5)
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_LIST {
-		t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_LIST))
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_LIST {
+		t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_LIST))
 	} else if !slicesUnorderedEqual(grr.Body.Services, allServices) {
 		t.Fatalf("mismatching list services (got %v, expected %v)", grr.Body.Services, allServices)
 	}
@@ -785,7 +785,7 @@ func TestVKJoinExistingServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	D, err := orv.NewVaultKeeper(10, addrD)
+	D, err := proof.NewVaultKeeper(10, addrD)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -793,10 +793,10 @@ func TestVKJoinExistingServices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp, _, err := orv.Status("http://" + D.AddrPort().String()); err != nil {
+	if resp, _, err := proof.Status("http://" + D.AddrPort().String()); err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode() != orv.EXPECTED_STATUS_STATUS {
-		t.Log(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_STATUS))
+	} else if resp.StatusCode() != proof.EXPECTED_STATUS_STATUS {
+		t.Log(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_STATUS))
 		t.FailNow()
 	}
 	// join a leaf to VKD
@@ -819,7 +819,7 @@ func TestVKJoinExistingServices(t *testing.T) {
 	if err := D.Join(A.AddrPort().String()); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(orv.DEFAULT_PRUNE_TIME_CVK + 300*time.Millisecond)
+	time.Sleep(proof.DEFAULT_PRUNE_TIME_CVK + 300*time.Millisecond)
 	{
 		// check that D is a child of A
 		snap := A.ChildrenSnapshot()
@@ -851,10 +851,10 @@ func TestVKJoinExistingServices(t *testing.T) {
 			t.Fatal("C does not have access to leafD's fileX")
 		}
 		// check that we can make a GET request for fileX
-		if resp, unpack, err := orv.Get("http://"+C.AddrPort().String(), 1, "fileX"); err != nil {
+		if resp, unpack, err := proof.Get("http://"+C.AddrPort().String(), 1, "fileX"); err != nil {
 			t.Fatal(err)
-		} else if resp.StatusCode() != orv.EXPECTED_STATUS_GET {
-			t.Fatal(ErrBadResponseCode(resp.StatusCode(), orv.EXPECTED_STATUS_GET))
+		} else if resp.StatusCode() != proof.EXPECTED_STATUS_GET {
+			t.Fatal(ErrBadResponseCode(resp.StatusCode(), proof.EXPECTED_STATUS_GET))
 		} else if unpack.Body.Addr != leafD.services["fileX"].addr {
 			t.Fatalf("mismatching get addresses (got %v, expected %v)", unpack.Body.Addr, leafD.services["fileX"].addr)
 		}
