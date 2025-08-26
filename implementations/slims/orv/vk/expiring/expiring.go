@@ -1,5 +1,5 @@
-// Package pending introduces tables with the ability to prune their own elements.
-package pending
+// Package expiring introduces tables with the ability to prune their own elements.
+package expiring
 
 import (
 	"fmt"

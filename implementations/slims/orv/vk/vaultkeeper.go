@@ -21,7 +21,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/orv/pb"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
-	"github.com/rflandau/Orv/implementations/slims/orv/vk/pending"
+	"github.com/rflandau/Orv/implementations/slims/orv/vk/expiring"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -47,7 +47,7 @@ type VaultKeeper struct {
 		parentAddr netip.AddrPort
 	}
 
-	pendingHellos pending.Table[orv.NodeID, bool]
+	pendingHellos expiring.Table[orv.NodeID, bool]
 }
 
 // VKOption function to set various options on the vault keeper.
