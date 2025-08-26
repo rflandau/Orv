@@ -159,8 +159,19 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 
 	vk.log.Debug().Uint64("requestor id", pbReq.Id).Str("type", mt.Hello.String()).Send()
 
+	// store/update the hello
 	vk.pendingHellos.Store(pbReq.Id, true, helloPruneTime)
 
-	// TODO fill out header and body
-	vk.respondSuccess(respWriter, codes.Created, protocol.Header{}, nil)
+	// compose the body
+	var body []byte
+	// TODO
+
+	// set the header and respond
+	vk.respondSuccess(respWriter, codes.Created,
+		protocol.Header{
+			Version:       protocol.HighestSupported,
+			Type:          mt.HelloAck,
+			PayloadLength: uint16(len(body)),
+		},
+		nil)
 }
