@@ -64,6 +64,8 @@ The Version field in the header has special meaning for HELLO_ACKs:
 
 The vk sets the response's Header version to the version given by the requestor node if the VK supports that version.
 
+If a client wants to see all versions a vk supports, try the [STATUS](#status) packet.
+
 ### Payload
 
 1. *id*: unique identifier of the VK answering the hello
