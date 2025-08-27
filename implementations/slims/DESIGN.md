@@ -31,6 +31,15 @@ ID is in a strange position because it is the largest chunk of ....
 
 After the fields had settled to the ones in the final version, I wanted to enable client requests to drop the ID field entirely (as clients are not assumed to be part of the vault and whether they are or not is irrelevant in this implementation). This would shrink client request headers to a mere 2B. However, this would also required the introduction of 
 
+# L4 Protocol
+
+Orv Slims is built on UDP. This decision was two-pronged:
+
+1) Orv expects to run on constrained systems so UDP is a more natural choice than TCP.
+
+2) I needed practice working with UDP rather than TCP.
+
+A production-ready implementation should consider a hybridized layer 4, where packets that do not require acks are sent via UDP and those that do are sent with something that guarantees delivery. Possibly QUIC?
 
 # Compressing Payloads Further
 
