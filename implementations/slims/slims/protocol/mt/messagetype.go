@@ -1,3 +1,5 @@
+// Package mt defined the message types supported by Orv.
+// See Packets.md for more information.
 package mt
 
 // MessageType enumerates the message types and the integers used to represent them in the Type field.
