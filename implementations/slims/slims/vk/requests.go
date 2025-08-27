@@ -35,16 +35,15 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloA
 
 	// only sanity check length in debug mode
 	if vk.log.GetLevel() == zerolog.DebugLevel {
-		if len(body) > int(protocol.MaxPayloadLength) {
-			vk.log.Error().Int("body length", len(body)).Uint16("max payload length", protocol.MaxPayloadLength).Msg("body length exceeds max payload length")
+		if len(body) > int(slims.MaxPacketSize) {
+			vk.log.Error().Int("body length", len(body)).Uint16("max payload length", slims.MaxPacketSize).Msg("body length exceeds max payload length")
 		}
 	}
 
 	// compose the header
 	reqHdr := protocol.Header{
-		Version:       protocol.HighestSupported,
-		PayloadLength: uint16(len(body)),
-		Type:          mt.Hello,
+		Version: protocol.HighestSupported,
+		Type:    mt.Hello,
 	}
 	reqHdrB, err := reqHdr.Serialize()
 	if err != nil {

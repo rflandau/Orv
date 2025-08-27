@@ -24,9 +24,9 @@ import (
 func Status(vkAddr string, ctx context.Context) (*pb.StatusResp, error) {
 	// generate a request header
 	hdr := protocol.Header{
-		Version:       protocol.HighestSupported,
-		PayloadLength: 0,
-		Type:          mt.Status,
+		Version:   protocol.HighestSupported,
+		Shorthand: true,
+		Type:      mt.Status,
 	}
 	hdrSrl, err := hdr.Serialize()
 	if err != nil {

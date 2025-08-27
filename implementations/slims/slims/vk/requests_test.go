@@ -37,6 +37,6 @@ func TestVaultKeeper_Hello(t *testing.T) {
 	} else if resp.Id != 2 {
 		t.Error(ExpectedActual(2, resp.Id))
 	} else if byte(resp.Version) != protocol.HighestSupported.Byte() {
-		t.Error(ExpectedActual(protocol.HighestSupported.Byte(), resp.Version))
+		t.Error(ExpectedActual(protocol.HighestSupported.Byte(), byte(resp.Version)))
 	}
 }

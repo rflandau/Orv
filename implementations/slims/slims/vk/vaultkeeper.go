@@ -141,16 +141,15 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 // Responses contain the given code and message and are written as plain text.
 func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, reason string) {
 	// length-check the message
-	if len(reason) > int(protocol.MaxPayloadLength) {
-		vk.log.Warn().Int("reason length", len(reason)).Msg("reason is too long for the payload and will be truncated")
+	if len(reason) > int(slims.MaxPacketSize) {
+		vk.log.Warn().Int("reason length", len(reason)).Msg("reason is too long for the packet size and will be truncated")
 		reason = reason[:protocol.LongHeaderLen]
 	}
 
 	// compose a header
 	hdrB, err := (&protocol.Header{
-		Version:       protocol.HighestSupported,
-		PayloadLength: uint16(len(reason)),
-		Type:          mt.Fault,
+		Version: protocol.HighestSupported,
+		Type:    mt.Fault,
 	}).Serialize()
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize FAULT header")
