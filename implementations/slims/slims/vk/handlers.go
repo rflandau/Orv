@@ -102,10 +102,10 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 	}
 
 	// ensure we were not given a payload
-	if reqHdr.PayloadLength != 0 || totalRead != 0 {
+	if totalRead != 0 {
 		vk.respondError(respWriter, codes.BadRequest,
 			"STATUS does not accept a payload"+
-				"(read "+strconv.FormatInt(int64(totalRead), 10)+" bytes with a declared payload length of "+strconv.FormatUint(uint64(reqHdr.PayloadLength), 10)+")")
+				"(read "+strconv.FormatInt(int64(totalRead), 10)+" bytes")
 		return
 	}
 
@@ -124,30 +124,19 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 		vk.respondError(respWriter, codes.InternalServerError, err.Error())
 		return
 	}
-	if len(b) > int(protocol.MaxPayloadLength) {
-		vk.respondError(respWriter, codes.InternalServerError, "payload exceeded max length")
-		return
-	}
 
 	vk.respondSuccess(respWriter,
 		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		protocol.Header{Version: protocol.HighestSupported, PayloadLength: uint16(len(b)), Type: mt.StatusResp},
+		protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp},
 		b)
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.
 func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
-	if reqHdr.PayloadLength == 0 {
-		vk.respondError(respWriter, codes.BadRequest, "HELLO requires a payload")
-	}
-
 	// unpack the body
 	var bd bytes.Buffer
-	if n, err := io.Copy(&bd, req.Body()); err != nil {
+	if _, err := io.Copy(&bd, req.Body()); err != nil {
 		vk.respondError(respWriter, codes.InternalServerError, err.Error())
-		return
-	} else if n != int64(reqHdr.PayloadLength) {
-		vk.respondError(respWriter, codes.BadRequest, "declared payload length ("+strconv.FormatUint(uint64(reqHdr.PayloadLength), 10)+") did not match actual payload ("+strconv.FormatInt(n, 10)+")")
 		return
 	}
 
@@ -163,15 +152,13 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 	vk.pendingHellos.Store(pbReq.Id, true, helloPruneTime)
 
 	// compose the body
-	var body []byte
 	// TODO
 
 	// set the header and respond
 	vk.respondSuccess(respWriter, codes.Created,
 		protocol.Header{
-			Version:       protocol.HighestSupported,
-			Type:          mt.HelloAck,
-			PayloadLength: uint16(len(body)),
+			Version: protocol.HighestSupported,
+			Type:    mt.HelloAck,
 		},
 		nil)
 }
