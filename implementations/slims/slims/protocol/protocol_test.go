@@ -261,7 +261,6 @@ func TestDeserialize(t *testing.T) {
 
 // Spins up a server to deserialize, ~~validate~~, serialize, and echo back whatever is sent to it.
 func TestFullSend(t *testing.T) {
-	// TODO t.Parallel
 	var (
 		echoServerID slims.NodeID = 1
 		done         bool
@@ -363,6 +362,7 @@ func TestFullSend(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// serialize the header
 			hdrB, err := tt.header.Serialize()
 			if err != nil {
