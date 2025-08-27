@@ -26,3 +26,10 @@ Versions are negotiated implicitly. A client requests the version it would like 
 4. If the version is between two versions the VK supports, it will send the next lower version that it supports.
 
 Of course, this is all theoretical as the implementation only supports one version at the moment.
+
+# Contributing
+
+Orv Slims is a pretty run-of-the-mill Go project, just make sure you utilize [staticcheck](staticcheck.dev).
+
+Also you'll probably want to read [DESIGN](DESIGN.md), you poor bastard.
+
