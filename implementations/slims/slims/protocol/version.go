@@ -14,7 +14,7 @@ var (
 	HighestSupported Version = Version{1, 2}
 )
 
-// IsVersionSupport returns if the given version is known to be supported by the current implementation.
+// IsVersionSupported returns if the given version is known to be supported by the current implementation.
 func IsVersionSupported(v Version) bool {
 	minors := supportedVersions[v.Major]
 	return slices.Contains(minors, v.Minor)
@@ -68,7 +68,7 @@ type Version struct {
 // Ex: 0b 0010 0001 equates to version 2.1
 //
 // Data beyond the LS nibble of each field is dropped.
-func (v Version) Byte() uint8 {
+func (v Version) Byte() byte {
 	return v.Major<<4 | v.Minor&0b00001111
 }
 
