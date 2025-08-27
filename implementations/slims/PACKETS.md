@@ -2,11 +2,11 @@ Packet specification for Orv [Slims](implementations/slims) Version 1.0
 
 Orv Slims packets are application (L5) packets and the current implementation uses CoAP for the transport layer.
 
-# Header [2 or 12 Bytes]
+# Header [2 or 10 Bytes]
 
 The [protocol package](orv/protocol/protocol.go) contain structs and functions for interacting with an Orv header; you shouldn't need to manipulate the bits yourself if your client is written in Go.
 
-The Orv header is typically 12 bytes, with the bulk of that space taken up by the ID field.
+The Orv header is typically 10 bytes, with the bulk of that space taken up by the ID field.
 When sending a client request, ID may be dropped to bring the header down to a mere 2 bytes.
 
 0               1               2               3
