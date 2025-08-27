@@ -73,15 +73,15 @@ func (hdr *Header) Serialize() ([]byte, error) {
 		out = make([]byte, bufLen)
 		data = []byte{
 			hdr.Version.Byte(),
-			0b00000000 | byte(hdr.Type),
-			byte(hdr.ID & 0xFF00000000000000),
-			byte(hdr.ID & 0x00FF000000000000),
-			byte(hdr.ID & 0x0000FF0000000000),
-			byte(hdr.ID & 0x000000FF00000000),
-			byte(hdr.ID & 0x00000000FF000000),
-			byte(hdr.ID & 0x0000000000FF0000),
-			byte(hdr.ID & 0x000000000000FF00),
-			byte(hdr.ID & 0x00000000000000FF),
+			0b01111111 & byte(hdr.Type),
+			byte(hdr.ID >> 56),
+			byte(hdr.ID >> 48),
+			byte(hdr.ID >> 40),
+			byte(hdr.ID >> 32),
+			byte(hdr.ID >> 24),
+			byte(hdr.ID >> 16),
+			byte(hdr.ID >> 8),
+			byte(hdr.ID),
 		}
 	}
 
