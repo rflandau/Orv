@@ -3,29 +3,18 @@ Slims is a an Orv implementation using a custom layer 5 protocol.
 # TODO
 
 - protobuf -> flatbuf
-- test pending tables
 - rename implementation packages to avoid confusion
 - install magefile (automated testing with -race; protobuf compilation)
 
-# Implementation Design
+# Message Types
 
-## Payload Serialization
+Message types are similar to those detailed in the interaction model in the [main README](../../README.md) and are detailed in [PACKETS.md](PACKETS.md).
 
-TODO
+# Payloads
 
-Payloads, within a CoAP header, are composed of the Orv header (with custom serialization via Header.Serialize() and Header.Deserialize()) and a body serialized as a flatbuffer.
+Orv payloads are serialized as flatbuffers and encapsulated in the header detailed above.
 
-### Versus Protocol Buffer
-
-Given a target where efficiency is key, the extra burden from flatbuffers seems like a worthwhile tradeoff. 
-
-TODO Benchmarks and links
-
-### Further Compression
-
-Protocol Buffers and Flatbuffers are smaller than JSON, but implementations with stringent memory constraints could shrink payloads further by hand-packing the bits into a declared schema (like we have done for the Orv headers).
-
-## Version Negotiation
+# Version Negotiation
 
 Version negotiation between nodes is OpenFlow-ish. ~~OpenFlow packets *each* contain version in the header. Orv packets only include version on initial handshake; it is assumed that communications after that point will use the agreed-upon version.~~
 
@@ -37,17 +26,3 @@ Versions are negotiated implicitly. A client requests the version it would like 
 4. If the version is between two versions the VK supports, it will send the next lower version that it supports.
 
 Of course, this is all theoretical as the implementation only supports one version at the moment.
-
-### FAULT Packet
-
-_DENY and _FAULT packets (used in Proof to replace negatively to their paired resposne (ex: JOIN_ACCEPT and JOIN_DENY)) no longer exist, replaced instead by a single FAULT packet that is sent in response to any request packet. This change draws inspiration on the use of ICMP packets to indicate failure when another L4 packet was used in the request.
-
-#### FAULTs Do Not Reset Interaction
-
-In the original vision, a JOIN_DENY packet would remove the requestor from the HELLO table of the vk. This was a side effect of the time-constraints Proof was developed under; nodes were removed from the HELLO table whenever a JOIN was received, no matter the outcome. There is no good reason to maintain this behavior and removing it should decrease the total number of messages required in exchanges that do not take solely the happy path.
-
-#### FAULTs have opaque errors
-
-For better or for worse, FAULT packets do not provide an easy mechanism for an automated system to determine if the fault is due to a bad request, internal server error, or something all together different.
-
-A future version should probably follow the HTTP and CoAP path of using errno-like constants (403, 404, 500, etc) to categorize errors.
