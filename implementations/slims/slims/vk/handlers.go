@@ -11,9 +11,9 @@ import (
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/rflandau/Orv/implementations/slims/orv/pb"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 

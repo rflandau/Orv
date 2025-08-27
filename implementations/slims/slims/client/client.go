@@ -55,7 +55,7 @@ func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, err
 	}
 
 	var sr payloads_proto.StatusResp
-	if err := proto.Unmarshal(raw[protocol.FixedHeaderLen:], &sr); err != nil {
+	if err := proto.Unmarshal(raw[protocol.LongHeaderLen:], &sr); err != nil {
 		return nil, err
 	}
 	// assuming we parsed the Orv header properly, we should be able to drop the first X bytes

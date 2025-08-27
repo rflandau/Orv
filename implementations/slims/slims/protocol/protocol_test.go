@@ -3,11 +3,12 @@ package protocol_test
 import (
 	"encoding/binary"
 	"math"
+	"net"
 	"testing"
 
-	"github.com/rflandau/Orv/implementations/slims/orv"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
@@ -18,9 +19,9 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 		name string
 		hdr  protocol.Header
 		want struct {
-			version       byte       // outcome byte
-			shorthandType byte       // outcome composite byte
-			id            orv.NodeID // last 8 bytes converted back into a uint64 (if shorthand was unset)
+			version       byte         // outcome byte
+			shorthandType byte         // outcome composite byte
+			id            slims.NodeID // last 8 bytes converted back into a uint64 (if shorthand was unset)
 		}
 		invalids []error
 	}{
@@ -30,7 +31,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0, 0, 0},
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
@@ -39,7 +40,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0b00010000, 0, 0},
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
@@ -48,7 +49,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0x3D, 0, 0},
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
@@ -57,7 +58,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0, 0x4, 0},
 			invalids: []error{},
 		},
@@ -66,7 +67,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0xFF, 0x9, 0},
 			invalids: []error{},
 		},
@@ -75,7 +76,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0x7, 20, 15},
 			invalids: []error{},
 		},
@@ -84,7 +85,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0x7, 20, math.MaxUint64},
 			invalids: []error{},
 		},
@@ -95,7 +96,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0, 0b10000000, 0},
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
@@ -104,7 +105,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0x3D, 0b10000000, 0},
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
@@ -115,7 +116,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0b11110000, 0, 0},
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMajor},
 		},
@@ -124,7 +125,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0b0000, 0b00000001, 0},
 			invalids: []error{protocol.ErrInvalidVersionMajor},
 		},
@@ -133,7 +134,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0b00001111, 0, 0},
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMinor},
 		},
@@ -142,7 +143,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0b00001111, 0b10000000, 0},
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMinor},
 		},
@@ -151,7 +152,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0, 0b10000000, 55},
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrShorthandID},
 		},
@@ -160,7 +161,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			want: struct {
 				version       byte
 				shorthandType byte
-				id            orv.NodeID
+				id            slims.NodeID
 			}{0, 0b10001010, 1},
 			invalids: []error{protocol.ErrShorthandID},
 		},
@@ -276,129 +277,149 @@ func TestHeader_Deserialize(t *testing.T) {
 		}
 	})
 }
-
-// TestFullSend spins up a server and a client to send data back and forth, ensuring the Orv header can be constructed and read accurately.
-// The server accepts PUT and POST requests at /. Requests are deserialized, validated, and then echoed back over the wire (on the good path).
-func TestFullSend(t *testing.T) {
-	// generate server routes and handling
-	serverMux := mux.NewRouter()
-	serverMux.HandleFunc("/", func(w mux.ResponseWriter, r *mux.Message) {
-		{
-			format, err := r.ContentFormat()
-			if err != nil {
-				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to parse content format: "+err.Error()))
-				return
-			}
-			bdySz, err := r.BodySize()
-			if err != nil {
-				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to determine body size: "+err.Error()))
-				return
-			}
-			log.Printf("server received new packet:\ncode=%v\nformat=%v\nbody size=%v", r.Code().String(), format, bdySz)
-		}
-
-		// only accept PUT and POST
-		switch r.Code() {
-		case codes.PUT, codes.POST:
-			// continue
-		default:
-			w.SetResponse(codes.BadRequest, message.TextPlain, bytes.NewReader([]byte("only PUT and POST are acceptable at /")))
-			return
-		}
-
-		hdr := protocol.Header{}
-		bdy, err := r.ReadBody() // slurp body
-		if err != nil {
-			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
-			return
-		}
-		if err := hdr.Deserialize(bytes.NewReader(bdy)); err != nil {
-			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to deserialize body: "+err.Error())))
-			return
-		}
-		log.Printf("server decoded header: %#v", hdr)
-		if errs := hdr.Validate(); errs != nil {
-			var sb strings.Builder
-			for _, err := range errs {
-				sb.WriteString(err.Error() + "\n")
-			}
-			w.SetResponse(codes.BadRequest,
-				message.TextPlain,
-				strings.NewReader(sb.String()))
-			return
-		}
-		// re-serialize the header
-		respData, err := hdr.Serialize()
-		if err != nil {
-			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to re-serialize body: "+err.Error())))
-			return
-		}
-		if err := w.SetResponse(codes.Created, message.TextPlain, bytes.NewReader(respData)); err != nil {
-			log.Println(err)
-		}
-	})
-	// spin up the server
-	serverCtx := t.Context()
-	go coap.ListenAndServeWithOptions("udp", ":8080", options.WithContext(serverCtx), options.WithMux(serverMux))
-
-	type test struct {
-		name         string
-		header       *protocol.Header
-		body         []byte
-		wantRespCode codes.Code
-	}
-	tests := []test{
-		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, codes.Created},
-		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.HelloAck}, nil, codes.Created},
-		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// serialize the header
-			hdr, err := tt.header.Serialize()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// spawn a client to ping the server
-			conn, err := udp.Dial("localhost:8080")
-			if err != nil {
-				log.Fatalf("Error dialing: %v", err)
-			}
-			defer conn.Close()
-			// send the serialized header
-			resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
-			if err != nil {
-				t.Fatalf("failed to POST request: %v", err)
-			}
-			log.Printf("Response: %+v", resp)
-			// test the response fields
-			if resp.Code() != tt.wantRespCode {
-				body, err := resp.ReadBody()
-				if err != nil {
-					t.Error("failed to read response body: ", err)
-				}
-				t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
-			}
-			// test that we got our header back on a successful response
-			if resp.Code() == codes.Created {
-				var respHdr = &protocol.Header{}
-				body, err := resp.ReadBody()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
-					t.Fatal(err)
-				}
-				if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
-					t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
-				}
-			}
-		})
-
-	}
-}
 */
+
+func TestFullSend(t *testing.T) {
+	// generate a server to echo data back
+	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("listening @ ", pconn.LocalAddr())
+	t.Cleanup(func() { pconn.Close() })
+
+	var pktBuf = make([]byte, slims.MaxPacketSize)
+	for {
+		n, _, err := pconn.ReadFrom(pktBuf)
+		t.Logf("read %d bytes", n)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	/*
+	   // generate server routes and handling
+	   serverMux := mux.NewRouter()
+
+	   	serverMux.HandleFunc("/", func(w mux.ResponseWriter, r *mux.Message) {
+	   		{
+	   			format, err := r.ContentFormat()
+	   			if err != nil {
+	   				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to parse content format: "+err.Error()))
+	   				return
+	   			}
+	   			bdySz, err := r.BodySize()
+	   			if err != nil {
+	   				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to determine body size: "+err.Error()))
+	   				return
+	   			}
+	   			log.Printf("server received new packet:\ncode=%v\nformat=%v\nbody size=%v", r.Code().String(), format, bdySz)
+	   		}
+
+	   		// only accept PUT and POST
+	   		switch r.Code() {
+	   		case codes.PUT, codes.POST:
+	   			// continue
+	   		default:
+	   			w.SetResponse(codes.BadRequest, message.TextPlain, bytes.NewReader([]byte("only PUT and POST are acceptable at /")))
+	   			return
+	   		}
+
+	   		hdr := protocol.Header{}
+	   		bdy, err := r.ReadBody() // slurp body
+	   		if err != nil {
+	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
+	   			return
+	   		}
+	   		if err := hdr.Deserialize(bytes.NewReader(bdy)); err != nil {
+	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to deserialize body: "+err.Error())))
+	   			return
+	   		}
+	   		log.Printf("server decoded header: %#v", hdr)
+	   		if errs := hdr.Validate(); errs != nil {
+	   			var sb strings.Builder
+	   			for _, err := range errs {
+	   				sb.WriteString(err.Error() + "\n")
+	   			}
+	   			w.SetResponse(codes.BadRequest,
+	   				message.TextPlain,
+	   				strings.NewReader(sb.String()))
+	   			return
+	   		}
+	   		// re-serialize the header
+	   		respData, err := hdr.Serialize()
+	   		if err != nil {
+	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to re-serialize body: "+err.Error())))
+	   			return
+	   		}
+	   		if err := w.SetResponse(codes.Created, message.TextPlain, bytes.NewReader(respData)); err != nil {
+	   			log.Println(err)
+	   		}
+	   	})
+
+	   // spin up the server
+	   serverCtx := t.Context()
+	   go coap.ListenAndServeWithOptions("udp", ":8080", options.WithContext(serverCtx), options.WithMux(serverMux))
+
+	   	type test struct {
+	   		name         string
+	   		header       *protocol.Header
+	   		body         []byte
+	   		wantRespCode codes.Code
+	   	}
+
+	   	tests := []test{
+	   		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, codes.Created},
+	   		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.HelloAck}, nil, codes.Created},
+	   		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+	   		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
+	   		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+	   		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},
+	   	}
+
+	   	for _, tt := range tests {
+	   		t.Run(tt.name, func(t *testing.T) {
+	   			// serialize the header
+	   			hdr, err := tt.header.Serialize()
+	   			if err != nil {
+	   				t.Fatal(err)
+	   			}
+
+	   			// spawn a client to ping the server
+	   			conn, err := udp.Dial("localhost:8080")
+	   			if err != nil {
+	   				log.Fatalf("Error dialing: %v", err)
+	   			}
+	   			defer conn.Close()
+	   			// send the serialized header
+	   			resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
+	   			if err != nil {
+	   				t.Fatalf("failed to POST request: %v", err)
+	   			}
+	   			log.Printf("Response: %+v", resp)
+	   			// test the response fields
+	   			if resp.Code() != tt.wantRespCode {
+	   				body, err := resp.ReadBody()
+	   				if err != nil {
+	   					t.Error("failed to read response body: ", err)
+	   				}
+	   				t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
+	   			}
+	   			// test that we got our header back on a successful response
+	   			if resp.Code() == codes.Created {
+	   				var respHdr = &protocol.Header{}
+	   				body, err := resp.ReadBody()
+	   				if err != nil {
+	   					t.Fatal(err)
+	   				}
+	   				if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
+	   					t.Fatal(err)
+	   				}
+	   				if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
+	   					t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
+	   				}
+	   			}
+	   		})
+
+	   }
+	*/
+}

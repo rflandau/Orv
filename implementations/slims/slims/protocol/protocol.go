@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/rflandau/Orv/implementations/slims/orv"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rs/zerolog"
 )
 
@@ -35,7 +35,7 @@ type Header struct {
 	Type mt.MessageType
 	// Unique identifier of the sender. May be anything that fits into 8B, but is treated as an unsigned int in this implementation.
 	// Ignored if Shorthand is set.
-	ID orv.NodeID
+	ID slims.NodeID
 }
 
 //#region errors

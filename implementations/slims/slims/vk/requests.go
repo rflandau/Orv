@@ -58,11 +58,11 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloA
 	defer conn.Close()
 
 	resp, err := conn.Post(ctx, "/", orv.ResponseMediaType(), bytes.NewReader(append(reqHdrB, body...)))
-	var hdrBytes = make([]byte, protocol.FixedHeaderLen)
+	var hdrBytes = make([]byte, protocol.LongHeaderLen)
 	if n, err := resp.Body().Read(hdrBytes); err != nil {
 		return nil, err
-	} else if n != int(protocol.FixedHeaderLen) {
-		return nil, fmt.Errorf("incorrect read count (%d, expected %d)", n, protocol.FixedHeaderLen)
+	} else if n != int(protocol.LongHeaderLen) {
+		return nil, fmt.Errorf("incorrect read count (%d, expected %d)", n, protocol.LongHeaderLen)
 	}
 
 	// read the header

@@ -143,7 +143,7 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, re
 	// length-check the message
 	if len(reason) > int(protocol.MaxPayloadLength) {
 		vk.log.Warn().Int("reason length", len(reason)).Msg("reason is too long for the payload and will be truncated")
-		reason = reason[:protocol.FixedHeaderLen]
+		reason = reason[:protocol.LongHeaderLen]
 	}
 
 	// compose a header
