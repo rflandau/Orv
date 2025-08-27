@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/rflandau/Orv/implementations/slims/orv"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
@@ -18,10 +17,10 @@ import (
 )
 
 const (
-	// FixedHeaderLen is the length (in bytes) of the Orv fixed header.
-	FixedHeaderLen uint = 12
-	// the maximum length the payload can be to fit into a single UDP datagram (without IPv6's jumbograms).
-	MaxPayloadLength uint16 = math.MaxUint16 - uint16(FixedHeaderLen)
+	// LongHeaderLen is the length (in bytes) of the full Orv header (when !Shorthand).
+	LongHeaderLen uint8 = 10
+	// ShortHeaderLen is the length (in bytes) of the Orv header when shorthand is set.
+	ShortHeaderLen uint8 = 2
 )
 
 // A Header represents a deconstructed Orv packet header.
@@ -57,15 +56,21 @@ var (
 //
 // Performs a single allocation of FixedHeaderLen size.
 func (hdr *Header) Serialize() ([]byte, error) {
-	out := make([]byte, FixedHeaderLen)
-
-	var data []byte
+	// prep output buffer and build the input data
+	var (
+		out, data []byte
+		bufLen    uint8
+	)
 	if hdr.Shorthand {
+		bufLen = ShortHeaderLen
+		out = make([]byte, bufLen)
 		data = []byte{
 			hdr.Version.Byte(),
 			0b10000000 | byte(hdr.Type),
 		}
 	} else {
+		bufLen = LongHeaderLen
+		out = make([]byte, bufLen)
 		data = []byte{
 			hdr.Version.Byte(),
 			0b00000000 | byte(hdr.Type),
@@ -80,15 +85,15 @@ func (hdr *Header) Serialize() ([]byte, error) {
 		}
 	}
 
-	// compose data into out
+	// compose and error check
 	if count, err := binary.Encode(out, binary.BigEndian, data); err != nil {
 		return nil, err
-	} else if count != int(FixedHeaderLen) {
+	} else if count != int(bufLen) {
 		var moreOrFewer = "fewer"
-		if count > int(FixedHeaderLen) {
+		if count > int(bufLen) {
 			moreOrFewer = "more"
 		}
-		return nil, fmt.Errorf("encoded %s bytes (%d) than expected (%d)", moreOrFewer, count, FixedHeaderLen)
+		return nil, fmt.Errorf("encoded %s bytes (%d) than expected (%d)", moreOrFewer, count, bufLen)
 	}
 	return out, nil
 }
