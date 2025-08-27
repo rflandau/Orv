@@ -357,11 +357,8 @@ func TestFullSend(t *testing.T) {
 	}{
 		{"1.1, long, HELLO, ID0", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, mt.Hello},
 		{"1.1, long, [unknown message type], ID0", &protocol.Header{Version: protocol.Version{1, 1}, Type: 50}, nil, mt.Fault},
-		/*{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.HelloAck}, nil, codes.Created},
-		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
-		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},*/
+		{"0.0, long, MERGE, ID22", &protocol.Header{Type: mt.Merge, ID: 22}, nil, mt.Merge},
+		{"15.2, short, MERGE, ID22", &protocol.Header{Version: protocol.Version{15, 2}, Shorthand: true, Type: mt.Merge}, nil, mt.Merge},
 	}
 
 	for _, tt := range tests {
@@ -402,163 +399,12 @@ func TestFullSend(t *testing.T) {
 				t.Error("sent version (expected) does not equal received version (actual)", ExpectedActual(tt.header.Version, respHdr.Version))
 			} else if tt.header.Shorthand != respHdr.Shorthand { // should be echo'd back exactly
 				t.Error("sent shorthand (expected) does not equal received shorthand (actual)", ExpectedActual(tt.header.Shorthand, respHdr.Shorthand))
-			} else if respHdr.ID != echoServerID {
+			} else if (!tt.header.Shorthand && (respHdr.ID != echoServerID)) || tt.header.Shorthand && (respHdr.ID != 0) {
 				t.Error("bad echo server ID", ExpectedActual(echoServerID, respHdr.ID))
 			} else if respHdr.Type != tt.wantRespType {
 				t.Error("bad response message type", ExpectedActual(tt.wantRespType, respHdr.Type))
 			}
 
-			/*
-				// test the response fields
-				if resp.Code() != tt.wantRespCode {
-					body, err := resp.ReadBody()
-					if err != nil {
-						t.Error("failed to read response body: ", err)
-					}
-					t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
-				}
-				// test that we got our header back on a successful response
-				if resp.Code() == codes.Created {
-					var respHdr = &protocol.Header{}
-					body, err := resp.ReadBody()
-					if err != nil {
-						t.Fatal(err)
-					}
-					if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
-						t.Fatal(err)
-					}
-					if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
-						t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
-					}
-				}*/
 		})
-
 	}
-
-	/*
-	   // generate server routes and handling
-	   serverMux := mux.NewRouter()
-
-	   	serverMux.HandleFunc("/", func(w mux.ResponseWriter, r *mux.Message) {
-	   		{
-	   			format, err := r.ContentFormat()
-	   			if err != nil {
-	   				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to parse content format: "+err.Error()))
-	   				return
-	   			}
-	   			bdySz, err := r.BodySize()
-	   			if err != nil {
-	   				w.SetResponse(codes.BadRequest, message.TextPlain, strings.NewReader("failed to determine body size: "+err.Error()))
-	   				return
-	   			}
-	   			log.Printf("server received new packet:\ncode=%v\nformat=%v\nbody size=%v", r.Code().String(), format, bdySz)
-	   		}
-
-	   		// only accept PUT and POST
-	   		switch r.Code() {
-	   		case codes.PUT, codes.POST:
-	   			// continue
-	   		default:
-	   			w.SetResponse(codes.BadRequest, message.TextPlain, bytes.NewReader([]byte("only PUT and POST are acceptable at /")))
-	   			return
-	   		}
-
-	   		hdr := protocol.Header{}
-	   		bdy, err := r.ReadBody() // slurp body
-	   		if err != nil {
-	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to transmute readSeeker body: "+err.Error())))
-	   			return
-	   		}
-	   		if err := hdr.Deserialize(bytes.NewReader(bdy)); err != nil {
-	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to deserialize body: "+err.Error())))
-	   			return
-	   		}
-	   		log.Printf("server decoded header: %#v", hdr)
-	   		if errs := hdr.Validate(); errs != nil {
-	   			var sb strings.Builder
-	   			for _, err := range errs {
-	   				sb.WriteString(err.Error() + "\n")
-	   			}
-	   			w.SetResponse(codes.BadRequest,
-	   				message.TextPlain,
-	   				strings.NewReader(sb.String()))
-	   			return
-	   		}
-	   		// re-serialize the header
-	   		respData, err := hdr.Serialize()
-	   		if err != nil {
-	   			w.SetResponse(codes.InternalServerError, message.TextPlain, bytes.NewReader([]byte("failed to re-serialize body: "+err.Error())))
-	   			return
-	   		}
-	   		if err := w.SetResponse(codes.Created, message.TextPlain, bytes.NewReader(respData)); err != nil {
-	   			log.Println(err)
-	   		}
-	   	})
-
-	   // spin up the server
-	   serverCtx := t.Context()
-	   go coap.ListenAndServeWithOptions("udp", ":8080", options.WithContext(serverCtx), options.WithMux(serverMux))
-
-	   	type test struct {
-	   		name         string
-	   		header       *protocol.Header
-	   		body         []byte
-	   		wantRespCode codes.Code
-	   	}
-
-	   	tests := []test{
-	   		{"1.1, HELLO", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, codes.Created},
-	   		{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.HelloAck}, nil, codes.Created},
-	   		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-	   		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
-	   		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
-	   		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},
-	   	}
-
-	   	for _, tt := range tests {
-	   		t.Run(tt.name, func(t *testing.T) {
-	   			// serialize the header
-	   			hdr, err := tt.header.Serialize()
-	   			if err != nil {
-	   				t.Fatal(err)
-	   			}
-
-	   			// spawn a client to ping the server
-	   			conn, err := udp.Dial("localhost:8080")
-	   			if err != nil {
-	   				log.Fatalf("Error dialing: %v", err)
-	   			}
-	   			defer conn.Close()
-	   			// send the serialized header
-	   			resp, err := conn.Post(context.Background(), "/", message.TextPlain, bytes.NewReader(append(hdr, tt.body...)))
-	   			if err != nil {
-	   				t.Fatalf("failed to POST request: %v", err)
-	   			}
-	   			log.Printf("Response: %+v", resp)
-	   			// test the response fields
-	   			if resp.Code() != tt.wantRespCode {
-	   				body, err := resp.ReadBody()
-	   				if err != nil {
-	   					t.Error("failed to read response body: ", err)
-	   				}
-	   				t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
-	   			}
-	   			// test that we got our header back on a successful response
-	   			if resp.Code() == codes.Created {
-	   				var respHdr = &protocol.Header{}
-	   				body, err := resp.ReadBody()
-	   				if err != nil {
-	   					t.Fatal(err)
-	   				}
-	   				if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
-	   					t.Fatal(err)
-	   				}
-	   				if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
-	   					t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
-	   				}
-	   			}
-	   		})
-
-	   }
-	*/
 }
