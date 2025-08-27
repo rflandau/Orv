@@ -135,7 +135,7 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 	} else if done {
 		return errors.New("short read on byte 2 (composite of Shorthand and Type)")
 	} else {
-		hdr.Shorthand = (b & 0b10000000) == 1
+		hdr.Shorthand = (b & 0b10000000) != 0
 		hdr.Type = mt.MessageType(b & 0b01111111)
 	}
 
