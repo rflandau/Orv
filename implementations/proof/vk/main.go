@@ -11,10 +11,10 @@ package main
 import (
 	"fmt"
 	"net/netip"
-	"network-bois-orv/pkg/orv"
 	"os"
 	"os/signal"
 
+	"github.com/rflandau/Orv/implementations/proof/proof"
 	"github.com/rs/zerolog"
 )
 
@@ -30,7 +30,7 @@ func main() {
 		panic(err)
 	}
 	parentLogger := zerolog.New(os.Stdout).Output(os.Stdout).Level(zerolog.ErrorLevel)
-	pvk, err := orv.NewVaultKeeper(pvkid, addr, orv.Height(1), orv.SetLogger(&parentLogger))
+	pvk, err := proof.NewVaultKeeper(pvkid, addr, proof.Height(1), proof.SetLogger(&parentLogger))
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	cvk, err := orv.NewVaultKeeper(cvkid, cvkAddr)
+	cvk, err := proof.NewVaultKeeper(cvkid, cvkAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -58,7 +58,7 @@ func main() {
 	fmt.Println("Started child VK @ ", cvk.AddrPort())
 
 	// have the child greet and join the parent
-	if resp, err := cvk.Hello(pvk.AddrPort().String()); resp.StatusCode() != orv.EXPECTED_STATUS_HELLO || err != nil {
+	if resp, err := cvk.Hello(pvk.AddrPort().String()); resp.StatusCode() != proof.EXPECTED_STATUS_HELLO || err != nil {
 		panic(fmt.Sprintf("failed to greet parent (status code: %d, error: %v)", resp.StatusCode(), err))
 	}
 	if err := cvk.Join(pvk.AddrPort().String()); err != nil {
@@ -68,7 +68,7 @@ func main() {
 	fmt.Println("child has joined under parent")
 
 	// submit a status request to the parent
-	httpResp, statusAck, err := orv.Status("http://" + pvk.AddrPort().String())
+	httpResp, statusAck, err := proof.Status("http://" + pvk.AddrPort().String())
 	if err != nil {
 		panic(err)
 	}

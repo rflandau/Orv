@@ -1,9 +1,11 @@
 /*
-The Orv package provides utilities for constructing and querying Orv Vaults: self-organizing, decentralized, service discovery trees.
+Package Proof provides utilities for constructing and querying Orv Vaults from the Proof implementation: self-organizing, decentralized, service discovery trees.
 The meat of the package is the prototype VaultKeeper, which can be utilized via orv.NewVaultKeeper().
 Call the static subroutines (ex: List()) to make requests of an existing vault.
+
+For details on each implementation see github.com/rflandau/Orv
 */
-package orv
+package proof
 
 // This file a placeholder for the orv package documentation.
 //
