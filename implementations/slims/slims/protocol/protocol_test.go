@@ -203,83 +203,61 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 	}
 }
 
-/*
-func TestHeader_Deserialize(t *testing.T) {
-	tests := []struct {
-		name string
-		// the header to serialize.
-		// The result of SerializeTo() is fed into SerializeFrom() to ensure it matches this original struct
-		hdr protocol.Header
-		// the data to append to hdr after SerializeTo() but before SerializeFrom()
-		body               []byte
-		wantErr            bool
-		wantBytesRemaining bool
-	}{
-		{"version + hop limit", protocol.Header{Version: protocol.Version{1, 1}}, nil, false, false},
-		{"version + hop limit + zero payload length", protocol.Header{Version: protocol.Version{1, 1}}, nil, false, false},
-		{"version + hop limit + zero payload length + type", protocol.Header{Version: protocol.Version{1, 1}, Type: mt.HelloAck}, nil, false, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			hdr, err := (&tt.hdr).Serialize()
-			if err != nil {
-				t.Fatalf("failed to serialize header %v: %v", tt.hdr, err)
-			}
-
-			// wrap the header and body in a reader
-			rd := bytes.NewReader(append(hdr, tt.body...))
-
-			if err := tt.hdr.Deserialize(rd); (err != nil) != tt.wantErr {
-				t.Errorf("Header.SerializeFrom() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if remaining := rd.Len(); (remaining != 0) != tt.wantBytesRemaining {
-				t.Errorf("Expected bytes remaining? %v, actual bytes remaining: %v", tt.wantBytesRemaining, remaining)
-			}
-		})
-	}
-
-	// SerializeTo translates empty fields to zeros.
-	// These tests manually construct the byte arrays s.t. SerializeFrom will early exist after reading all data in the buffer.
-	t.Run("greedy population", func(t *testing.T) {
-		type want struct {
-			err           bool
-			versionMajor  uint8
-			versionMinor  uint8
-			payloadLength uint16
-			typ           mt.MessageType
+// Tests the edge cases of Deserialize. Most Deserialize testing is done in FullSend.
+func TestDeserialize(t *testing.T) {
+	t.Run("empty buffer short read", func(t *testing.T) {
+		hdr, err := protocol.Deserialize(bytes.NewReader([]byte{}))
+		if err == nil {
+			t.Error("expected a short read error, found none")
 		}
-		tests := []struct {
-			name   string
-			buffer []byte
-			want   want
-		}{
-			{"empty buffer", nil, want{err: false}},
-			{"version only", []byte{0b01000001}, want{err: false, versionMajor: 4, versionMinor: 1}},
-			{"version + type", []byte{0b01000001, byte(mt.GetResp)},
-				want{err: false, versionMajor: 4, versionMinor: 1, typ: mt.GetResp}},
-			{"version + type + payload length", []byte{0b01000001, byte(mt.Increment), 64023 >> 8, 64023 & 0xFF},
-				want{err: false, versionMajor: 4, versionMinor: 1, payloadLength: 64023, typ: mt.Increment}},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				var result protocol.Header
-				if err := result.Deserialize(bytes.NewReader(tt.buffer)); err != nil {
-					t.Error(err)
-				}
-				if result.Version.Major != tt.want.versionMajor {
-					t.Errorf("bad major version. Expected %b, got %b", tt.want.versionMajor, result.Version.Major)
-				} else if result.Version.Minor != tt.want.versionMinor {
-					t.Errorf("bad major version. Expected %b, got %b", tt.want.versionMinor, result.Version.Minor)
-				} else if result.PayloadLength != tt.want.payloadLength {
-					t.Errorf("bad payload length. Expected %b, got %b", tt.want.payloadLength, result.PayloadLength)
-				} else if result.Type != tt.want.typ {
-					t.Errorf("bad message type. Expected %b, got %b", tt.want.typ, result.Type)
-				}
-			})
+		// ensure that hdr is empty
+		var zero protocol.Header
+		if *hdr != zero {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(zero, *hdr))
 		}
 	})
+	t.Run("single byte short read", func(t *testing.T) {
+		var byt byte = 0b00100111 // 2.7
+		hdr, err := protocol.Deserialize(bytes.NewReader([]byte{byt}))
+		if err == nil {
+			t.Error("expected a short read error, found none")
+		}
+		// ensure that hdr is empty
+		want := protocol.Header{Version: protocol.VersionFromByte(byt)}
+		if *hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		}
+	})
+	t.Run("shorthand", func(t *testing.T) {
+		var byt byte = 0b00100111 // 2.7
+		hdr, err := protocol.Deserialize(bytes.NewReader([]byte{byt, 0b10000010}))
+		if err != nil {
+			t.Error(err)
+		}
+		// ensure that hdr is empty
+		want := protocol.Header{
+			Version:   protocol.VersionFromByte(byt),
+			Shorthand: true,
+			Type:      mt.Hello,
+		}
+		if *hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		}
+	})
+	t.Run("missing ID", func(t *testing.T) {
+		var byt byte = 0b01100110 // 6.6
+		hdr, err := protocol.Deserialize(bytes.NewReader([]byte{byt, 0b00000011}))
+		if err == nil {
+			t.Error("expected a short read error, found none")
+		}
+		// ensure that hdr is empty
+		want := protocol.Header{Version: protocol.VersionFromByte(byt), Type: mt.HelloAck}
+		if *hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		}
+	})
+
 }
-*/
 
 // Spins up a server to deserialize, ~~validate~~, serialize, and echo back whatever is sent to it.
 func TestFullSend(t *testing.T) {
