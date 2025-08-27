@@ -1,9 +1,11 @@
 package protocol_test
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -279,23 +281,182 @@ func TestHeader_Deserialize(t *testing.T) {
 }
 */
 
+// Spins up a server to deserialize, ~~validate~~, serialize, and echo back whatever is sent to it.
 func TestFullSend(t *testing.T) {
+	// TODO t.Parallel
+	var (
+		echoServerID slims.NodeID = 1
+		done         bool
+	)
 	// generate a server to echo data back
-	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]")
+	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]:8080")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("listening @ ", pconn.LocalAddr())
-	t.Cleanup(func() { pconn.Close() })
+	t.Cleanup(func() {
+		pconn.Close()
+		done = true
+	})
 
-	var pktBuf = make([]byte, slims.MaxPacketSize)
-	for {
-		n, _, err := pconn.ReadFrom(pktBuf)
-		t.Logf("read %d bytes", n)
-		if err != nil {
-			t.Fatal(err)
+	var pktbuf = make([]byte, slims.MaxPacketSize)
+	go func() {
+		for {
+			rcvdN, senderAddr, err := pconn.ReadFrom(pktbuf)
+			if rcvdN == 0 {
+				if done {
+					return
+				}
+				continue
+			} else if err != nil {
+				t.Error(err)
+			}
+			t.Logf("read %d bytes", rcvdN)
+
+			// deserialize
+			reqHdr, err := protocol.Deserialize(bytes.NewReader(pktbuf)) // TODO return header and body
+			if err != nil {
+				// respond with a FAULT
+				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
+				if serializeErr != nil {
+					t.Error(serializeErr)
+				}
+				if _, err := pconn.WriteTo(append(b, []byte(err.Error())...), senderAddr); err != nil {
+					t.Error(err)
+				}
+				continue
+			}
+
+			// validate
+			if errs := reqHdr.Validate(); errs != nil {
+				// respond with a FAULT
+				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
+				if serializeErr != nil {
+					t.Error(serializeErr)
+				}
+
+				var errStr strings.Builder
+				for _, err := range errs {
+					errStr.WriteString(err.Error() + "\n")
+				}
+
+				if _, err := pconn.WriteTo(append(b, []byte(errStr.String()[:errStr.Len()-1])...), senderAddr); err != nil {
+					t.Error(err)
+				}
+				continue
+			}
+
+			// re-serialize, but update ID
+			reqHdr.ID = echoServerID
+			respHdrB, err := reqHdr.Serialize()
+			if err != nil {
+				// respond with a FAULT
+				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
+				if serializeErr != nil {
+					t.Error(serializeErr)
+				}
+				if _, err := pconn.WriteTo(append(b, []byte(err.Error())...), senderAddr); err != nil {
+					t.Error(err)
+				}
+				continue
+			}
+
+			if sentN, err := pconn.WriteTo(respHdrB, senderAddr); err != nil { // TODO echo back body
+				t.Error(err)
+			} else if rcvdN != sentN {
+				t.Errorf("sent (%d) != received (%d)", sentN, rcvdN)
+			}
+			// clear the buffer
+			clear(pktbuf)
 		}
+	}()
+
+	tests := []struct {
+		name         string
+		header       *protocol.Header
+		body         []byte
+		wantRespType mt.MessageType
+	}{
+		{"1.1, long, HELLO, ID0", &protocol.Header{Version: protocol.Version{1, 1}, Type: mt.Hello}, nil, mt.Hello},
+		{"1.1, long, [unknown message type], ID0", &protocol.Header{Version: protocol.Version{1, 1}, Type: 50}, nil, mt.Fault},
+		/*{"0.15, 32 hops, HELLO_ACK", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.HelloAck}, nil, codes.Created},
+		{"0.15, 32 hops, UNKNOWN", &protocol.Header{Version: protocol.Version{0, 15}, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, JOIN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.Join}, nil, codes.BadRequest},
+		{"15.1, 32 hops, oversize payload, UNKNOWN", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16, Type: mt.UNKNOWN}, nil, codes.BadRequest},
+		{"15.1, 32 hops, max size payload, JOIN_ACCEPT", &protocol.Header{Version: protocol.Version{15, 1}, PayloadLength: math.MaxUint16 - uint16(protocol.FixedHeaderLen), Type: mt.JoinAccept}, nil, codes.Created},*/
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// serialize the header
+			hdrB, err := tt.header.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// spawn a client to ping the server
+			cli, err := net.DialUDP("udp", nil, &net.UDPAddr{Port: 8080})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { cli.Close() })
+			// send the serialized header
+			if n, err := cli.Write(hdrB); err != nil {
+				t.Error(err)
+			} else if n != len(hdrB) {
+				t.Error("incorrect written count", ExpectedActual(len(hdrB), n))
+			}
+			// await a response
+			respBuf := make([]byte, slims.MaxPacketSize)
+			if n, err := cli.Read(respBuf); err != nil {
+				t.Error(err)
+			} else {
+				t.Logf("client received %d bytes", n)
+			}
+
+			respHdr, err := protocol.Deserialize(bytes.NewReader(respBuf))
+			if err != nil {
+				t.Error(err)
+			}
+
+			// validate response
+			if tt.header.Version != respHdr.Version { // should be echo'd back exactly
+				t.Error("sent version (expected) does not equal received version (actual)", ExpectedActual(tt.header.Version, respHdr.Version))
+			} else if tt.header.Shorthand != respHdr.Shorthand { // should be echo'd back exactly
+				t.Error("sent shorthand (expected) does not equal received shorthand (actual)", ExpectedActual(tt.header.Shorthand, respHdr.Shorthand))
+			} else if respHdr.ID != echoServerID {
+				t.Error("bad echo server ID", ExpectedActual(echoServerID, respHdr.ID))
+			} else if respHdr.Type != tt.wantRespType {
+				t.Error("bad response message type", ExpectedActual(tt.wantRespType, respHdr.Type))
+			}
+
+			/*
+				// test the response fields
+				if resp.Code() != tt.wantRespCode {
+					body, err := resp.ReadBody()
+					if err != nil {
+						t.Error("failed to read response body: ", err)
+					}
+					t.Fatal("bad response code", ExpectedActual(tt.wantRespCode, resp.Code()), "\n", string(body))
+				}
+				// test that we got our header back on a successful response
+				if resp.Code() == codes.Created {
+					var respHdr = &protocol.Header{}
+					body, err := resp.ReadBody()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := respHdr.Deserialize(bytes.NewReader(body)); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(respHdr, tt.header) { // we should get out exactly what we put in
+						t.Fatal("echo'd header does not match original.", ExpectedActual(tt.header, respHdr))
+					}
+				}*/
+		})
+
+	}
+
 	/*
 	   // generate server routes and handling
 	   serverMux := mux.NewRouter()
