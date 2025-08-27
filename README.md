@@ -109,7 +109,7 @@ If we receive a request from ID X on the opposite end of the tree than we last s
 
 ## Initiating and Joining a Vault
 
-## TODO
+## TODO (with suggested packet)
 
 # Tweaking Orv
 
@@ -123,7 +123,14 @@ To reduce ...
 
 # Other Design Decisions and Tradeoffs
 
-## TODO
+## Decrementing Height
+
+Orv has no mechanism for decrementing the height of a vk. Full support for decrementing branches would add another exceptional case (like INCREMENT) which we are trying to avoid and make keeping operations idempotent that much harder.
+As vk's know their height *but not their depth* (they know the height they operate at, but do not if there are actually children at each height beyond their immediate children), a vk could not safely decrement because it has no idea if it has children with a height of zero.
+
+Due to only increasing height on merge, Orv *should* (*should* is bearing quite a bit of weight) naturally thin the number of vks at each height, making hitting the maximum height quite rare.
+
+For very long-running and/or truly decentralized vaults, it may be worthwhile to introduce a mechanism by which vks can decrement their height. To spitball a solution: if a vk is solo (no children, no parent) for a pre-defined duration, it can reset its height to zero (or the original height of its horde, if given one). When a vk encounters a tree it wishes to join, it will naturally attempt to join at its height (zero). Should it be unable to join at that height (likely because the VKs at height 1 are at their child limits), it may increment its own height and try again. This enables vks operating autonomously to place themselves within trees without restricting the trees to their with availability at the height the vk previously grew to.
 
 ## Depth-less Hierarchy and Cycles
 
