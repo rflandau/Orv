@@ -104,7 +104,7 @@ func (hdr *Header) Serialize() ([]byte, error) {
 //
 // Does NOT validate fields. Does not drain rd.
 //
-// If an error occurs, hdr will not be altered and its state is considered undefined.
+// If an error occurs, hdr will be left in a partially clobbered state which is considered undefined.
 func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 	// set up a function to peel off a byte at a time
 	var buf = make([]byte, 1)
@@ -185,4 +185,27 @@ func (hdr *Header) Zerolog(ev *zerolog.Event) {
 	if !hdr.Shorthand {
 		ev.Uint64("ID", hdr.ID)
 	}
+}
+
+// Serialize consumes the given data and returns it serialized as an Orv header.
+// Does not validate the given data.
+// Only the first element in id is used (if multiple are given).
+func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID) ([]byte, error) {
+	var nid slims.NodeID
+	if len(id) >= 1 {
+		nid = id[0]
+	}
+
+	return (&Header{Version: v, Shorthand: shorthand, Type: typ, ID: nid}).Serialize()
+}
+
+// Deserialize returns a header built from the given reader.
+// Reads 2 bytes if Shorthand, 12 otherwise.
+//
+// Does NOT validate fields. Does not drain rd.
+//
+// If an error occurs, hdr will not be altered and its state is considered undefined.
+func Deserialize(rd io.Reader) (*Header, error) {
+	hdr := (&Header{})
+	return hdr, hdr.Deserialize(rd)
 }
