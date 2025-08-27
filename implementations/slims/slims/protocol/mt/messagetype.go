@@ -35,7 +35,7 @@ const (
 	GetResp
 )
 
-// MessageTypeString returns the string representation of the given MessageType.
+// String returns the string representation of the given MessageType.
 // It is just a big switch statement.
 func (mt MessageType) String() string {
 	switch mt {
@@ -69,6 +69,18 @@ func (mt MessageType) String() string {
 		return "VK_HEARTBEAT"
 	case VKHeartbeatAck:
 		return "VK_HEARTBEAT_ACK"
+	case Status:
+		return "STATUS"
+	case StatusResp:
+		return "STATUS_RESP"
+	case List:
+		return "LIST"
+	case ListResp:
+		return "LIST_RESP"
+	case Get:
+		return "GET"
+	case GetResp:
+		return "GET_RESP"
 	default:
 		return "UNKNOWN"
 	}
