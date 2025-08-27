@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rflandau/Orv/implementations/slims/orv/vk/expiring"
+	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	. "github.com/rflandau/Orv/internal/testsupport"
 )
 

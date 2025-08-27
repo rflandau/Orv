@@ -31,7 +31,7 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 			vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
 			return
 		}
-		reqHdr.Zerolog(vk.log.Debug().Str("token", req.Token().String())).Send()
+		vk.log.Debug().Func(reqHdr.Zerolog).Str("token", req.Token().String()).Send()
 
 	}
 	// check that we support the requested version

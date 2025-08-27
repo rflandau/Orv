@@ -17,11 +17,11 @@ import (
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/plgd-dev/go-coap/v3/udp/server"
-	"github.com/rflandau/Orv/implementations/slims/orv"
-	"github.com/rflandau/Orv/implementations/slims/orv/pb"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
-	"github.com/rflandau/Orv/implementations/slims/orv/vk/expiring"
+	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -47,7 +47,7 @@ type VaultKeeper struct {
 		parentAddr netip.AddrPort
 	}
 
-	pendingHellos expiring.Table[orv.NodeID, bool]
+	pendingHellos expiring.Table[slims.NodeID, bool]
 }
 
 // VKOption function to set various options on the vault keeper.
@@ -163,7 +163,7 @@ func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, re
 		return
 	}
 
-	if err := resp.SetResponse(code, orv.ResponseMediaType(), bytes.NewReader(append(hdrB, body...))); err != nil {
+	if err := resp.SetResponse(code, slims.ResponseMediaType(), bytes.NewReader(append(hdrB, body...))); err != nil {
 		vk.log.Error().Str("body", reason).Err(err).Msg("failed to set response")
 	}
 }

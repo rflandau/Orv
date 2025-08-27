@@ -6,9 +6,9 @@ import (
 
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/udp"
-	payloads_proto "github.com/rflandau/Orv/implementations/slims/orv/pb"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,7 +21,7 @@ import (
 //
 // The response is unmarshaled if it can be; an error is returned otherwise.
 // The raw response is returned in any case.
-func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, error) {
+func Status(vkAddr string, ctx context.Context) (*pb.StatusResp, error) {
 	// generate a request header
 	hdr := protocol.Header{
 		Version:       protocol.HighestSupported,
@@ -54,7 +54,7 @@ func Status(vkAddr string, ctx context.Context) (*payloads_proto.StatusResp, err
 		return nil, err
 	}
 
-	var sr payloads_proto.StatusResp
+	var sr pb.StatusResp
 	if err := proto.Unmarshal(raw[protocol.LongHeaderLen:], &sr); err != nil {
 		return nil, err
 	}

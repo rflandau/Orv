@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/plgd-dev/go-coap/v3/udp"
-	"github.com/rflandau/Orv/implementations/slims/orv"
-	"github.com/rflandau/Orv/implementations/slims/orv/pb"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -57,7 +57,7 @@ func (vk *VaultKeeper) Hello(addrPort string, ctx context.Context) (_ *pb.HelloA
 	}
 	defer conn.Close()
 
-	resp, err := conn.Post(ctx, "/", orv.ResponseMediaType(), bytes.NewReader(append(reqHdrB, body...)))
+	resp, err := conn.Post(ctx, "/", slims.ResponseMediaType(), bytes.NewReader(append(reqHdrB, body...)))
 	var hdrBytes = make([]byte, protocol.LongHeaderLen)
 	if n, err := resp.Body().Read(hdrBytes); err != nil {
 		return nil, err
