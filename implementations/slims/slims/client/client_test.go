@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
-	vaultkeeper "github.com/rflandau/Orv/implementations/slims/orv/vk"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
 	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
