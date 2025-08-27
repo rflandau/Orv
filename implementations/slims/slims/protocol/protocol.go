@@ -43,7 +43,7 @@ type Header struct {
 var (
 	ErrInvalidVersionMajor = errors.New("major version must be 0 <= x <= 15")
 	ErrInvalidVersionMinor = errors.New("minor version must be 0 <= x <= 15")
-	ErrInvalidMessageType  = errors.New("message type must be representable with 7 bits and must not be 0")
+	ErrInvalidMessageType  = errors.New("message type must be representable with 7 bits, must not be 0, and must be an enumerated packet type")
 	ErrShorthandID         = errors.New("ID is ignored when shorthand is set")
 )
 
@@ -166,9 +166,10 @@ func (hdr *Header) Validate() (errors []error) {
 		errors = append(errors, ErrInvalidVersionMinor)
 	}
 	// Type
-	if hdr.Type > 127 || hdr.Type == 0 { // type only has 7 bits available
+	if hdr.Type.String() == "UNKNOWN" || hdr.Type == 0 { // type only has 7 bits available
 		errors = append(errors, ErrInvalidMessageType)
 	}
+	// Shorthand+ID
 	if hdr.Shorthand && hdr.ID != 0 {
 		errors = append(errors, ErrShorthandID)
 	}
