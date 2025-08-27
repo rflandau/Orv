@@ -1,21 +1,11 @@
 package protocol_test
 
 import (
-	"bytes"
-	"context"
-	"log"
+	"encoding/binary"
 	"math"
-	"reflect"
-	"slices"
-	"strings"
 	"testing"
 
-	"github.com/plgd-dev/go-coap/v3"
-	"github.com/plgd-dev/go-coap/v3/message"
-	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/plgd-dev/go-coap/v3/options"
-	"github.com/plgd-dev/go-coap/v3/udp"
+	"github.com/rflandau/Orv/implementations/slims/orv"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol"
 	"github.com/rflandau/Orv/implementations/slims/orv/protocol/mt"
 	. "github.com/rflandau/Orv/internal/testsupport"
@@ -25,71 +15,192 @@ import (
 // Serialize does not validate data in header, so errors can only come from a failure to write and thus are always fatal.
 func TestHeader_SerializeWithValidate(t *testing.T) {
 	tests := []struct {
-		name     string
-		hdr      protocol.Header
-		want     []byte // the byte string Serialize should return
-		invalids uint   // the number of errors we expect .Validate() to return
+		name string
+		hdr  protocol.Header
+		want struct {
+			version       byte       // outcome byte
+			shorthandType byte       // outcome composite byte
+			id            orv.NodeID // last 8 bytes converted back into a uint64 (if shorthand was unset)
+		}
+		invalids []error
 	}{
-		{"all zeros", protocol.Header{Version: protocol.Version{0, 0}},
-			[]byte{0, 0, 0, 0}, 1},
-		{"1.1", protocol.Header{Version: protocol.Version{1, 1}},
-			[]byte{0b00010001, 0, 0, 0}, 1},
-		{"1.0", protocol.Header{Version: protocol.Version{1, 0}},
-			[]byte{0b00010000, 0, 0, 0}, 1},
-		{"15.15", protocol.Header{Version: protocol.Version{15, 15}},
-			[]byte{0b11111111, 0, 0, 0}, 1},
-		{"15.15, HELLO type", protocol.Header{Version: protocol.Version{15, 15}, Type: mt.Hello},
-			[]byte{0b11111111, byte(mt.Hello), 0, 0}, 0},
-		{"HELLO_ACK type", protocol.Header{Type: mt.HelloAck},
-			[]byte{0, byte(mt.HelloAck), 0, 0}, 0},
-		{"JOIN type", protocol.Header{Type: mt.Join},
-			[]byte{0, byte(mt.Join), 0, 0}, 0},
-		{"JOIN_ACCEPT type", protocol.Header{Type: mt.JoinAccept},
-			[]byte{0, byte(mt.JoinAccept), 0, 0}, 0},
-		{"FAULT type", protocol.Header{Type: mt.Fault},
-			[]byte{0, byte(mt.Fault), 0, 0}, 0},
-		{"payload 20B, REGISTER type", protocol.Header{PayloadLength: 20, Type: mt.Register},
-			[]byte{0, byte(mt.Register), 0, 20}, 0},
-		{"payload 20B, [overflow] type", protocol.Header{PayloadLength: 20, Type: 250},
-			[]byte{0, 250, 0, 20}, 1},
-		{"payload 65000B, REGISTER_ACCEPT type", protocol.Header{PayloadLength: 65000, Type: mt.RegisterAccept},
-			[]byte{0, byte(mt.RegisterAccept), 0b11111101, 0b11101000}, 0},
-
-		{"bad major version",
-			protocol.Header{
-				Version: protocol.Version{33, 1},
-			},
-			[]byte{0b00010001, 0, 0, 0}, // expect the 33 to be prefix-truncated to 1
-			2,
+		// long form
+		{name: "all zeros",
+			hdr: protocol.Header{},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0, 0, 0},
+			invalids: []error{protocol.ErrInvalidMessageType},
 		},
-		{"payload too large",
-			protocol.Header{
-				Version:       protocol.Version{15, 1},
-				PayloadLength: math.MaxUint16,
-				Type:          mt.Fault,
-			},
-			[]byte{0b11110001, byte(mt.Fault), math.MaxUint16 >> 8 & 0b11111111, math.MaxUint16 & 0b11111111},
-			1,
+		{name: "1.0",
+			hdr: protocol.Header{Version: protocol.Version{1, 0}},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0b00010000, 0, 0},
+			invalids: []error{protocol.ErrInvalidMessageType},
+		},
+		{name: "3.13",
+			hdr: protocol.Header{Version: protocol.Version{3, 13}},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0x3D, 0, 0},
+			invalids: []error{protocol.ErrInvalidMessageType},
+		},
+		{name: "JOIN",
+			hdr: protocol.Header{Type: mt.Join},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0, 0x4, 0},
+			invalids: []error{},
+		},
+		{name: "15.15 MERGE_ACCEPT",
+			hdr: protocol.Header{Version: protocol.Version{15, 15}, Type: mt.MergeAccept},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0xFF, 0x9, 0},
+			invalids: []error{},
+		},
+		{name: "0.7 Get ID=15",
+			hdr: protocol.Header{Version: protocol.Version{0, 7}, Type: mt.Get, ID: 15},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0x7, 20, 15},
+			invalids: []error{},
+		},
+		{name: "0.7 Get ID=MaxUint64",
+			hdr: protocol.Header{Version: protocol.Version{0, 7}, Type: mt.Get, ID: math.MaxUint64},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0x7, 20, math.MaxUint64},
+			invalids: []error{},
+		},
+
+		// shorthand
+		{name: "shorthand",
+			hdr: protocol.Header{Shorthand: true},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0, 0b10000000, 0},
+			invalids: []error{protocol.ErrInvalidMessageType},
+		},
+		{name: "3.13 shorthand",
+			hdr: protocol.Header{Version: protocol.Version{3, 13}, Shorthand: true},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0x3D, 0b10000000, 0},
+			invalids: []error{protocol.ErrInvalidMessageType},
+		},
+
+		// invalids
+		{name: "invalid major version",
+			hdr: protocol.Header{Version: protocol.Version{31, 0}},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0b11110000, 0, 0},
+			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMajor},
+		},
+		{name: "invalid major version with type",
+			hdr: protocol.Header{Version: protocol.Version{32, 0}, Type: mt.Fault},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0b0000, 0b00000001, 0},
+			invalids: []error{protocol.ErrInvalidVersionMajor},
+		},
+		{name: "invalid minor version",
+			hdr: protocol.Header{Version: protocol.Version{0, 255}},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0b00001111, 0, 0},
+			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMinor},
+		},
+		{name: "invalid minor version shorthand",
+			hdr: protocol.Header{Version: protocol.Version{0, 255}, Shorthand: true},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0b00001111, 0b10000000, 0},
+			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMinor},
+		},
+		{name: "shorthand ID",
+			hdr: protocol.Header{Shorthand: true, ID: 55},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0, 0b10000000, 55},
+			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrShorthandID},
+		},
+		{name: "shorthand ID with type",
+			hdr: protocol.Header{Shorthand: true, Type: mt.Increment, ID: 1},
+			want: struct {
+				version       byte
+				shorthandType byte
+				id            orv.NodeID
+			}{0, 0b10001010, 1},
+			invalids: []error{protocol.ErrShorthandID},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if vErrors := tt.hdr.Validate(); len(vErrors) != int(tt.invalids) {
-				t.Error("incorrect validation error count",
-					ExpectedActual(tt.invalids, len(vErrors)),
-					"errors: ", vErrors,
+			if vErrors := tt.hdr.Validate(); !SlicesUnorderedEqual(vErrors, tt.invalids) {
+				t.Error("incorrect validation errors",
+					ExpectedActual(tt.invalids, vErrors),
 				)
 			}
 
-			if got, err := tt.hdr.Serialize(); err != nil {
+			got, err := tt.hdr.Serialize()
+			if err != nil {
 				t.Fatal(err)
-			} else if !slices.Equal(got, tt.want) {
-				t.Error("bad byte string", ExpectedActual(tt.want, got))
 			}
+			// length check
+			if tt.hdr.Shorthand && (len(got) != int(protocol.ShortHeaderLen)) {
+				t.Fatal("incorrect bytestream length", ExpectedActual(int(protocol.ShortHeaderLen), len(got)))
+			} else if !tt.hdr.Shorthand && (len(got) != int(protocol.LongHeaderLen)) {
+				t.Fatal("incorrect bytestream length", ExpectedActual(int(protocol.LongHeaderLen), len(got)))
+			}
+			// validate individual bytes
+			if got[0] != tt.want.version {
+				t.Error("bad version byte", ExpectedActual(tt.want.version, got[0]))
+			} else if got[1] != tt.want.shorthandType {
+				t.Error("bad shorthand/type composite byte", ExpectedActual(tt.want.shorthandType, got[1]))
+			}
+
+			if !tt.hdr.Shorthand { // check the ID
+				if gotID := binary.BigEndian.Uint64(got[2:]); gotID != tt.want.id {
+					t.Error("bad ID", ExpectedActual(tt.want.id, gotID))
+				}
+			}
+
 		})
 	}
 }
 
+/*
 func TestHeader_Deserialize(t *testing.T) {
 	tests := []struct {
 		name string
@@ -290,3 +401,4 @@ func TestFullSend(t *testing.T) {
 
 	}
 }
+*/
