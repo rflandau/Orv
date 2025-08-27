@@ -1,22 +1,43 @@
-Suggested packet specification for Orv Version 1.1.
+Packet specification for Orv [Slims](implementations/slims) Version 1.0
 
-Implemented by the [CoAP prototype](pkg/orvCoAP).
+Orv Slims packets are application (L5) packets and the current implementation uses CoAP for the transport layer.
 
-Types and formats make the assumptions inherent in the README. If you are implementing a modified version of Orv (such as with in-house routing, no root omnipotence, or sequence numbers), this spec sheet may not fit your needs.
+# Header [2 or 12 Bytes]
 
-# A Note on Nomenclature
+The [protocol package](orv/protocol/protocol.go) contain structs and functions for interacting with an Orv header; you shouldn't need to manipulate the bits yourself if your client is written in Go.
 
-TODO remove this section?
+The Orv header is typically 12 bytes, with the bulk of that space taken up by the ID field.
+When sending a client request, ID may be dropped to bring the header down to a mere 2 bytes.
 
-Response packets have a variety of suffixes (ACK, Resp, Accept). While an argument could be made for making these uniform, I used varying verbiage to indicate varying expectations.
+0               1               2               3
+0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
 
-- ACKs are just acknowledgements. They indicate receipt and little else.
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| Major | Minor | S |   Type    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                              ID                               
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-- ACCEPT and DENY are paired, indicating an outcome from the logic of the receiver (the VK, generally).
+## Version [1 Byte]
 
-- RESP is only used for requests and contain either the answer or an error.
+Version is a composite byte: the most significant nibble is the major version, the least significant nibble is the minor version.
 
-# Packets
+## S(horthand) [1 bit]
+
+Shorthand whether or not ID has been omitted. If S is set, then the 2B form of the header was sent (ID was omitted).
+
+## Type [7 bits]
+
+Type declares the message type of this packet as an unsigned integer that maps to the types defined below.
+Undefined type numbers are reserved for future use.
+
+## ID [0 or 10 Bytes]
+
+ID is the unique identifier of the sender, used to correlate a packet to its origin for handling (such as from a known child, a pending join, etc). It may only be omitted when sending client requests, as client requests may originate from outside the vault. If it is omitted, S must be set.
+
+# Message Types (Packets)
 
 ## FAULT
 
@@ -44,10 +65,7 @@ The Version field in the header has special meaning for HELLOs: the node sets He
 
 Requester nodes typically follow up with a JOIN or MERGE, but do not have to.
 
-### Payload
-
-1. *id*: unique identifier of the sending node
-    - example: 123
+HELLO has no payload.
 
 ## HELLO_ACK
 
@@ -68,9 +86,7 @@ If a client wants to see all versions a vk supports, try the [STATUS](#status) p
 
 ### Payload
 
-1. *id*: unique identifier of the VK answering the hello
-    - example: 456
-2. *height*: the height of the node answering the greeting
+1. *height*: the height of the node answering the greeting
     - example: 3
 
 ## JOIN
@@ -83,12 +99,10 @@ Repeated or duplicate joins for a node already registered as a child of the VK a
 
 ### Payload
 
-1. *id*: unique identifier of the sending node
-    - example: 123
-2. *isVK*: is this node a VaultKeeper or a leaf?
-3. *vkAddr*: address of the listening VK service that can receive INCRs
+1. *isVK*: is this node a VaultKeeper or a leaf?
+2. *vkAddr*: address of the listening VK service that can receive INCRs
     - required if isVK. 
-4. *height*: height of the vk attempting to join the vault
+3. *height*: height of the vk attempting to join the vault
     - required if isVK. 
 
 ## JOIN_ACCEPT
@@ -101,9 +115,7 @@ Once received by a node, that node can safely mark the VK as its parent.
 
 ### Payload
 
-1. *id*: unique identifier for the VK
-    - example: 456
-2. *height*: the height of the requester's new parent
+1. *height*: the height of the requester's new parent
 
 ## REGISTER
 
@@ -117,13 +129,11 @@ If an existing service is registered to the same child node, the new information
 
 ### Payload
 
-1. *id*: unique identifier of the sending node
-    - example: 123
-2. *service*:  name of the service to be registered
+1. *service*:  name of the service to be registered
     - example: "SSH" 
-3. *address* address the service is bound to. Only populated from leaf to parent
+2. *address* address the service is bound to. Only populated from leaf to parent
     - example: "172.1.1.54:22" 
-4. *stale*: after how much time without a heartbeat is this service eligible for pruning. Services may be pruned lazily and thus may survive longer than their stale time. Actual implementation is left up to the VK. Services are only guaranteed to *not* be pruned while within their stale time.
+3. *stale*: after how much time without a heartbeat is this service eligible for pruning. Services may be pruned lazily and thus may survive longer than their stale time. Actual implementation is left up to the VK. Services are only guaranteed to *not* be pruned while within their stale time.
     - example:"1m5s45ms"
 
 ## REGISTER_ACCEPT
@@ -134,9 +144,7 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 ### Payload
 
-1. *id*: unique identifier of the sending node
-    - example: 123
-2. *service*: name of the service that was registered.
+1. *service*: name of the service that was registered.
     - example: "SSH"
     
 
@@ -171,10 +179,7 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 Sent by child VKs to alert their parent that they are still alive.
 
-### Payload
-
-1. *id*: unique identifier of the cVK
-    - example: 456
+VK_HEARTBEAT has no payload.
 
 ## VK_HEARTBEAT_ACK
 
@@ -182,13 +187,13 @@ Sent by child VKs to alert their parent that they are still alive.
 
 Sent by a parent VK to confirm receipt of a child's VK_HEARTBEAT.
 
-### Payload
-
-1. *id*: unique identifier of the parent vk that refreshed the child (as triggered by prior VK_HEARTBEAT)
+VK_HEARTBEAT_ACK has no payload.
 
 # Service Requests
 
 Service requests are requests that can be made by any client, whether or not they are part of the tree or even previously known.
+
+The ID field of the header is not used in client requests and can be zeroed.
 
 ## STATUS
 
@@ -207,14 +212,12 @@ All fields (other than id) are optional and may be omitted at the VK's discretio
 
 ### Payload
 
-1. *id*: unique identifier of the VK
-    - example 456
-2. *height*: (OPTIONAL) height of the queried VK
+1. *height*: (OPTIONAL) height of the queried VK
     - example: 8
-3. *children*: (OPTIONAL) children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation
-4. *parentID*: (OPTIONAL) unique identifier for the VK's parent. 0 if VK is root.
-5. *parentAddress*: (OPTIONAL) address and port of the VK parent's process
-6. *pruneTimes*: (OPTIONAL) this VK's timings for considering associated data to be stale
+2. *children*: (OPTIONAL) children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation
+3. *parentID*: (OPTIONAL) unique identifier for the VK's parent. 0 if VK is root.
+4. *parentAddress*: (OPTIONAL) address and port of the VK parent's process
+5. *pruneTimes*: (OPTIONAL) this VK's timings for considering associated data to be stale
     - *pendingHello*
 	- *servicelessChild*
 	- *cVK*
