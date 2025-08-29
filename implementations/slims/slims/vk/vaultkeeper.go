@@ -212,10 +212,18 @@ func (vk *VaultKeeper) Stop() {
 
 }
 
-// Pretty prints the state of the vk into the given zerolog event.
-// Used for debugging purposes.
+// Zerolog pretty prints the state of the vk into the given zerolog event.
+// Intended to be given to *zerolog.Event.Func().
 func (vk *VaultKeeper) Zerolog(e *zerolog.Event) {
-	e.Uint16("height", vk.structure.height)
+	e.Uint64("vkid", vk.id).
+		Uint16("height", vk.structure.height).
+		Str("address", vk.addr.String())
+	vk.structure.mu.RLock()
+	e.Uint16("height", vk.structure.height).
+		Uint64("parent id", vk.structure.parentID).
+		Str("parent address", vk.structure.parentAddr.String())
+	vk.structure.mu.RUnlock()
+
 	/*vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 	// iterate through your children
