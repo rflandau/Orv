@@ -220,48 +220,59 @@ func Deserialize(rd io.Reader) (Header, error) {
 // ! If ctx.Deadline is set, pconn's ReadDeadline will be set to ctx.Deadline(), overwriting any existing deadline.
 //
 // TODO add tests to RecievePacket to make sure cancellations and deadlines work properly
-func ReceivePacket(pconn *net.UDPConn, ctx context.Context) (n int, hdr Header, body []byte, err error) {
+func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr net.Addr, hdr Header, body []byte, err error) {
+	// validate params
+	if pconn == nil {
+		return 0, nil, Header{}, nil, errors.New("PacketConn is nil")
+	} else if err := ctx.Err(); err != nil {
+		return 0, nil, Header{}, nil, err
+	}
+	// set a deadline (if one was given)
 	if ddl, set := ctx.Deadline(); set {
 		if err := pconn.SetReadDeadline(ddl); err != nil {
-			return 0, Header{}, nil, err
+			return 0, nil, Header{}, nil, err
 		}
 	}
-
-	// spin up a channel to recieve the packet when it arrives over the connection
+	// spin up a channel to receive the packet when it arrives over the connection
 	pktCh := make(chan struct {
-		n   int
-		buf []byte
-		err error
-	})
-	go func() {
+		n    int
+		buf  []byte
+		addr net.Addr
+		err  error
+	}, 1) // buffer the channel so our goro doesn't block if cancelled prior to the read
+
+	go func() { // read the next packet and send it along our channel
 		var buf = make([]byte, slims.MaxPacketSize)
-		n, err := pconn.Read(buf)
+		n, senderAddr, err := pconn.ReadFrom(buf)
 		if err == nil {
 			buf = buf[:n] // trim off excess capacity
 		}
 
 		pktCh <- struct {
-			n   int
-			buf []byte
-			err error
-		}{n, buf, err}
+			n    int
+			buf  []byte
+			addr net.Addr
+			err  error
+		}{n, buf, senderAddr, err}
 	}()
 
 	// await cancellation or the packet
 	select {
 	case <-ctx.Done():
-		return 0, Header{}, nil, ctx.Err()
+		// ensure the read is cancelled
+		pconn.SetReadDeadline(time.Now())
+		return 0, nil, Header{}, nil, ctx.Err()
 	case pkt := <-pktCh:
 		// check result
 		if pkt.err != nil {
-			return pkt.n, Header{}, nil, pkt.err
+			return 0, nil, Header{}, nil, pkt.err
 		}
 
 		var rd = bytes.NewBuffer(pkt.buf)
 		hdr, err = Deserialize(rd)
 		if err != nil {
-			return n, Header{}, nil, err
+			return n, nil, Header{}, nil, err
 		}
-		return pkt.n, hdr, rd.Bytes(), nil
+		return pkt.n, pkt.addr, hdr, rd.Bytes(), nil
 	}
 }

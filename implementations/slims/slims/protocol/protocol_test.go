@@ -279,7 +279,7 @@ func TestFullSend(t *testing.T) {
 	var pktbuf = make([]byte, slims.MaxPacketSize)
 	go func() {
 		for {
-			rcvdN, senderAddr, err := pconn.ReadFrom(pktbuf)
+			rcvdN, senderAddr, reqHdr, _, err := protocol.ReceivePacket(pconn, t.Context())
 			if rcvdN == 0 {
 				if done {
 					return
@@ -287,14 +287,8 @@ func TestFullSend(t *testing.T) {
 				continue
 			} else if err != nil {
 				t.Error(err)
-			}
-			t.Logf("read %d bytes", rcvdN)
-
-			// deserialize
-			reqHdr, err := protocol.Deserialize(bytes.NewReader(pktbuf)) // TODO return header and body
-			if err != nil {
 				// respond with a FAULT
-				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
+				b, serializeErr := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, echoServerID)
 				if serializeErr != nil {
 					t.Error(serializeErr)
 				}
@@ -303,6 +297,7 @@ func TestFullSend(t *testing.T) {
 				}
 				continue
 			}
+			t.Logf("read %d bytes", rcvdN)
 
 			// validate
 			if errs := reqHdr.Validate(); errs != nil {
@@ -407,4 +402,15 @@ func TestFullSend(t *testing.T) {
 
 		})
 	}
+}
+
+func TestReceivePacket(t *testing.T) {
+	/*pconn, err := net.ListenPacket("udp", "[::0]:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	protocol.ReceivePacket(pconn, ctx)*/
 }
