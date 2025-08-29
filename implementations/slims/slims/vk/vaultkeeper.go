@@ -42,17 +42,6 @@ type VaultKeeper struct {
 	pendingHellos expiring.Table[slims.NodeID, bool]
 }
 
-// VKOption function to set various options on the vault keeper.
-// Uses defaults if an option is not set.
-type VKOption func(*VaultKeeper)
-
-// WithLogger replaces the vk's default logger with the given logger.
-func WithLogger(l *zerolog.Logger) VKOption {
-	return func(vk *VaultKeeper) {
-		vk.log = l
-	}
-}
-
 // New generates a new VK instance, optionally modified with opts.
 // The returned VK is ready for use as soon as it is .Start()'d.
 func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
