@@ -10,7 +10,7 @@ import (
 	"net"
 	"net/netip"
 
-	. "github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
@@ -18,7 +18,7 @@ import (
 )
 
 // Hello sends a HELLO packet to the given address, returning the target node's response or an error.
-func Hello(id NodeID, addrPort string, ctx context.Context) (_ *pb.HelloAck, err error) {
+func Hello(id slims.NodeID, addrPort string, ctx context.Context) (_ *pb.HelloAck, err error) {
 	/*
 	   // compose the body
 	   body, err := proto.Marshal(&pb.Hello{Id: id})
@@ -109,7 +109,7 @@ func Hello(id NodeID, addrPort string, ctx context.Context) (_ *pb.HelloAck, err
 // Sends a STATUS packet to the given address and returns its answer (or an error).
 // ID is optional; if given, the STATUS packet will be sent long-form.
 // If omitted, the STATUS packet will be sent shorthand.
-func Status(target netip.AddrPort, ctx context.Context, senderID ...NodeID) (*pb.StatusResp, error) {
+func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID) (*pb.StatusResp, error) {
 	var sr *pb.StatusResp
 	if !target.IsValid() {
 		return sr, errors.New("ap must be a valid address+port")
@@ -145,7 +145,7 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...NodeID) (*pb
 	// if a response did not arrive in time, try again
 	// TODO
 
-	var respBuf = make([]byte, MaxPacketSize)
+	var respBuf = make([]byte, slims.MaxPacketSize)
 	if n, err := conn.Read(respBuf); err != nil {
 		return sr, err
 	} else {
