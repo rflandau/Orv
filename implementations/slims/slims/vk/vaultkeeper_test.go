@@ -1,13 +1,9 @@
 package vaultkeeper
 
 import (
-	"context"
 	"errors"
 	"net/netip"
 	"testing"
-	"time"
-
-	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func TestVaultKeeper_StartStop(t *testing.T) {
@@ -16,33 +12,54 @@ func TestVaultKeeper_StartStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const timeout time.Duration = 300 * time.Millisecond
+	startAndCheck(t, vk)
+	stopAndCheck(t, vk)
 
-	vk.Start()
-	if err := CoAPPing("127.0.0.1:8081", timeout); err != nil {
-		t.Error(err)
+	startAndCheck(t, vk)
+	stopAndCheck(t, vk)
+
+	startAndCheck(t, vk)
+	stopAndCheck(t, vk)
+
+	startAndCheck(t, vk)
+	stopAndCheck(t, vk)
+}
+
+// helper function.
+// Calls .Start() on the given VK, then ensures we can successfully hit it with a STATUS packet.
+func startAndCheck(t *testing.T, vk *VaultKeeper) {
+	if err := vk.Start(); err != nil {
+		t.Fatal(err)
 	}
+	if alive, err := upstate(t, vk); !alive {
+		t.Fatal("vk is dead after starting")
+	} else if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// helper function.
+// Calls .Stop() on the given VK, then ensures that STATUS fails against it.
+func stopAndCheck(t *testing.T, vk *VaultKeeper) {
 	vk.Stop()
-	// testsupport.CoAPPing the server again, but expect failure
-	if err := CoAPPing("127.0.0.1:8081", timeout); err == nil || !errors.Is(err, context.DeadlineExceeded) {
-		t.Error("bad testsupport.CoAPPing result. Expected DeadlineExceeded error, found ", err)
+	if alive, err := upstate(t, vk); alive {
+		t.Fatal("vk is alive after stopping")
+	} else if err == nil {
+		t.Fatal("expected an error trying to hit STATUS on a stopped vk")
+	}
+}
+
+// upstate returns the alive state of the given vk and the result of trying to hit it with a STATUS packet (no matter its declared `alive` status).
+func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
+	t.Helper()
+	alive = vk.net.accepting.Load()
+
+	// send a STATUS packet
+	if sr, err := Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {
+		return alive, err
+	} else if sr == nil {
+		return alive, errors.New("nil response")
 	}
 
-	vk.Start()
-	if err := CoAPPing("127.0.0.1:8081", timeout); err != nil {
-		t.Error(err)
-	}
-	vk.Stop()
-	if err := CoAPPing("127.0.0.1:8081", timeout); err == nil || !errors.Is(err, context.DeadlineExceeded) {
-		t.Error("bad testsupport.CoAPPing result. Expected DeadlineExceeded error, found ", err)
-	}
-
-	vk.Start()
-	if err := CoAPPing("127.0.0.1:8081", timeout); err != nil {
-		t.Error(err)
-	}
-	vk.Stop()
-	if err := CoAPPing("127.0.0.1:8081", timeout); err == nil || !errors.Is(err, context.DeadlineExceeded) {
-		t.Error("bad testsupport.CoAPPing result. Expected DeadlineExceeded error, found ", err)
-	}
+	return alive, nil
 }
