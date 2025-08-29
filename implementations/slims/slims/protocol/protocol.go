@@ -6,10 +6,12 @@ Includes structs that can be composed into a fixed header; you should never have
 package protocol
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
@@ -209,4 +211,22 @@ func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID
 func Deserialize(rd io.Reader) (Header, error) {
 	hdr := Header{}
 	return hdr, hdr.Deserialize(rd)
+}
+
+// ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
+func ReceivePacket(pconn *net.UDPConn) (n int, hdr Header, body []byte, err error) {
+	var buf = make([]byte, slims.MaxPacketSize)
+	if n, err := pconn.Read(buf); err != nil {
+		return n, Header{}, nil, err
+	} else {
+		buf = buf[:n] // trim off excess capacity
+	}
+
+	var rd = bytes.NewBuffer(buf)
+	hdr, err = Deserialize(rd)
+	if err != nil {
+		return n, Header{}, nil, err
+	}
+	return n, hdr, rd.Bytes(), nil
+
 }

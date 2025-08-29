@@ -3,7 +3,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -145,27 +144,20 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	// if a response did not arrive in time, try again
 	// TODO
 
-	var respBuf = make([]byte, slims.MaxPacketSize)
-	if n, err := conn.Read(respBuf); err != nil {
-		return sr, err
-	} else {
-		respBuf = respBuf[:n]
-	}
-	var rd = bytes.NewBuffer(respBuf)
-	respHdr, err := protocol.Deserialize(rd)
+	_, respHdr, bd, err := protocol.ReceivePacket(conn)
 	if err != nil {
 		return sr, err
 	}
 	switch respHdr.Type {
 	case mt.Fault:
 		f := pb.Fault{}
-		if err := proto.Unmarshal(rd.Bytes(), &f); err != nil {
+		if err := proto.Unmarshal(bd, &f); err != nil {
 			return sr, err
 		}
 		return nil, errors.New(f.Reason)
 	case mt.StatusResp:
 		s := &pb.StatusResp{}
-		if err := proto.Unmarshal(rd.Bytes(), s); err != nil {
+		if err := proto.Unmarshal(bd, s); err != nil {
 			return nil, err
 		}
 		// TODO translate struct away from a pb struct to pass by value
