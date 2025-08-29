@@ -3,42 +3,34 @@
 package vaultkeeper
 
 import (
-	"bytes"
+	"context"
+	"net"
 	"net/netip"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/plgd-dev/go-coap/v3/message"
-	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/plgd-dev/go-coap/v3/net"
-	"github.com/plgd-dev/go-coap/v3/options"
-	"github.com/plgd-dev/go-coap/v3/udp"
-	"github.com/plgd-dev/go-coap/v3/udp/server"
 	"github.com/rflandau/Orv/implementations/slims/slims"
-	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	"github.com/rs/zerolog"
-	"google.golang.org/protobuf/proto"
 )
 
 // A VaultKeeper (VK) is a node with organizational and routing capability.
 // The key building block of a Vault.
 type VaultKeeper struct {
-	alive atomic.Bool // has this VK been terminated?
-	log   *zerolog.Logger
-	id    uint64 // unique identifier of this node
-	addr  netip.AddrPort
-	net   struct {
-		alive    atomic.Bool // are we currently accepting connections?
-		listener *net.UDPConn
-		server   *server.Server
+	//alive atomic.Bool // has this VK been terminated?
+	log  *zerolog.Logger
+	id   uint64 // unique identifier of this node
+	addr netip.AddrPort
+	net  struct {
+		accepting atomic.Bool        // are we currently accepting connections?
+		pconn     net.PacketConn     // the packet-oriented UDP connection we are listening on
+		ctx       context.Context    // the context pconn is running under
+		cancel    context.CancelFunc // callable to kill ctx
 	}
-	mux *mux.Router
 
 	structure struct {
 		mu         sync.RWMutex // lock that must be held to interact with the fields of structure
@@ -54,6 +46,13 @@ type VaultKeeper struct {
 // Uses defaults if an option is not set.
 type VKOption func(*VaultKeeper)
 
+// WithLogger replaces the vk's default logger with the given logger.
+func WithLogger(l *zerolog.Logger) VKOption {
+	return func(vk *VaultKeeper) {
+		vk.log = l
+	}
+}
+
 // New generates a new VK instance, optionally modified with opts.
 // The returned VK is ready for use as soon as it is .Start()'d.
 func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error) {
@@ -62,14 +61,15 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 	}
 
 	// set defaults
-
 	vk := &VaultKeeper{
+		//alive: &atomic.Bool{},
 		id:   id,
 		addr: addr,
 		net: struct {
-			alive    atomic.Bool
-			listener *net.UDPConn
-			server   *server.Server
+			accepting atomic.Bool
+			pconn     net.PacketConn
+			ctx       context.Context
+			cancel    context.CancelFunc
 		}{},
 		structure: struct {
 			mu         sync.RWMutex
@@ -77,9 +77,8 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			parentID   uint64
 			parentAddr netip.AddrPort
 		}{},
-		// TODO set default prune times and frequencies
 	}
-	vk.alive.Store(true)
+	vk.net.accepting.Store(false)
 
 	// apply options
 	for _, opt := range opts {
@@ -93,43 +92,12 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			FieldsOrder: []string{"vkid"},
 			TimeFormat:  "15:04:05",
 		}).With().
-			Uint64("vk", vk.id).
+			Uint64("vkid", vk.id).
 			Timestamp().
 			Caller().
 			Logger().Level(zerolog.WarnLevel)
 		vk.log = &l
 	}
-
-	// if a muxer was not established by the options, generate one with default handling
-	if vk.mux == nil {
-		vk.mux = mux.NewRouter()
-		vk.mux.Use(func(next mux.Handler) mux.Handler { // install logging middleware
-			return mux.HandlerFunc(func(w mux.ResponseWriter, r *mux.Message) {
-				sz, szErr := r.BodySize()
-				mt, mtErr := r.ContentFormat()
-				path, pathErr := r.Path()
-				vk.log.Debug().
-					Str("token", r.Token().String()).
-					Str("code", r.Code().String()).
-					Uint64("sequence", r.Sequence()).
-					Int64("body size", sz).AnErr("body size", szErr).
-					Str("media type", mt.String()).AnErr("media type", mtErr).
-					Str("path", path).AnErr("path", pathErr).
-					Msg("request received")
-				next.ServeCOAP(w, r)
-			})
-		})
-		vk.mux.Handle("/", mux.HandlerFunc(vk.handler))
-	}
-
-	// generate a child handler
-	// TODO
-
-	// spawn a pruner service
-	// TODO
-
-	// spawn the heartbeater service
-	// TODO
 
 	vk.log.Debug().Func(vk.Zerolog).Msg("vk created")
 
@@ -137,89 +105,106 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 }
 
-// respondError is a helper function that sets the response on the given writer and logs if SetResponse fails.
-// Responses contain the given code and message and are written as plain text.
-func (vk *VaultKeeper) respondError(resp mux.ResponseWriter, code codes.Code, reason string) {
-	// length-check the message
-	if len(reason) > int(slims.MaxPacketSize) {
-		vk.log.Warn().Int("reason length", len(reason)).Msg("reason is too long for the packet size and will be truncated")
-		reason = reason[:protocol.LongHeaderLen]
-	}
-
-	// compose a header
-	hdrB, err := (&protocol.Header{
-		Version: protocol.HighestSupported,
-		Type:    mt.Fault,
-	}).Serialize()
+// respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
+func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
+	// compose the response header
+	hdrB, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id)
 	if err != nil {
-		vk.log.Error().Err(err).Msg("failed to serialize FAULT header")
+		vk.log.Error().Err(err).Msg("failed to serialize response header")
 		return
 	}
 
-	body, err := proto.Marshal(&pb.Fault{Reason: reason})
-	if err != nil {
-		vk.log.Error().Err(err).Msg("failed to marshal pb.Fault as body")
-		return
+	if n, err := vk.net.pconn.WriteTo(append(hdrB, []byte(reason)...), addr); err != nil {
+		vk.log.Warn().Err(err).Str("target address", addr.String()).Msg("failed to respond")
+	} else if n != (len(hdrB) + len([]byte(reason))) {
+		vk.log.Warn().
+			Int("total bytes written", n).
+			Int("header length (Bytes)", len(hdrB)).
+			Int("body length (Bytes)", len([]byte(reason))).
+			Msg("bytes written does not equal sum of header and body")
 	}
 
-	if err := resp.SetResponse(code, slims.ResponseMediaType(), bytes.NewReader(append(hdrB, body...))); err != nil {
-		vk.log.Error().Str("body", reason).Err(err).Msg("failed to set response")
-	}
 }
 
-// respondSuccess is a helper function that sets the response on the given writer and logs if SetResponse fails.
-// Responses contain the given code and ReadSeeker and are written as an OctetStream.
-func (vk *VaultKeeper) respondSuccess(resp mux.ResponseWriter, code codes.Code, hdr protocol.Header, body []byte) {
+func (vk *VaultKeeper) respondSuccess(addr net.Addr, hdr *protocol.Header, body []byte) {
 	hdrB, err := hdr.Serialize()
 	if err != nil {
-		vk.log.Error().Msg("failed to serialize header")
-		return
+		vk.log.Error().Err(err).Str("target address", addr.String()).Msg("failed to serialize header")
 	}
-	if err := resp.SetResponse(code, message.TextPlain, bytes.NewReader(append(hdrB, body...))); err != nil {
-		vk.log.Error().
-			Bytes("body", body).
-			Str("body string", string(body)).
-			Err(err).
-			Msg("failed to set response")
+	if n, err := vk.net.pconn.WriteTo(append(hdrB, body...), addr); err != nil {
+		vk.log.Warn().Err(err).Str("response message type", hdr.Type.String()).Str("target address", addr.String()).Msg("failed to respond")
+	} else if n != (len(hdrB) + len(body)) {
+		vk.log.Warn().
+			Int("total bytes written", n).
+			Int("header length (Bytes)", len(hdrB)).
+			Int("body length (Bytes)", len(body)).
+			Msg("bytes written does not equal sum of header and body")
 	}
 }
 
 // Start causes the server to begin listening.
 // Ineffectual if already listening.
-func (vk *VaultKeeper) Start() {
-	if !vk.net.alive.CompareAndSwap(false, true) { // mark us as alive; quite if we were already alive
-		return
+func (vk *VaultKeeper) Start() error {
+	if swapped := vk.net.accepting.CompareAndSwap(false, true); !swapped { // mark us as alive; quit if we were already alive
+		return nil
 	}
-	// spawn a server and listener
-	vk.net.server = udp.NewServer(options.WithMux(vk.mux))
-	var err error
-	vk.net.listener, err = net.NewListenUDP("udp", vk.addr.String())
-	if err != nil {
-		//return err
+
+	// create a context so we can kill this listener instance
+	vk.net.ctx, vk.net.cancel = context.WithCancel(context.Background())
+
+	// spin up a packet connection
+	if pconn, err := (&net.ListenConfig{}).ListenPacket(vk.net.ctx, "udp", vk.addr.String()); err != nil {
+		return err
+	} else {
+		vk.net.pconn = pconn
 	}
-	vk.log.Info().Msg("starting server...")
-	go func() {
-		if err := vk.net.server.Serve(vk.net.listener); err != nil {
-			vk.log.Info().Err(err).Msg("server outcome")
+
+	vk.log.Info().Str("local address", vk.addr.String()).Msg("accepting incoming packets")
+	go vk.dispatch()
+
+	time.Sleep(30 * time.Millisecond) // buy time for the server to actually start up
+	return nil
+}
+
+// dispatch handles incoming UDP packets and dispatches a handler for each.
+// Spun up by .Start(), shuttered by .Stop().
+func (vk *VaultKeeper) dispatch() {
+	func() { // slurp the packet and pass it to the handler func
+		for {
+			var pktbuf = make([]byte, slims.MaxPacketSize)
+			rxN, senderAddr, err := vk.net.pconn.ReadFrom(pktbuf)
+			// TODO add a check on alive or context's done chan
+			if rxN == 0 {
+				vk.log.Debug().Msg("zero byte message received")
+				continue
+			} else if err != nil {
+				vk.log.Warn().Err(err).Msg("packet read error, returning...")
+				return
+			}
+			vk.log.Debug().Str("sender address", senderAddr.String()).Int("message size (bytes)", rxN).Msg("packet received")
+			go vk.handle(pktbuf, senderAddr)
 		}
 
 	}()
-
-	time.Sleep(30 * time.Millisecond) // buy time for the server to actually start up
 }
 
 // Stop causes the server to stop accepting requests.
 // Ineffectual if not listening.
 func (vk *VaultKeeper) Stop() {
-	if !vk.net.alive.CompareAndSwap(true, false) {
+	if !vk.net.accepting.CompareAndSwap(true, false) {
 		return
 	}
-	vk.log.Info().Msg("shuttering server...")
 
-	vk.net.server.Stop()
-	vk.net.server = nil
-	vk.net.listener.Close()
-	vk.net.listener = nil
+	// TODO do we also need to send a stop to pconn directly or is the context enough?
+	vk.log.Info().Msg("initializing graceful shutdown")
+	if vk.net.cancel != nil {
+		vk.net.cancel()
+	}
+	pconnCloseErr := vk.net.pconn.Close()
+	// TODO await all handlers
+	vk.net.ctx = nil
+	vk.log.Info().AnErr("conn close error", pconnCloseErr).Msg("completed graceful shutdown")
+
 }
 
 // Pretty prints the state of the vk into the given zerolog event.
