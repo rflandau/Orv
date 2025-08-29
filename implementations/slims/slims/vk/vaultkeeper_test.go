@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/netip"
 	"testing"
+
+	"github.com/rflandau/Orv/implementations/slims/slims/client"
 )
 
 func TestVaultKeeper_StartStop(t *testing.T) {
@@ -55,7 +57,7 @@ func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 	alive = vk.net.accepting.Load()
 
 	// send a STATUS packet
-	if sr, err := Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {
+	if sr, err := client.Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {
 		return alive, err
 	} else if sr == nil {
 		return alive, errors.New("nil response")
