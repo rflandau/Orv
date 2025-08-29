@@ -105,6 +105,22 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 }
 
+//#region getters
+
+// ID returns the unique ID of this vaultkeeper.
+func (vk *VaultKeeper) ID() slims.NodeID {
+	return vk.id
+}
+
+// Height returns the current height of the vaultkeeper.
+func (vk *VaultKeeper) Height() uint16 {
+	vk.structure.mu.RLock()
+	defer vk.structure.mu.RUnlock()
+	return vk.structure.height
+}
+
+//#endregion getters
+
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
 func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 	// compose the response header
