@@ -212,8 +212,8 @@ func TestDeserialize(t *testing.T) {
 		}
 		// ensure that hdr is empty
 		var zero protocol.Header
-		if *hdr != zero {
-			t.Error("incorrect header values after faulty deserialize", ExpectedActual(zero, *hdr))
+		if hdr != zero {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(zero, hdr))
 		}
 	})
 	t.Run("single byte short read", func(t *testing.T) {
@@ -224,8 +224,8 @@ func TestDeserialize(t *testing.T) {
 		}
 		// ensure that hdr is empty
 		want := protocol.Header{Version: protocol.VersionFromByte(byt)}
-		if *hdr != want {
-			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		if hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, hdr))
 		}
 	})
 	t.Run("shorthand", func(t *testing.T) {
@@ -240,8 +240,8 @@ func TestDeserialize(t *testing.T) {
 			Shorthand: true,
 			Type:      mt.Hello,
 		}
-		if *hdr != want {
-			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		if hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, hdr))
 		}
 	})
 	t.Run("missing ID", func(t *testing.T) {
@@ -252,8 +252,8 @@ func TestDeserialize(t *testing.T) {
 		}
 		// ensure that hdr is empty
 		want := protocol.Header{Version: protocol.VersionFromByte(byt), Type: mt.HelloAck}
-		if *hdr != want {
-			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, *hdr))
+		if hdr != want {
+			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, hdr))
 		}
 	})
 
