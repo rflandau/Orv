@@ -4,39 +4,45 @@ package vaultkeeper
 
 import (
 	"bytes"
-	"errors"
-	"io"
+	"net"
 	"strconv"
-	"time"
 
-	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/mux"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 
-const helloPruneTime time.Duration = 3 * time.Second
+//const helloPruneTime time.Duration = 3 * time.Second
 
 // handler is the core processing called for each request.
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
-func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
-	// attempt to fetch an Orv header
-	reqHdr := protocol.Header{}
+
+func (vk *VaultKeeper) handle(pkt []byte, senderAddr net.Addr) {
+	var (
+		reqHdr  protocol.Header
+		reqBody []byte
+	)
 	{
-		if err := reqHdr.Deserialize(req.Body()); err != nil {
-			vk.log.Error().Err(err).Msg("failed to deserialize header")
-			vk.respondError(resp, codes.BadRequest, "failed to read header: "+err.Error())
+		reqData := bytes.NewBuffer(pkt)
+		// attempt to fetch an Orv header
+		var err error
+		reqHdr, err = protocol.Deserialize(reqData)
+		if err != nil {
+			vk.respondError(senderAddr, "failed to deserialize header: "+err.Error())
 			return
 		}
-		vk.log.Debug().Func(reqHdr.Zerolog).Str("token", req.Token().String()).Send()
-
+		// save all remaining (usable) characters as the body
+		reqBody = bytes.Trim(reqData.Bytes(), "\x00")
 	}
+
+	vk.log.Debug().Func(reqHdr.Zerolog).Str("body", string(reqBody)).Msg("parsed request header")
+
 	// check that we support the requested version
+	// TODO move this into most sub-handlers
 	if !protocol.IsVersionSupported(reqHdr.Version) {
-		vk.respondError(resp, codes.NotAcceptable, "unsupported version")
+		vk.respondError(senderAddr, "unsupported version")
 		return
 	}
 
@@ -45,68 +51,25 @@ func (vk *VaultKeeper) handler(resp mux.ResponseWriter, req *mux.Message) {
 	switch reqHdr.Type {
 	// client requests that do not require a handshake
 	case mt.Status:
-		vk.serveStatus(reqHdr, req, resp)
-	case mt.Hello:
-		vk.serveHello(reqHdr, req, resp)
+		vk.serveStatus(reqHdr, reqBody, senderAddr)
+	//case mt.Hello:
+	//vk.serveHello(reqHdr, req, resp)*/
 	// TODO ...
 	default: // non-enumerated type or UNKNOWN
-		vk.respondError(resp, codes.BadRequest, "message type must be set")
+		vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(reqHdr.Type), 10))
 		return
 	}
-
-	// length-check the payload body
-	/*payloadLen := len(respBody)
-	if payloadLen > int(proto.MaxPayloadLength) {
-		vk.log.Warn().
-			Str("request type", reqHdr.Type.String()).
-			Int("body size", payloadLen).
-			Int("payload length limit", int(proto.MaxPayloadLength)).
-			Msg("response body exceeds payload length")
-		vk.respondError(resp, codes.InternalServerError, "response body exceeded max payload length")
-		return
-	}
-
-	// generate the header
-	respHdr := proto.Header{
-		Version:       proto.HighestSupported,
-		HopLimit:      1,
-		PayloadLength: uint16(payloadLen),
-	}
-	respHdrB, err := respHdr.Serialize()
-	if err != nil {
-		vk.log.Warn().Str("request type", proto.MessageTypeString(reqHdr.Type)).Int("body size", payloadLen).Int("payload length limit", int(proto.MaxPayloadLength)).Msg("response body exceeds payload length")
-		vk.respondError()
-	}
-	// write back the header and body
-	if err := resp.SetResponse(respCode, orv.ResponseMediaType(), bytes.NewReader(append(respHdrB, respBody...))); err != nil {
-		vk.log.Error().Err(err).Msg("failed to respond successfully")
-		vk.respondError(resp, codes.InternalServerError, err.Error())
-	}*/
 }
 
 // serveStatus answers STATUS packets by serializing most of the data in vk as json.
 // Holds a read lock on structure.
-func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
-	// drain the rest of the body
-	var (
-		drained   = make([]byte, 1024)
-		totalRead int
-	)
-	for {
-		n, err := req.Body().Read(drained)
-		totalRead += n
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		vk.log.Debug().Str("buffer", string(drained)).Int("total read", totalRead).Msg("drained body buffer")
-	}
+func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	// no header validation is required
 
-	// ensure we were not given a payload
-	if totalRead != 0 {
-		vk.respondError(respWriter, codes.BadRequest,
-			"STATUS does not accept a payload"+
-				"(read "+strconv.FormatInt(int64(totalRead), 10)+" bytes")
-		return
+	// check that we were not given a body
+	if len(reqBody) != 0 {
+		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("STATUS message has body")
+		// TODO return fault
 	}
 
 	vk.structure.mu.RLock()
@@ -121,18 +84,17 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, req *mux.Message, res
 	// serialize via protobuf
 	b, err := proto.Marshal(&st)
 	if err != nil {
-		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+		vk.respondError(senderAddr, err.Error())
 		return
 	}
 
-	vk.respondSuccess(respWriter,
-		codes.Content, // ! Content is defined only to work with GETs, but this otherwise fits the definition
-		protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp},
+	vk.respondSuccess(senderAddr,
+		&protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp, ID: vk.id},
 		b)
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.
-func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+/*func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
 	// unpack the body
 	var bd bytes.Buffer
 	if _, err := io.Copy(&bd, req.Body()); err != nil {
@@ -161,4 +123,4 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, resp
 			Type:    mt.HelloAck,
 		},
 		nil)
-}
+}*/
