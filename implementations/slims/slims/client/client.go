@@ -144,7 +144,7 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	// if a response did not arrive in time, try again
 	// TODO
 
-	_, respHdr, bd, err := protocol.ReceivePacket(conn)
+	_, respHdr, bd, err := protocol.ReceivePacket(conn, ctx)
 	if err != nil {
 		return sr, err
 	}

@@ -7,6 +7,7 @@ package protocol
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -214,19 +215,53 @@ func Deserialize(rd io.Reader) (Header, error) {
 }
 
 // ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
-func ReceivePacket(pconn *net.UDPConn) (n int, hdr Header, body []byte, err error) {
-	var buf = make([]byte, slims.MaxPacketSize)
-	if n, err := pconn.Read(buf); err != nil {
-		return n, Header{}, nil, err
-	} else {
-		buf = buf[:n] // trim off excess capacity
+// The context can be used to cancel or timeout the read. If this occurs, all values will be zero except for err, which will equal ctx.Err().
+//
+// ! If ctx.Deadline is set, pconn's ReadDeadline will be set to ctx.Deadline(), overwriting any existing deadline.
+//
+// TODO add tests to RecievePacket to make sure cancellations and deadlines work properly
+func ReceivePacket(pconn *net.UDPConn, ctx context.Context) (n int, hdr Header, body []byte, err error) {
+	if ddl, set := ctx.Deadline(); set {
+		if err := pconn.SetReadDeadline(ddl); err != nil {
+			return 0, Header{}, nil, err
+		}
 	}
 
-	var rd = bytes.NewBuffer(buf)
-	hdr, err = Deserialize(rd)
-	if err != nil {
-		return n, Header{}, nil, err
-	}
-	return n, hdr, rd.Bytes(), nil
+	// spin up a channel to recieve the packet when it arrives over the connection
+	pktCh := make(chan struct {
+		n   int
+		buf []byte
+		err error
+	})
+	go func() {
+		var buf = make([]byte, slims.MaxPacketSize)
+		n, err := pconn.Read(buf)
+		if err == nil {
+			buf = buf[:n] // trim off excess capacity
+		}
 
+		pktCh <- struct {
+			n   int
+			buf []byte
+			err error
+		}{n, buf, err}
+	}()
+
+	// await cancellation or the packet
+	select {
+	case <-ctx.Done():
+		return 0, Header{}, nil, ctx.Err()
+	case pkt := <-pktCh:
+		// check result
+		if pkt.err != nil {
+			return pkt.n, Header{}, nil, pkt.err
+		}
+
+		var rd = bytes.NewBuffer(pkt.buf)
+		hdr, err = Deserialize(rd)
+		if err != nil {
+			return n, Header{}, nil, err
+		}
+		return pkt.n, hdr, rd.Bytes(), nil
+	}
 }
