@@ -23,7 +23,7 @@ import (
 type VaultKeeper struct {
 	//alive atomic.Bool // has this VK been terminated?
 	log  *zerolog.Logger
-	id   uint64 // unique identifier of this node
+	id   slims.NodeID // unique identifier of this node
 	addr netip.AddrPort
 	net  struct {
 		accepting atomic.Bool        // are we currently accepting connections?
@@ -35,7 +35,7 @@ type VaultKeeper struct {
 	structure struct {
 		mu         sync.RWMutex // lock that must be held to interact with the fields of structure
 		height     uint16       // current node height
-		parentID   uint64       // 0 if we are root
+		parentID   slims.NodeID // 0 if we are root
 		parentAddr netip.AddrPort
 	}
 
