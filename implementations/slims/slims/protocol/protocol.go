@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
@@ -27,9 +28,11 @@ const (
 )
 
 // A Header represents a deconstructed Orv packet header.
-// The state of Header is never guaranteed; call .Validate() to verify before using..
+// The state of Header is never guaranteed; call .Validate() to verify before using.
 type Header struct {
 	// Version of Orv Slims this message intends to use.
+	// As a requestor, this is typically the version you want to use/the version previously agreed upon via HELLO.
+	// As a sender, this typically echos the version sent to you (if you support that version).
 	Version Version
 	// Does this packet omit the ID field?
 	Shorthand bool
@@ -57,8 +60,8 @@ var (
 // NOTE: Does NOT imply .Validate() and thus does NOT error on invalid data.
 // Serialize can formulate an invalid packet if given bad data; it is the caller's responsibility to guarantee header's fields.
 //
-// Performs a single allocation of FixedHeaderLen size.
-func (hdr *Header) Serialize() ([]byte, error) {
+// Performs a single allocation of ShortHeaderLen or LongHeaderLen (depending on hdr.Shorthand).
+func (hdr Header) Serialize() ([]byte, error) {
 	// prep output buffer and build the input data
 	var (
 		out, data []byte
@@ -101,15 +104,13 @@ func (hdr *Header) Serialize() ([]byte, error) {
 	return out, nil
 }
 
-// Deserialize populates hdr's fields from the given reader.
+// Deserialize greedily populates hdr's fields from the given reader.
 // Reads 2 bytes if Shorthand, 12 otherwise.
-// Clobbers existing data.
+// If an error occurs, hdr will be left in a partially-set state which is considered undefined.
 //
-// Does NOT validate fields. Does not drain rd.
-//
-// If an error occurs, hdr will be left in a partially clobbered state which is considered undefined.
-func (hdr *Header) Deserialize(rd io.Reader) (err error) {
-	// set up a function to peel off a byte at a time
+// ! Does NOT validate fields. Does not drain rd. A payload may still be in rd; Deserialize only handles the header.
+func Deserialize(rd io.Reader) (hdr Header, err error) {
+	// set up a function to peel data byte by byte
 	var buf = make([]byte, 1)
 	readByte := func() (b byte, done bool, err error) {
 		if read, err := rd.Read(buf); err != nil {
@@ -125,18 +126,18 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 
 	// Version
 	if b, done, err := readByte(); err != nil {
-		return err
+		return hdr, err
 	} else if done {
-		return errors.New("short read on byte 1 (Version)")
+		return hdr, errors.New("short read on byte 1 (Version)")
 	} else {
 		hdr.Version = VersionFromByte(b)
 	}
 
 	// Shorthand and Message Type
 	if b, done, err := readByte(); err != nil {
-		return err
+		return hdr, err
 	} else if done {
-		return errors.New("short read on byte 2 (composite of Shorthand and Type)")
+		return hdr, errors.New("short read on byte 2 (composite of Shorthand and Type)")
 	} else {
 		hdr.Shorthand = (b & 0b10000000) != 0
 		hdr.Type = mt.MessageType(b & 0b01111111)
@@ -146,9 +147,9 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 	if !hdr.Shorthand {
 		for i := range 8 {
 			if b, done, err := readByte(); err != nil {
-				return err
+				return hdr, err
 			} else if done {
-				return fmt.Errorf("short read on byte %d (within ID bytes)", i+2)
+				return hdr, fmt.Errorf("short read on byte %d (within ID bytes)", i+2)
 			} else {
 				hdr.ID = hdr.ID | (uint64(b) << ((7 - i) * 8))
 			}
@@ -156,11 +157,11 @@ func (hdr *Header) Deserialize(rd io.Reader) (err error) {
 
 	}
 
-	return nil
+	return hdr, nil
 }
 
 // Validate tests each field in header, returning a list of issues.
-func (hdr *Header) Validate() (errors []error) {
+func (hdr Header) Validate() (errors []error) {
 	// Version
 	if hdr.Version.Major > 15 {
 		errors = append(errors, ErrInvalidVersionMajor)
@@ -191,9 +192,8 @@ func (hdr *Header) Zerolog(ev *zerolog.Event) {
 	}
 }
 
-// Serialize consumes the given data and returns it serialized as an Orv header.
-// Does not validate the given data.
-// Only the first element in id is used (if multiple are given).
+// Serialize consumes the given header+body and returns it in a wire-ready format.
+// Does not validate the given header or body data.
 func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID) ([]byte, error) {
 	var nid slims.NodeID
 	if len(id) >= 1 {
@@ -201,17 +201,6 @@ func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID
 	}
 
 	return (&Header{Version: v, Shorthand: shorthand, Type: typ, ID: nid}).Serialize()
-}
-
-// Deserialize returns a header built from the given reader.
-// Reads 2 bytes if Shorthand, 12 otherwise.
-//
-// Does NOT validate fields. Does not drain rd.
-//
-// If an error occurs, hdr will not be altered and its state is considered undefined.
-func Deserialize(rd io.Reader) (Header, error) {
-	hdr := Header{}
-	return hdr, hdr.Deserialize(rd)
 }
 
 // ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
