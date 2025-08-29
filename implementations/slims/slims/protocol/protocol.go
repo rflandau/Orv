@@ -206,7 +206,7 @@ func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID
 // Does NOT validate fields. Does not drain rd.
 //
 // If an error occurs, hdr will not be altered and its state is considered undefined.
-func Deserialize(rd io.Reader) (*Header, error) {
-	hdr := (&Header{})
+func Deserialize(rd io.Reader) (Header, error) {
+	hdr := Header{}
 	return hdr, hdr.Deserialize(rd)
 }
