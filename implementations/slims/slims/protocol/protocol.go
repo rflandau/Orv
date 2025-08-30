@@ -245,17 +245,24 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 	// validate params
 	if pconn == nil {
 		return 0, nil, Header{}, nil, ErrConnIsNil
-	} else if err := ctx.Err(); err != nil {
-		return 0, nil, Header{}, nil, err
 	}
-	// set a deadline (if one was given)
-	if ddl, set := ctx.Deadline(); set {
-		if err := pconn.SetReadDeadline(ddl); err != nil {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
 			return 0, nil, Header{}, nil, err
 		}
-	} else {
-		pconn.SetReadDeadline(time.Time{})
+		// set a deadline (if one was given)
+		if ddl, set := ctx.Deadline(); set {
+			if err := pconn.SetReadDeadline(ddl); err != nil {
+				return 0, nil, Header{}, nil, err
+			}
+		}
+	} else { // if context is nil, use a background context to allow us to "wait" on it
+		ctx = context.Background()
+		if err := pconn.SetReadDeadline(time.Time{}); err != nil {
+			return 0, nil, Header{}, nil, err
+		}
 	}
+
 	// spin up a channel to receive the packet when it arrives over the connection
 	pktCh := make(chan struct {
 		n    int
