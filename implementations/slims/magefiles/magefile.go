@@ -11,6 +11,7 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+// Recompiles protobuf contracts.
 func CompileProtoBufs() error {
 	// ensure protoc-gen-go and protoc are available
 	if _, err := exec.LookPath("protoc-gen-go"); err != nil {
@@ -22,8 +23,16 @@ func CompileProtoBufs() error {
 	return nil
 }
 
+// NYI
 func Build() error {
 	//mg.Deps(CompileProtoBufs)
 	// TODO
 	return nil
+}
+
+// Runs all Slims tests.
+// Tests are run with -race.
+func Test() error {
+	_, err := sh.Exec(nil, os.Stdout, os.Stderr, "go", "test", "./...", "-race")
+	return err
 }
