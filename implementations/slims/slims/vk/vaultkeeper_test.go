@@ -94,28 +94,23 @@ func Test_respondError(t *testing.T) {
 		respBody   []byte
 		err        error
 	})
-	go func() {
+	{
 		rcvr, err := net.ListenPacket("udp", rcvrAddr)
 		if err != nil {
+			t.Fatal(err)
+		}
+		defer rcvr.Close()
+		go func() {
+			n, senderAddr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, t.Context())
 			ch <- struct {
 				n          int
 				senderAddr net.Addr
 				header     protocol.Header
 				respBody   []byte
 				err        error
-			}{0, nil, protocol.Header{}, nil, err}
-		}
-		defer rcvr.Close()
-		n, senderAddr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, t.Context())
-		ch <- struct {
-			n          int
-			senderAddr net.Addr
-			header     protocol.Header
-			respBody   []byte
-			err        error
-		}{n, senderAddr, respHdr, respBody, err}
-	}()
-
+			}{n, senderAddr, respHdr, respBody, err}
+		}()
+	}
 	const (
 		reason string = "test"
 	)
