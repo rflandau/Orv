@@ -33,6 +33,6 @@ func Build() error {
 // Runs all Slims tests.
 // Tests are run with -race.
 func Test() error {
-	_, err := sh.Exec(nil, os.Stdout, os.Stderr, "go", "test", "./...", "-race", "-count=1")
+	_, err := sh.Exec(nil, os.Stdout, os.Stderr, "go", "test", "./...", "-race", "-count=1", "-v")
 	return err
 }
