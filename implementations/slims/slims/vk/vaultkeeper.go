@@ -137,6 +137,8 @@ func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 
 }
 
+// respondSuccess is a helper function to coalesce the given data into a wire-ready format and send it to the target address.
+// Logs errors to vk.log instead of returning them.
 func (vk *VaultKeeper) respondSuccess(addr net.Addr, hdr protocol.Header, payload proto.Message) {
 	hdrB, err := hdr.Serialize()
 	if err != nil {

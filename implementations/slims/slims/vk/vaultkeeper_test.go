@@ -203,7 +203,7 @@ func Test_respondSuccess(t *testing.T) {
 			Type:    mt.HelloAck,
 			ID:      1,
 		}
-		sentPayload = &pb.HelloAck{}
+		sentPayload = &pb.HelloAck{Height: 10, Version: uint32(protocol.VersionFromByte(0b01010001).Byte())}
 	)
 	// spin up the vk
 	vk, err := New(1, vkAddr)
@@ -232,11 +232,15 @@ func Test_respondSuccess(t *testing.T) {
 	if res.header != sentHdr {
 		t.Error(ExpectedActual(sentHdr, res.header))
 	}
-	bd := &pb.Fault{}
-	if err := proto.Unmarshal(res.respBody, bd); err != nil {
-		t.Fatal(err)
+	rcvdPayload := &pb.HelloAck{}
+	if err := proto.Unmarshal(res.respBody, rcvdPayload); err != nil {
+		t.Error(err)
 	}
-	if bd.Reason != reason {
-		t.Error(ExpectedActual(reason, bd.Reason))
+	if rcvdPayload.Height != sentPayload.Height {
+		t.Error(ExpectedActual(sentPayload.Height, rcvdPayload.Height))
+	}
+	if rcvdPayload.Version != sentPayload.Version {
+		t.Error(ExpectedActual(sentPayload.Version, rcvdPayload.Version))
+
 	}
 }
