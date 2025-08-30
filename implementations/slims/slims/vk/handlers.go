@@ -32,7 +32,6 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 	vk.structure.mu.RLock()
 	// gather data
 	st := &pb.StatusResp{
-		Id:                vk.id,
 		Height:            uint32(vk.structure.height),
 		VersionsSupported: protocol.VersionsSupportedAsBytes(),
 	}

@@ -13,11 +13,9 @@ message Fault{
 
 // Response to a STATUS request
 message StatusResp {
-    // ID of the VK responding to the Status
-	uint64 id = 1;
-	uint32 Height = 2; //uint16
+	uint32 Height = 1; //uint16
 	// packed bytes; MSN is major, LSN is minor
-	bytes versions_supported = 3;
+	bytes versions_supported = 2;
 }
 
 
@@ -26,11 +24,9 @@ message StatusResp {
 
 
 message Hello {
-    uint64 id = 1;
 }
 
 message HelloAck {
-    uint64 id = 1;
-	uint32 height = 2;  // uint16
-	uint32 version = 3; // byte | major+minor as a byte
+	uint32 height = 1;  // uint16
+	uint32 version = 2; // byte | major+minor as a byte
 }

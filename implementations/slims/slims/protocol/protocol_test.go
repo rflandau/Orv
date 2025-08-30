@@ -625,7 +625,7 @@ func TestReceivePacket(t *testing.T) {
 		sentShorthand := false
 		sentType := mt.HelloAck
 		sentID := rand.Uint64()
-		payload := &pb.HelloAck{Id: rand.Uint64(), Height: 5, Version: uint32(protocol.Version{15, 2}.Byte())}
+		payload := &pb.HelloAck{Height: 5, Version: uint32(protocol.Version{15, 2}.Byte())}
 		hdrB, err := protocol.Serialize(sentVersion, sentShorthand, sentType, sentID, payload)
 		if err != nil {
 			t.Fatal(err)
@@ -658,7 +658,7 @@ func TestReceivePacket(t *testing.T) {
 		if err := proto.Unmarshal(res.respBody, &ha); err != nil {
 			t.Error(err)
 		}
-		if ha.Id != payload.Id || ha.Height != payload.Height || ha.Version != payload.Version {
+		if ha.Height != payload.Height || ha.Version != payload.Version {
 			t.Error(ExpectedActual(ha.String(), payload.String()))
 		}
 

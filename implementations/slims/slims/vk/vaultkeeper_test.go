@@ -71,10 +71,12 @@ func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 	alive = vk.net.accepting.Load()
 
 	// send a STATUS packet
-	if sr, err := client.Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {
+	if respVKID, sr, err := client.Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {
 		return alive, err
 	} else if sr == nil {
 		return alive, errors.New("nil response")
+	} else if respVKID != vk.id {
+		return alive, errors.New("unexpected responder ID" + ExpectedActual(vk.id, respVKID))
 	}
 
 	return alive, nil
@@ -149,6 +151,86 @@ func Test_respondError(t *testing.T) {
 	}
 	if res.header != expectedHeader {
 		t.Error(ExpectedActual(expectedHeader, res.header))
+	}
+	bd := &pb.Fault{}
+	if err := proto.Unmarshal(res.respBody, bd); err != nil {
+		t.Fatal(err)
+	}
+	if bd.Reason != reason {
+		t.Error(ExpectedActual(reason, bd.Reason))
+	}
+}
+
+func Test_respondSuccess(t *testing.T) {
+	const rcvrAddr string = "127.0.0.1:8081"
+	// spawn a listener to receive the FAULT
+	ch := make(chan struct {
+		n          int
+		senderAddr net.Addr
+		header     protocol.Header
+		respBody   []byte
+		err        error
+	})
+	go func() {
+		rcvr, err := net.ListenPacket("udp", rcvrAddr)
+		if err != nil {
+			ch <- struct {
+				n          int
+				senderAddr net.Addr
+				header     protocol.Header
+				respBody   []byte
+				err        error
+			}{0, nil, protocol.Header{}, nil, err}
+		}
+		defer rcvr.Close()
+		n, senderAddr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, t.Context())
+		ch <- struct {
+			n          int
+			senderAddr net.Addr
+			header     protocol.Header
+			respBody   []byte
+			err        error
+		}{n, senderAddr, respHdr, respBody, err}
+	}()
+
+	const (
+		reason string = "test"
+	)
+	var (
+		vkAddr  = netip.MustParseAddrPort("127.0.0.1:8080")
+		sentHdr = protocol.Header{
+			Version: protocol.HighestSupported,
+			Type:    mt.HelloAck,
+			ID:      1,
+		}
+		sentPayload = &pb.HelloAck{}
+	)
+	// spin up the vk
+	vk, err := New(1, vkAddr)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer vk.Stop()
+
+	// send the fault packet
+	parsedRcvrAddr, err := net.ResolveUDPAddr("udp", rcvrAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vk.respondSuccess(parsedRcvrAddr, sentHdr, sentPayload)
+
+	res := <-ch
+	// test that it looks as expected
+	if res.err != nil {
+		t.Fatal(err)
+	}
+	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa != vkAddr {
+		t.Error(ExpectedActual(vkAddr, sa))
+	}
+	if res.header != sentHdr {
+		t.Error(ExpectedActual(sentHdr, res.header))
 	}
 	bd := &pb.Fault{}
 	if err := proto.Unmarshal(res.respBody, bd); err != nil {

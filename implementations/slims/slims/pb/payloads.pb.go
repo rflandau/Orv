@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.8
 // 	protoc        v3.21.12
-// source: orv/pb/payloads.proto
+// source: slims/pb/payloads.proto
 
 package pb
 
@@ -30,7 +30,7 @@ type Fault struct {
 
 func (x *Fault) Reset() {
 	*x = Fault{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	mi := &file_slims_pb_payloads_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42,7 +42,7 @@ func (x *Fault) String() string {
 func (*Fault) ProtoMessage() {}
 
 func (x *Fault) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[0]
+	mi := &file_slims_pb_payloads_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55,7 +55,7 @@ func (x *Fault) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fault.ProtoReflect.Descriptor instead.
 func (*Fault) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{0}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Fault) GetReason() string {
@@ -67,19 +67,17 @@ func (x *Fault) GetReason() string {
 
 // Response to a STATUS request
 type StatusResp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ID of the VK responding to the Status
-	Id     uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Height uint32 `protobuf:"varint,2,opt,name=Height,proto3" json:"Height,omitempty"` //uint16
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Height uint32                 `protobuf:"varint,1,opt,name=Height,proto3" json:"Height,omitempty"` //uint16
 	// packed bytes; MSN is major, LSN is minor
-	VersionsSupported []byte `protobuf:"bytes,3,opt,name=versions_supported,json=versionsSupported,proto3" json:"versions_supported,omitempty"`
+	VersionsSupported []byte `protobuf:"bytes,2,opt,name=versions_supported,json=versionsSupported,proto3" json:"versions_supported,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
 func (x *StatusResp) Reset() {
 	*x = StatusResp{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[1]
+	mi := &file_slims_pb_payloads_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -91,7 +89,7 @@ func (x *StatusResp) String() string {
 func (*StatusResp) ProtoMessage() {}
 
 func (x *StatusResp) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[1]
+	mi := &file_slims_pb_payloads_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -104,14 +102,7 @@ func (x *StatusResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResp.ProtoReflect.Descriptor instead.
 func (*StatusResp) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *StatusResp) GetId() uint64 {
-	if x != nil {
-		return x.Id
-	}
-	return 0
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *StatusResp) GetHeight() uint32 {
@@ -130,14 +121,13 @@ func (x *StatusResp) GetVersionsSupported() []byte {
 
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[2]
+	mi := &file_slims_pb_payloads_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -149,7 +139,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[2]
+	mi := &file_slims_pb_payloads_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -162,28 +152,20 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *Hello) GetId() uint64 {
-	if x != nil {
-		return x.Id
-	}
-	return 0
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{2}
 }
 
 type HelloAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Height        uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`   // uint16
-	Version       uint32                 `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"` // byte | major+minor as a byte
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`   // uint16
+	Version       uint32                 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"` // byte | major+minor as a byte
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_orv_pb_payloads_proto_msgTypes[3]
+	mi := &file_slims_pb_payloads_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +177,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_orv_pb_payloads_proto_msgTypes[3]
+	mi := &file_slims_pb_payloads_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,14 +190,7 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_orv_pb_payloads_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *HelloAck) GetId() uint64 {
-	if x != nil {
-		return x.Id
-	}
-	return 0
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *HelloAck) GetHeight() uint32 {
@@ -232,45 +207,42 @@ func (x *HelloAck) GetVersion() uint32 {
 	return 0
 }
 
-var File_orv_pb_payloads_proto protoreflect.FileDescriptor
+var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
-const file_orv_pb_payloads_proto_rawDesc = "" +
+const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x15orv/pb/payloads.proto\x12\x03orv\"\x1f\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\"\x1f\n" +
 	"\x05Fault\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\"c\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"S\n" +
 	"\n" +
-	"StatusResp\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
-	"\x06Height\x18\x02 \x01(\rR\x06Height\x12-\n" +
-	"\x12versions_supported\x18\x03 \x01(\fR\x11versionsSupported\"\x17\n" +
-	"\x05Hello\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\"L\n" +
-	"\bHelloAck\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
-	"\x06height\x18\x02 \x01(\rR\x06height\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\rR\aversionB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"StatusResp\x12\x16\n" +
+	"\x06Height\x18\x01 \x01(\rR\x06Height\x12-\n" +
+	"\x12versions_supported\x18\x02 \x01(\fR\x11versionsSupported\"\a\n" +
+	"\x05Hello\"<\n" +
+	"\bHelloAck\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\rR\aversionB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
-	file_orv_pb_payloads_proto_rawDescOnce sync.Once
-	file_orv_pb_payloads_proto_rawDescData []byte
+	file_slims_pb_payloads_proto_rawDescOnce sync.Once
+	file_slims_pb_payloads_proto_rawDescData []byte
 )
 
-func file_orv_pb_payloads_proto_rawDescGZIP() []byte {
-	file_orv_pb_payloads_proto_rawDescOnce.Do(func() {
-		file_orv_pb_payloads_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_orv_pb_payloads_proto_rawDesc), len(file_orv_pb_payloads_proto_rawDesc)))
+func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
+	file_slims_pb_payloads_proto_rawDescOnce.Do(func() {
+		file_slims_pb_payloads_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)))
 	})
-	return file_orv_pb_payloads_proto_rawDescData
+	return file_slims_pb_payloads_proto_rawDescData
 }
 
-var file_orv_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_orv_pb_payloads_proto_goTypes = []any{
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_slims_pb_payloads_proto_goTypes = []any{
 	(*Fault)(nil),      // 0: orv.Fault
 	(*StatusResp)(nil), // 1: orv.StatusResp
 	(*Hello)(nil),      // 2: orv.Hello
 	(*HelloAck)(nil),   // 3: orv.HelloAck
 }
-var file_orv_pb_payloads_proto_depIdxs = []int32{
+var file_slims_pb_payloads_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -278,26 +250,26 @@ var file_orv_pb_payloads_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_orv_pb_payloads_proto_init() }
-func file_orv_pb_payloads_proto_init() {
-	if File_orv_pb_payloads_proto != nil {
+func init() { file_slims_pb_payloads_proto_init() }
+func file_slims_pb_payloads_proto_init() {
+	if File_slims_pb_payloads_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orv_pb_payloads_proto_rawDesc), len(file_orv_pb_payloads_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_orv_pb_payloads_proto_goTypes,
-		DependencyIndexes: file_orv_pb_payloads_proto_depIdxs,
-		MessageInfos:      file_orv_pb_payloads_proto_msgTypes,
+		GoTypes:           file_slims_pb_payloads_proto_goTypes,
+		DependencyIndexes: file_slims_pb_payloads_proto_depIdxs,
+		MessageInfos:      file_slims_pb_payloads_proto_msgTypes,
 	}.Build()
-	File_orv_pb_payloads_proto = out.File
-	file_orv_pb_payloads_proto_goTypes = nil
-	file_orv_pb_payloads_proto_depIdxs = nil
+	File_slims_pb_payloads_proto = out.File
+	file_slims_pb_payloads_proto_goTypes = nil
+	file_slims_pb_payloads_proto_depIdxs = nil
 }
