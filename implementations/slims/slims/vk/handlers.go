@@ -5,7 +5,6 @@ package vaultkeeper
 import (
 	"bytes"
 	"net"
-	"strconv"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -18,48 +17,6 @@ import (
 // handler is the core processing called for each request.
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
-
-func (vk *VaultKeeper) handle(pkt []byte, senderAddr net.Addr) {
-	var (
-		reqHdr  protocol.Header
-		reqBody []byte
-	)
-	{
-		reqData := bytes.NewBuffer(pkt)
-		// attempt to fetch an Orv header
-		var err error
-		reqHdr, err = protocol.Deserialize(reqData)
-		if err != nil {
-			vk.respondError(senderAddr, "failed to deserialize header: "+err.Error())
-			return
-		}
-		// save all remaining (usable) characters as the body
-		reqBody = bytes.Trim(reqData.Bytes(), "\x00")
-	}
-
-	vk.log.Debug().Func(reqHdr.Zerolog).Str("body", string(reqBody)).Msg("parsed request header")
-
-	// check that we support the requested version
-	// TODO move this into most sub-handlers
-	if !protocol.IsVersionSupported(reqHdr.Version) {
-		vk.respondError(senderAddr, "unsupported version")
-		return
-	}
-
-	// switch on request type.
-	// Each sub-handler is expected to respond on its own.
-	switch reqHdr.Type {
-	// client requests that do not require a handshake
-	case mt.Status:
-		vk.serveStatus(reqHdr, reqBody, senderAddr)
-	//case mt.Hello:
-	//vk.serveHello(reqHdr, req, resp)*/
-	// TODO ...
-	default: // non-enumerated type or UNKNOWN
-		vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(reqHdr.Type), 10))
-		return
-	}
-}
 
 // serveStatus answers STATUS packets by serializing most of the data in vk as json.
 // Holds a read lock on structure.

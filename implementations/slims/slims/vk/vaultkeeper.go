@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,18 +181,33 @@ func (vk *VaultKeeper) Start() error {
 func (vk *VaultKeeper) dispatch() {
 	func() { // slurp the packet and pass it to the handler func
 		for {
-			var pktbuf = make([]byte, slims.MaxPacketSize)
-			rxN, senderAddr, err := vk.net.pconn.ReadFrom(pktbuf)
-			// TODO add a check on alive or context's done chan
-			if rxN == 0 {
+			n, senderAddr, hdr, body, err := protocol.ReceivePacket(vk.net.pconn, vk.net.ctx)
+			if n == 0 {
 				vk.log.Debug().Msg("zero byte message received")
 				continue
 			} else if err != nil {
-				vk.log.Warn().Err(err).Msg("packet read error, returning...")
-				return
+				vk.log.Warn().Err(err).Msg("receive packet error")
 			}
-			vk.log.Debug().Str("sender address", senderAddr.String()).Int("message size (bytes)", rxN).Msg("packet received")
-			go vk.handle(pktbuf, senderAddr)
+			vk.log.Debug().
+				Str("sender address", senderAddr.String()).
+				Int("message size (bytes)", n).
+				Func(hdr.Zerolog).
+				Msg("packet received")
+			go func() {
+				// switch on request type.
+				// Each sub-handler is expected to respond on its own.
+				switch hdr.Type {
+				// client requests that do not require a handshake
+				case mt.Status:
+					vk.serveStatus(hdr, body, senderAddr)
+				//case mt.Hello:
+				//vk.serveHello(reqHdr, req, resp)*/
+				// TODO ...
+				default: // non-enumerated type or UNKNOWN
+					vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(hdr.Type), 10))
+					return
+				}
+			}()
 		}
 
 	}()
