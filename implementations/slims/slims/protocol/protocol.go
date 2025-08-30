@@ -206,9 +206,9 @@ func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID
 // ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
 // The context can be used to cancel or timeout the read. If this occurs, all values will be zero except for err, which will equal ctx.Err().
 //
-// ! If ctx.Deadline is set, pconn's ReadDeadline will be set to ctx.Deadline(), overwriting any existing deadline.
-//
-// TODO add tests to RecievePacket to make sure cancellations and deadlines work properly
+// ! pconn's read deadline is destructively set according to the given context and NOT reset on exit.
+// If the given context has a deadline, it will supplant pconn's read deadline.
+// If the given context does not have a deadline, pconn's read deadline will be removed.
 func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr net.Addr, hdr Header, body []byte, err error) {
 	// validate params
 	if pconn == nil {
@@ -221,6 +221,8 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 		if err := pconn.SetReadDeadline(ddl); err != nil {
 			return 0, nil, Header{}, nil, err
 		}
+	} else {
+		pconn.SetReadDeadline(time.Time{})
 	}
 	// spin up a channel to receive the packet when it arrives over the connection
 	pktCh := make(chan struct {
