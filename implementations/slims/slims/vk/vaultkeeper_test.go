@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Starts and stops a VK back to back, checking that we can successfully send/receive a STATUS message after each start and cannot do so after each stop
 func TestVaultKeeper_StartStop(t *testing.T) {
 	var vkid slims.NodeID = 1
 	vk, err := New(vkid, netip.MustParseAddrPort("127.0.0.1:8081"))
@@ -82,6 +83,7 @@ func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 	return alive, nil
 }
 
+// Ensures that the data returned by respondError looks as we expect it to.
 func Test_respondError(t *testing.T) {
 	const rcvrAddr string = "127.0.0.1:8081"
 	// spawn a listener to receive the FAULT
@@ -161,6 +163,7 @@ func Test_respondError(t *testing.T) {
 	}
 }
 
+// Ensures that the data returned by respondSuccess looks as we expect it to.
 func Test_respondSuccess(t *testing.T) {
 	const rcvrAddr string = "127.0.0.1:8081"
 	// spawn a listener to receive the FAULT
