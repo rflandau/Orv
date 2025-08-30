@@ -200,6 +200,8 @@ func (vk *VaultKeeper) dispatch() {
 				Func(hdr.Zerolog).
 				Msg("packet received")
 			go func() {
+				// TODO increment waitgroup
+
 				// switch on request type.
 				// Each sub-handler is expected to respond on its own.
 				switch hdr.Type {
