@@ -2,13 +2,19 @@ package protocol_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"errors"
 	"math"
+	"math/rand/v2"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	. "github.com/rflandau/Orv/internal/testsupport"
@@ -279,40 +285,51 @@ func TestFullSend(t *testing.T) {
 	var pktbuf = make([]byte, slims.MaxPacketSize)
 	go func() {
 		for {
-			rcvdN, senderAddr, reqHdr, _, err := protocol.ReceivePacket(pconn, t.Context())
-			if rcvdN == 0 {
-				if done {
-					return
+			var (
+				rcvdN      int
+				reqHdr     protocol.Header
+				senderAddr net.Addr
+			)
+			{ // receive
+				rcvdN, senderAddr, reqHdr, _, err = protocol.ReceivePacket(pconn, t.Context())
+				if rcvdN == 0 {
+					if done {
+						return
+					}
+					continue
+				} else if err != nil {
+					// respond with a FAULT
+					pkt, serializeErr := protocol.Serialize(
+						protocol.HighestSupported, false, mt.Fault, echoServerID,
+						&pb.Fault{Reason: err.Error()},
+					)
+					if serializeErr != nil {
+						t.Error(serializeErr)
+					}
+					if _, err := pconn.WriteTo(pkt, senderAddr); err != nil {
+						t.Error(err)
+					}
+					continue
 				}
-				continue
-			} else if err != nil {
-				t.Error(err)
-				// respond with a FAULT
-				b, serializeErr := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, echoServerID)
-				if serializeErr != nil {
-					t.Error(serializeErr)
-				}
-				if _, err := pconn.WriteTo(append(b, []byte(err.Error())...), senderAddr); err != nil {
-					t.Error(err)
-				}
-				continue
+				t.Logf("read %d bytes", rcvdN)
 			}
-			t.Logf("read %d bytes", rcvdN)
 
 			// validate
 			if errs := reqHdr.Validate(); errs != nil {
 				// respond with a FAULT
-				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
-				if serializeErr != nil {
-					t.Error(serializeErr)
-				}
-
 				var errStr strings.Builder
 				for _, err := range errs {
 					errStr.WriteString(err.Error() + "\n")
 				}
+				pkt, serializeErr := protocol.Serialize(
+					reqHdr.Version, false, mt.Fault, echoServerID,
+					&pb.Fault{Reason: errStr.String()[:errStr.Len()-1]},
+				)
+				if serializeErr != nil {
+					t.Error(serializeErr)
+				}
 
-				if _, err := pconn.WriteTo(append(b, []byte(errStr.String()[:errStr.Len()-1])...), senderAddr); err != nil {
+				if _, err := pconn.WriteTo(pkt, senderAddr); err != nil {
 					t.Error(err)
 				}
 				continue
@@ -323,7 +340,9 @@ func TestFullSend(t *testing.T) {
 			respHdrB, err := reqHdr.Serialize()
 			if err != nil {
 				// respond with a FAULT
-				b, serializeErr := protocol.Serialize(reqHdr.Version, false, mt.Fault, echoServerID)
+				b, serializeErr := protocol.Serialize(
+					reqHdr.Version, false, mt.Fault, echoServerID,
+					&pb.Fault{Reason: err.Error()})
 				if serializeErr != nil {
 					t.Error(serializeErr)
 				}
@@ -404,13 +423,168 @@ func TestFullSend(t *testing.T) {
 	}
 }
 
+// Tests the edge cases of parameters.
+func TestReceivePacketValidation(t *testing.T) {
+	listenAddr := "[::0]:8080"
+
+	t.Run("nil connection", func(t *testing.T) {
+		if n, _, _, _, err := protocol.ReceivePacket(nil, t.Context()); !errors.Is(err, protocol.ErrConnIsNil) {
+			t.Fatal(ExpectedActual(protocol.ErrConnIsNil, err))
+		} else if n != 0 {
+			t.Fatal(ExpectedActual(0, n))
+		}
+	})
+	t.Run("connection already closed", func(t *testing.T) {
+		pconn, err := net.ListenPacket("udp", listenAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// close it immediately
+		pconn.Close()
+
+		if n, _, _, _, err := protocol.ReceivePacket(pconn, t.Context()); !errors.Is(err, net.ErrClosed) {
+			t.Fatal(err)
+		} else if n != 0 {
+			t.Fatal(ExpectedActual(0, n))
+		}
+	})
+	t.Run("context already cancelled", func(t *testing.T) {
+		pconn, err := net.ListenPacket("udp", listenAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pconn.Close()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		if n, _, _, _, err := protocol.ReceivePacket(pconn, ctx); err == nil {
+			t.Fatal(err)
+		} else if n != 0 {
+			t.Fatal(ExpectedActual(0, n))
+		}
+	})
+}
+
+// Tests that we can send and receive packets back to back.
 func TestReceivePacket(t *testing.T) {
-	/*pconn, err := net.ListenPacket("udp", "[::0]:8080")
+	listenAddr := "127.0.0.1:8080"
+	// spin up listener
+	rcvr, err := net.ListenPacket("udp", listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rcvr.Close()
 
-	ctx, cancel := context.WithCancel(t.Context())
+	// make a channel to fetch results
+	ch := make(chan struct {
+		n        int
+		addr     net.Addr
+		header   protocol.Header
+		respBody []byte
+		err      error
+	})
 
-	protocol.ReceivePacket(pconn, ctx)*/
+	// define tests
+	tests := []struct {
+		hdr protocol.Header
+	}{
+		{protocol.Header{Version: protocol.HighestSupported, Shorthand: false, Type: mt.Hello, ID: rand.Uint64()}},
+		{protocol.Header{Version: protocol.VersionFromByte(0b01100001), Shorthand: false, Type: mt.Hello, ID: rand.Uint64()}},
+		{protocol.Header{Version: protocol.VersionFromByte(0b01100011), Shorthand: true, Type: mt.Get}},
+	}
+
+	// start listening for packets equal to the number of tests; forward them
+	go func() {
+		for range tests {
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, context.Background())
+			ch <- struct {
+				n        int
+				addr     net.Addr
+				header   protocol.Header
+				respBody []byte
+				err      error
+			}{n, addr, respHdr, respBody, err}
+		}
+
+	}()
+
+	for i, tt := range tests {
+		t.Run("basic read "+strconv.FormatInt(int64(i), 10), func(t *testing.T) {})
+		// serialize
+		hdrB, err := tt.hdr.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// send
+		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		if err != nil {
+			t.Fatal(err)
+		}
+		res := <-ch
+		// compare
+		if res.err != nil {
+			t.Error(err)
+		} else if res.n != wroteN {
+			t.Error(ExpectedActual(wroteN, res.n))
+		} else if res.header != tt.hdr {
+			t.Error(ExpectedActual(tt.hdr, res.header))
+		}
+	}
+	t.Run("cancel during read", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// spool the receiver back up, using the context
+		go func() {
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, ctx)
+			ch <- struct {
+				n        int
+				addr     net.Addr
+				header   protocol.Header
+				respBody []byte
+				err      error
+			}{n, addr, respHdr, respBody, err}
+		}()
+		time.Sleep(5 * time.Millisecond) // give the receiver time to start listening
+		cancel()
+		res := <-ch
+		if !errors.Is(res.err, context.Canceled) {
+			t.Fatal(ExpectedActual(context.Canceled, res.err))
+		}
+
+	})
+	// make sure we can still successfully receive after the prior test
+	t.Run("successful receive after prior cancel", func(t *testing.T) {
+		go func() {
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, context.Background())
+			ch <- struct {
+				n        int
+				addr     net.Addr
+				header   protocol.Header
+				respBody []byte
+				err      error
+			}{n, addr, respHdr, respBody, err}
+		}()
+
+		hdr := protocol.Header{ID: rand.Uint64()}
+		hdrB, err := hdr.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// send
+		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		if err != nil {
+			t.Fatal(err)
+		}
+		// receive
+		res := <-ch
+		if res.err != nil {
+			t.Error(err)
+		} else if res.n != wroteN {
+			t.Error(ExpectedActual(wroteN, res.n))
+		} else if res.header != hdr {
+			t.Error(ExpectedActual(hdr, res.header))
+		}
+
+	})
 }
