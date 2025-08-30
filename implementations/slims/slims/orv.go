@@ -15,7 +15,7 @@ type NodeID = uint64
 func ResponseMediaType() message.MediaType { return message.AppOctets }
 
 // MaxPacketSize specifies the buffer size used to hold UDP payloads.
-// UDP can theoretically support payloads nearing 65535 bytes.
-// Thankfully for our allocator, Orv packets should easily fit in a thousand bytes.
-// The specific maximum is set arbitrarily and can be changed arbitrarily (at the cost of requiring more heap memory for packet processing).
-const MaxPacketSize uint16 = 2024
+// UDP can theoretically support payloads nearing 65535 bytes, but 1500B is a common MTU and Slims assumes that each Orv message fits into a single packet.
+// Thankfully for our allocator, Orv packets should easily fit in a thousand bytes, if not much less.
+// The specific maximum is set arbitrarily and can be changed arbitrarily (at the cost of requiring more heap memory for packet processing and a greater MTU for transmission).
+const MaxPacketSize uint16 = 1024
