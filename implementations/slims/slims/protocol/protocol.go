@@ -1,5 +1,5 @@
 /*
-Package protocol contains tools for interacting with the L5 orv header.
+Package protocol contains tools for interacting with the L5 orv header and sending Orv packets.
 
 Includes structs that can be composed into a fixed header; you should never have to interact with the raw bits or endian-ness of the header.
 */
