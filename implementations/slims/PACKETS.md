@@ -37,6 +37,10 @@ Undefined type numbers are reserved for future use.
 
 ID is the unique identifier of the sender, used to correlate a packet to its origin for handling (such as from a known child, a pending join, etc). It may only be omitted when sending client requests, as client requests may originate from outside the vault. If it is omitted, S must be set.
 
+### NOTE
+
+An ID of zero is valid. However, this means that omitting an ID (and allowing it to default to 0) without specifying that the packet is shorthand will cause the receiver to act as if the sending node's ID is 0 (not as if the sending node's ID is unset).
+
 # Message Types (Packets)
 
 ## FAULT
