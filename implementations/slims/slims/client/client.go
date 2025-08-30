@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -34,22 +33,15 @@ func Hello(id slims.NodeID, target netip.AddrPort, ctx context.Context) (vkID sl
 	if UDPAddr == nil {
 		return 0, nil, ErrInvalidAddrPort
 	}
-
-	// generate a packet
-	pkt, err := protocol.Serialize(protocol.SupportedVersions().HighestSupported(), false, mt.Hello, id, nil)
-	if err != nil {
-		return 0, nil, err
-	}
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
 	if err != nil {
 		return 0, nil, err
 	}
 	// send
-	if wroteN, err := ctxWrite(ctx, conn, pkt); err != nil {
+	if _, err := protocol.WritePacket(ctx, conn,
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Hello, ID: id}, nil); err != nil {
 		return 0, nil, err
-	} else if len(pkt) != wroteN {
-		return 0, nil, fmt.Errorf("unexpected byte count written to target. Expected %dB, wrote %dB", len(pkt), wroteN)
 	}
 	// receive
 	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
@@ -135,39 +127,5 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 		return respHdr.ID, sr, nil
 	default:
 		return respHdr.ID, sr, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
-	}
-}
-
-// ctxWrite writes a bytestream over the given connection, but also watches for context cancellation to return early.
-func ctxWrite(ctx context.Context, conn *net.UDPConn, b []byte) (int, error) {
-	if ctx == nil {
-		return 0, slims.ErrCtxIsNil
-	}
-	// clear out any existing deadline and ensure we do the same on exist
-	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		return 0, err
-	}
-	defer conn.SetWriteDeadline(time.Time{})
-
-	// spin up a channel to receive the write results
-	resCh := make(chan struct {
-		n   int
-		err error
-	}, 1) // buffer the channel so we do not leak the goroutine
-	go func() {
-		n, err := conn.Write(b)
-		resCh <- struct {
-			n   int
-			err error
-		}{n, err}
-		close(resCh)
-	}()
-
-	select {
-	case <-ctx.Done(): //handle if the context is cancelled
-		conn.SetWriteDeadline(time.Now())
-		return 0, ctx.Err()
-	case res := <-resCh:
-		return res.n, res.err
 	}
 }
