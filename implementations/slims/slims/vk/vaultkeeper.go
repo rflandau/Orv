@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
@@ -112,19 +113,21 @@ func (vk *VaultKeeper) Height() uint16 {
 
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
 func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
-	// compose the response header
-	hdrB, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id)
+	// compose the response
+	b, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id, &pb.Fault{Reason: reason})
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize response header")
 		return
+	} else if len(b) > int(slims.MaxPacketSize) {
+		vk.log.Warn().Msg("Orv packet is greater than max packet size. It may be truncated on receipt.")
 	}
 
-	if n, err := vk.net.pconn.WriteTo(append(hdrB, []byte(reason)...), addr); err != nil {
+	if n, err := vk.net.pconn.WriteTo(append(b, []byte(reason)...), addr); err != nil {
 		vk.log.Warn().Err(err).Str("target address", addr.String()).Msg("failed to respond")
-	} else if n != (len(hdrB) + len([]byte(reason))) {
+	} else if n != (len(b) + len([]byte(reason))) {
 		vk.log.Warn().
 			Int("total bytes written", n).
-			Int("header length (Bytes)", len(hdrB)).
+			Int("header length (Bytes)", len(b)).
 			Int("body length (Bytes)", len([]byte(reason))).
 			Msg("bytes written does not equal sum of header and body")
 	}
