@@ -2,8 +2,11 @@ package vaultkeeper
 
 import (
 	"errors"
+	"math"
+	"math/rand/v2"
 	"net"
 	"net/netip"
+	"strconv"
 	"testing"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -17,8 +20,12 @@ import (
 
 // Starts and stops a VK back to back, checking that we can successfully send/receive a STATUS message after each start and cannot do so after each stop
 func TestVaultKeeper_StartStop(t *testing.T) {
-	var vkid slims.NodeID = 1
-	vk, err := New(vkid, netip.MustParseAddrPort("127.0.0.1:8081"))
+	var (
+		vkid   slims.NodeID = 1
+		port                = rand.UintN(math.MaxUint16)
+		vkAddr              = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+	)
+	vk, err := New(vkid, vkAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +167,10 @@ func Test_respondError(t *testing.T) {
 
 // Ensures that the data returned by respondSuccess looks as we expect it to.
 func Test_respondSuccess(t *testing.T) {
-	const rcvrAddr string = "127.0.0.1:8081"
+	var (
+		port            = rand.UintN(math.MaxUint16)
+		rcvrAddr string = "127.0.0.1:" + strconv.FormatInt(int64(port), 10)
+	)
 	// spawn a listener to receive the FAULT
 	ch := make(chan struct {
 		n          int
