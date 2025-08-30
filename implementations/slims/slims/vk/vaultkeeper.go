@@ -243,7 +243,7 @@ func (vk *VaultKeeper) Stop() {
 	// instead, allow cancel to close the channel and the next .Start() to overwrite the net.ctx reference
 	pconnCloseErr := vk.net.pconn.Close()
 	// TODO await all handlers
-	vk.log.Info().AnErr("conn close error", pconnCloseErr).Msg("completed graceful shutdown")
+	vk.log.Warn().AnErr("conn close error", pconnCloseErr).Msg("completed graceful shutdown")
 
 }
 
