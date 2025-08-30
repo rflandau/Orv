@@ -272,9 +272,10 @@ func TestFullSend(t *testing.T) {
 	var (
 		echoServerID slims.NodeID = 1
 		done         atomic.Bool
+		port         = uint16(rand.UintN(math.MaxUint16))
 	)
 	// generate a server to echo data back
-	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]:8080")
+	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]:"+strconv.FormatUint(uint64(port), 10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +387,7 @@ func TestFullSend(t *testing.T) {
 			}
 
 			// spawn a client to ping the server
-			cli, err := net.DialUDP("udp", nil, &net.UDPAddr{Port: 8080})
+			cli, err := net.DialUDP("udp", nil, &net.UDPAddr{Port: int(port)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -482,7 +483,11 @@ func TestReceivePacketValidation(t *testing.T) {
 
 // Tests that we can send and receive packets back to back.
 func TestReceivePacket(t *testing.T) {
-	listenAddr := "127.0.0.1:9093"
+	var (
+		port       = rand.UintN(math.MaxUint16)
+		listenAddr = "127.0.0.1:" + strconv.FormatUint(uint64(port), 10)
+	)
+
 	// spin up listener
 	pconn, err := net.ListenPacket("udp", listenAddr)
 	if err != nil {
