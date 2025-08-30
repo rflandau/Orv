@@ -178,20 +178,20 @@ func (vk *VaultKeeper) Start() error {
 	}
 
 	vk.log.Info().Str("local address", vk.addr.String()).Msg("accepting incoming packets")
-	go vk.dispatch()
+	go vk.dispatch(vk.net.ctx)
 
 	time.Sleep(30 * time.Millisecond) // buy time for the server to actually start up
 	return nil
 }
 
 // dispatch handles incoming UDP packets and dispatches a goroutine to handle each.
-// Dies when vk.ctx is Done.
+// Dies when the given context is Done.
 // Spun up by .Start(), shuttered by .Stop().
-func (vk *VaultKeeper) dispatch() {
+func (vk *VaultKeeper) dispatch(ctx context.Context) {
 	// slurp the packet and pass it to the handler func
 	for {
 		select {
-		case <-vk.net.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
 			n, senderAddr, hdr, body, err := protocol.ReceivePacket(vk.net.pconn, vk.net.ctx)
