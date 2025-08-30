@@ -50,7 +50,10 @@ var (
 	ErrInvalidVersionMajor = errors.New("major version must be 0 <= x <= 15")
 	ErrInvalidVersionMinor = errors.New("minor version must be 0 <= x <= 15")
 	ErrInvalidMessageType  = errors.New("message type must be representable with 7 bits, must not be 0, and must be an enumerated packet type")
-	ErrShorthandID         = errors.New("ID is ignored when shorthand is set")
+	// both ID and shorthand were set, which will cause ID to be ignored
+	ErrShorthandID = errors.New("ID is ignored when shorthand is set")
+	// a nil connection was given as a parameter
+	ErrConnIsNil = errors.New("PacketConn is nil")
 )
 
 //#endregion errors
@@ -212,7 +215,7 @@ func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID
 func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr net.Addr, hdr Header, body []byte, err error) {
 	// validate params
 	if pconn == nil {
-		return 0, nil, Header{}, nil, errors.New("PacketConn is nil")
+		return 0, nil, Header{}, nil, ErrConnIsNil
 	} else if err := ctx.Err(); err != nil {
 		return 0, nil, Header{}, nil, err
 	}
