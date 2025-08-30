@@ -3,6 +3,7 @@ package vaultkeeper
 import (
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rs/zerolog"
 )
 
@@ -25,6 +26,14 @@ func WithDragonsHoard(initialHeight uint16) VKOption {
 		vk.structure.mu.Lock()
 		vk.structure.height = initialHeight
 		vk.structure.mu.Unlock()
+	}
+}
+
+// WithVersions specifies the versions available to the vk, overwriting those provided by the protocol package.
+// ! For testing purposes ONLY.
+func WithVersions(s version.Set) VKOption {
+	return func(vk *VaultKeeper) {
+		vk.versionSet = s
 	}
 }
 

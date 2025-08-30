@@ -16,15 +16,23 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
 
-// default prune times
+//#region defaults
+
 const (
 	DefaultHelloPruneTime time.Duration = 3 * time.Second
 )
+
+var (
+	defaultVersionsSupported = version.NewSet(version.Version{Major: 1, Minor: 0})
+)
+
+//#endregion defaults
 
 // A VaultKeeper (VK) is a node with organizational and routing capability.
 // The key building block of a Vault.
@@ -39,6 +47,8 @@ type VaultKeeper struct {
 		ctx       context.Context    // the context pconn is running under
 		cancel    context.CancelFunc // callable to kill ctx
 	}
+
+	versionSet version.Set
 
 	// vault information relevant to us
 	structure struct {
@@ -74,6 +84,9 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			ctx       context.Context
 			cancel    context.CancelFunc
 		}{},
+
+		versionSet: defaultVersionsSupported,
+
 		structure: struct {
 			mu         sync.RWMutex
 			height     uint16
@@ -128,7 +141,7 @@ func (vk *VaultKeeper) Height() uint16 {
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
 func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 	// compose the response
-	b, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id,
+	b, err := protocol.Serialize(vk.versionSet.HighestSupported(), false, mt.Fault, vk.id,
 		&pb.Fault{Reason: reason})
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize response header")

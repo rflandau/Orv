@@ -119,7 +119,7 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	// generate a header
-	reqHdr := protocol.Header{Version: protocol.HighestSupported, Shorthand: true, Type: mt.Status}
+	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: mt.Status}
 	if len(senderID) > 0 {
 		reqHdr.Shorthand = false
 		reqHdr.ID = senderID[0]

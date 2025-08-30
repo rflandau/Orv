@@ -31,13 +31,13 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 	// gather data
 	st := &pb.StatusResp{
 		Height:            uint32(vk.structure.height),
-		VersionsSupported: protocol.VersionsSupportedAsBytes(),
+		VersionsSupported: vk.versionSet.AsBytes(),
 	}
 	vk.structure.mu.RUnlock()
 
 	// send data to client
 	vk.respondSuccess(senderAddr,
-		protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp, ID: vk.id},
+		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: mt.StatusResp, ID: vk.id},
 		st)
 }
 
@@ -62,7 +62,7 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 	vk.pendingHellos.Store(reqHdr.ID, true, DefaultHelloPruneTime)
 
 	vk.respondSuccess(senderAddr,
-		protocol.Header{Version: protocol.HighestSupported, Type: mt.HelloAck, ID: vk.ID()},
+		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: mt.HelloAck, ID: vk.ID()},
 		&pb.HelloAck{Height: uint32(vk.Height())})
 }
 

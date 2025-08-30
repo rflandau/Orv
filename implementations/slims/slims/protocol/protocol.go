@@ -29,6 +29,14 @@ const (
 	ShortHeaderLen uint8 = 2
 )
 
+var versions = version.NewSet(version.Version{Major: 1, Minor: 0})
+
+// SupportedVersions returns the set of Orv versions supported by this library.
+// Currently pretty redundant.
+func SupportedVersions() version.Set {
+	return versions
+}
+
 // A Header represents a deconstructed Orv packet header.
 // The state of Header is never guaranteed; call .Validate() to verify before using.
 type Header struct {

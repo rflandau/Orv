@@ -14,6 +14,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	. "github.com/rflandau/Orv/internal/testsupport"
 	"google.golang.org/protobuf/proto"
 )
@@ -124,13 +125,13 @@ func Test_respondError(t *testing.T) {
 	var (
 		vkAddr         = netip.MustParseAddrPort("127.0.0.1:8080")
 		expectedHeader = protocol.Header{
-			Version: protocol.HighestSupported,
+			Version: version.Version{Major: 2},
 			Type:    mt.Fault,
 			ID:      1,
 		}
 	)
 	// spin up the vk
-	vk, err := New(1, vkAddr)
+	vk, err := New(1, vkAddr, WithVersions(version.NewSet(version.Version{Major: 2})))
 	if err != nil {
 		t.Fatal(err)
 	} else if err := vk.Start(); err != nil {
@@ -207,7 +208,7 @@ func Test_respondSuccess(t *testing.T) {
 	var (
 		vkAddr  = netip.MustParseAddrPort("127.0.0.1:8080")
 		sentHdr = protocol.Header{
-			Version: protocol.HighestSupported,
+			Version: version.Version{Major: 1, Minor: 12},
 			Type:    mt.HelloAck,
 			ID:      1,
 		}

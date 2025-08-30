@@ -27,7 +27,7 @@ func TestStatus(t *testing.T) {
 		}
 	})
 	const reqTimeout = 300 * time.Millisecond
-	actualVersions := protocol.VersionsSupportedAsBytes()
+	actualVersions := protocol.SupportedVersions()
 
 	t.Run("shorthand request", func(t *testing.T) {
 		var (
@@ -61,8 +61,8 @@ func TestStatus(t *testing.T) {
 		if respVKID != vkID || vkA.ID() != vkID {
 			t.Error("bad vkID", ExpectedActual(vkA.ID(), respVKID))
 		}
-		if slices.Compare(actualVersions, respSR.VersionsSupported) != 0 {
-			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions))
+		if slices.Compare(actualVersions.AsBytes(), respSR.VersionsSupported) != 0 {
+			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions.AsBytes()))
 		}
 	})
 	t.Run("longform request", func(t *testing.T) {
@@ -93,8 +93,8 @@ func TestStatus(t *testing.T) {
 		if expectedRespID := vkB.ID(); respVKID != expectedRespID || vkID != expectedRespID {
 			t.Error("bad vkID", ExpectedActual(vkB.ID(), respVKID))
 		}
-		if slices.Compare(actualVersions, respSR.VersionsSupported) != 0 {
-			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions))
+		if slices.Compare(actualVersions.AsBytes(), respSR.VersionsSupported) != 0 {
+			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions.AsBytes()))
 		}
 	})
 	// spawn a second VK with alternate values
