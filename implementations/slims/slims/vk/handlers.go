@@ -26,7 +26,8 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 	// check that we were not given a body
 	if len(reqBody) != 0 {
 		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("STATUS message has body")
-		// TODO return fault
+		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Status).Error())
+		return
 	}
 
 	vk.structure.mu.RLock()
