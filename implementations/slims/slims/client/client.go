@@ -13,6 +13,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,47 +23,47 @@ var ErrInvalidAddrPort = errors.New("target must be a valid address+port")
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
 //
 // This subroutine can be invoked by any node.
-func Hello(ctx context.Context, id slims.NodeID, target netip.AddrPort) (vkID slims.NodeID, _ *pb.HelloAck, err error) {
+func Hello(ctx context.Context, id slims.NodeID, target netip.AddrPort) (vkID slims.NodeID, vkVersion version.Version, _ *pb.HelloAck, err error) {
 	// validate parameters
 	if ctx == nil {
-		return 0, nil, slims.ErrCtxIsNil
+		return 0, version.Version{}, nil, slims.ErrCtxIsNil
 	} else if !target.IsValid() {
-		return 0, nil, ErrInvalidAddrPort
+		return 0, version.Version{}, nil, ErrInvalidAddrPort
 	}
 	UDPAddr := net.UDPAddrFromAddrPort(target)
 	if UDPAddr == nil {
-		return 0, nil, ErrInvalidAddrPort
+		return 0, version.Version{}, nil, ErrInvalidAddrPort
 	}
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
 	if err != nil {
-		return 0, nil, err
+		return 0, version.Version{}, nil, err
 	}
 	// send
 	if _, err := protocol.WritePacket(ctx, conn,
 		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Hello, ID: id}, nil); err != nil {
-		return 0, nil, err
+		return 0, version.Version{}, nil, err
 	}
 	// receive
 	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
 	if err != nil {
-		return 0, nil, err
+		return 0, version.Version{}, nil, err
 	}
 	switch respHdr.Type {
 	case mt.Fault:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
-			return respHdr.ID, nil, err
+			return respHdr.ID, respHdr.Version, nil, err
 		}
-		return respHdr.ID, nil, errors.New(f.Reason)
+		return respHdr.ID, respHdr.Version, nil, errors.New(f.Reason)
 	case mt.HelloAck:
 		ha := &pb.HelloAck{}
 		if err := proto.Unmarshal(respBody, ha); err != nil {
-			return respHdr.ID, nil, err
+			return respHdr.ID, respHdr.Version, nil, err
 		}
-		return respHdr.ID, ha, nil
+		return respHdr.ID, respHdr.Version, ha, nil
 	default:
-		return respHdr.ID, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+		return respHdr.ID, respHdr.Version, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
 }
 
