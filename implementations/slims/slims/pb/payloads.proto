@@ -18,15 +18,7 @@ message StatusResp {
 	bytes versions_supported = 2;
 }
 
-
-
-
-
-
-message Hello {
-}
-
+// Response to a HELLO request
 message HelloAck {
 	uint32 height = 1;  // uint16
-	uint32 version = 2; // byte | major+minor as a byte
 }

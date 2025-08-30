@@ -18,6 +18,11 @@ func ErrBodyNotAccepted(typ mt.MessageType) error {
 	return errors.New("packet type " + typ.String() + " should not contain a body")
 }
 
+// ErrInternalError declares that an internal server error occurred (like a HTTP/S 500)
+func ErrInternalError(details string) error {
+	return errors.New("an internal error occurred: " + details)
+}
+
 var (
 	ErrDead = errors.New("this VaultKeeper is dead")
 )

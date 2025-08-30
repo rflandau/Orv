@@ -119,53 +119,17 @@ func (x *StatusResp) GetVersionsSupported() []byte {
 	return nil
 }
 
-type Hello struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Hello) Reset() {
-	*x = Hello{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Hello) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Hello) ProtoMessage() {}
-
-func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Hello.ProtoReflect.Descriptor instead.
-func (*Hello) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{2}
-}
-
+// Response to a HELLO request
 type HelloAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`   // uint16
-	Version       uint32                 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"` // byte | major+minor as a byte
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HelloAck) Reset() {
 	*x = HelloAck{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[3]
+	mi := &file_slims_pb_payloads_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -177,7 +141,7 @@ func (x *HelloAck) String() string {
 func (*HelloAck) ProtoMessage() {}
 
 func (x *HelloAck) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[3]
+	mi := &file_slims_pb_payloads_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -190,19 +154,12 @@ func (x *HelloAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloAck.ProtoReflect.Descriptor instead.
 func (*HelloAck) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{3}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HelloAck) GetHeight() uint32 {
 	if x != nil {
 		return x.Height
-	}
-	return 0
-}
-
-func (x *HelloAck) GetVersion() uint32 {
-	if x != nil {
-		return x.Version
 	}
 	return 0
 }
@@ -217,11 +174,9 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
 	"StatusResp\x12\x16\n" +
 	"\x06Height\x18\x01 \x01(\rR\x06Height\x12-\n" +
-	"\x12versions_supported\x18\x02 \x01(\fR\x11versionsSupported\"\a\n" +
-	"\x05Hello\"<\n" +
+	"\x12versions_supported\x18\x02 \x01(\fR\x11versionsSupported\"\"\n" +
 	"\bHelloAck\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\rR\x06height\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\rR\aversionB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\x06height\x18\x01 \x01(\rR\x06heightB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
@@ -235,12 +190,11 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 	return file_slims_pb_payloads_proto_rawDescData
 }
 
-var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_slims_pb_payloads_proto_goTypes = []any{
 	(*Fault)(nil),      // 0: orv.Fault
 	(*StatusResp)(nil), // 1: orv.StatusResp
-	(*Hello)(nil),      // 2: orv.Hello
-	(*HelloAck)(nil),   // 3: orv.HelloAck
+	(*HelloAck)(nil),   // 2: orv.HelloAck
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -261,7 +215,7 @@ func file_slims_pb_payloads_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

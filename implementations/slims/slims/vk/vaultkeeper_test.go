@@ -211,7 +211,7 @@ func Test_respondSuccess(t *testing.T) {
 			Type:    mt.HelloAck,
 			ID:      1,
 		}
-		sentPayload = &pb.HelloAck{Height: 10, Version: uint32(protocol.VersionFromByte(0b01010001).Byte())}
+		sentPayload = &pb.HelloAck{Height: 10}
 	)
 	// spin up the vk
 	vk, err := New(1, vkAddr)
@@ -246,9 +246,5 @@ func Test_respondSuccess(t *testing.T) {
 	}
 	if rcvdPayload.Height != sentPayload.Height {
 		t.Error(ExpectedActual(sentPayload.Height, rcvdPayload.Height))
-	}
-	if rcvdPayload.Version != sentPayload.Version {
-		t.Error(ExpectedActual(sentPayload.Version, rcvdPayload.Version))
-
 	}
 }
