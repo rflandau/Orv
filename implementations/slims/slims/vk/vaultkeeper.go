@@ -158,6 +158,7 @@ func (vk *VaultKeeper) Start() error {
 	if swapped := vk.net.accepting.CompareAndSwap(false, true); !swapped { // mark us as alive; quit if we were already alive
 		return nil
 	}
+	// ! context, cancellation, and pconn are rebuilt on each start up
 
 	// create a context so we can kill this listener instance
 	vk.net.ctx, vk.net.cancel = context.WithCancel(context.Background())
@@ -176,11 +177,16 @@ func (vk *VaultKeeper) Start() error {
 	return nil
 }
 
-// dispatch handles incoming UDP packets and dispatches a handler for each.
+// dispatch handles incoming UDP packets and dispatches a goroutine to handle each.
+// Dies when vk.ctx is Done.
 // Spun up by .Start(), shuttered by .Stop().
 func (vk *VaultKeeper) dispatch() {
-	func() { // slurp the packet and pass it to the handler func
-		for {
+	// slurp the packet and pass it to the handler func
+	for {
+		select {
+		case <-vk.net.ctx.Done():
+			return
+		default:
 			n, senderAddr, hdr, body, err := protocol.ReceivePacket(vk.net.pconn, vk.net.ctx)
 			if n == 0 {
 				vk.log.Debug().Msg("zero byte message received")
@@ -209,8 +215,7 @@ func (vk *VaultKeeper) dispatch() {
 				}
 			}()
 		}
-
-	}()
+	}
 }
 
 // Stop causes the server to stop accepting requests.
@@ -219,15 +224,16 @@ func (vk *VaultKeeper) Stop() {
 	if !vk.net.accepting.CompareAndSwap(true, false) {
 		return
 	}
+	// ! context, cancellation, and pconn are rebuilt on each start up
 
-	// TODO do we also need to send a stop to pconn directly or is the context enough?
 	vk.log.Info().Msg("initializing graceful shutdown")
 	if vk.net.cancel != nil {
 		vk.net.cancel()
 	}
+	// do not nil the context or dispatch will attempt to wait on a nil channel.
+	// instead, allow cancel to close the channel and the next .Start() to overwrite the net.ctx reference
 	pconnCloseErr := vk.net.pconn.Close()
 	// TODO await all handlers
-	vk.net.ctx = nil
 	vk.log.Info().AnErr("conn close error", pconnCloseErr).Msg("completed graceful shutdown")
 
 }
