@@ -18,6 +18,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -107,6 +108,61 @@ func (hdr Header) Serialize() ([]byte, error) {
 	return out, nil
 }
 
+// Validate tests each field in header, returning a list of issues.
+func (hdr Header) Validate() (errors []error) {
+	// Version
+	if hdr.Version.Major > 15 {
+		errors = append(errors, ErrInvalidVersionMajor)
+	}
+	if hdr.Version.Minor > 15 {
+		errors = append(errors, ErrInvalidVersionMinor)
+	}
+	// Type
+	if hdr.Type.String() == "UNKNOWN" || hdr.Type == 0 { // type only has 7 bits available
+		errors = append(errors, ErrInvalidMessageType)
+	}
+	// Shorthand+ID
+	if hdr.Shorthand && hdr.ID != 0 {
+		errors = append(errors, ErrShorthandID)
+	}
+
+	return errors
+}
+
+// Zerolog attaches header's fields to the given log event.
+// Intended to be given to *zerolog.Event.Func().
+func (hdr *Header) Zerolog(ev *zerolog.Event) {
+	ev.Str("version", fmt.Sprintf("%d.%d", hdr.Version.Major, hdr.Version.Minor)).
+		Bool("shorthand", hdr.Shorthand).
+		Str("type", hdr.Type.String())
+	if !hdr.Shorthand {
+		ev.Uint64("ID", hdr.ID)
+	}
+}
+
+// Serialize consumes the given header+body and returns it in a wire-ready format.
+// id will be ignored if shorthand is set.
+//
+// Does not validate the header, the payload, or that the combination is valid.
+//
+// If you just want a header, use header.Serialize().
+func Serialize(v Version, shorthand bool, typ mt.MessageType, id slims.NodeID, payload proto.Message) ([]byte, error) {
+	// generate header
+	hdrB, err := Header{Version: v, Shorthand: shorthand, Type: typ, ID: id}.Serialize()
+	if err != nil {
+		return nil, err
+	} else if payload == nil {
+		return hdrB, nil
+	}
+	// generate body
+	payloadB, err := proto.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return append(hdrB, payloadB...), nil
+
+}
+
 // Deserialize greedily populates hdr's fields from the given reader.
 // Reads 2 bytes if Shorthand, 12 otherwise.
 // If an error occurs, hdr will be left in a partially-set state which is considered undefined.
@@ -163,47 +219,20 @@ func Deserialize(rd io.Reader) (hdr Header, err error) {
 	return hdr, nil
 }
 
-// Validate tests each field in header, returning a list of issues.
-func (hdr Header) Validate() (errors []error) {
-	// Version
-	if hdr.Version.Major > 15 {
-		errors = append(errors, ErrInvalidVersionMajor)
+// DeserializeWithBody operates the same as Deserialize, but also drains the reader into a byte array and trims off null bytes.
+func DeserializeWithBody(rd io.Reader) (hdr Header, nBody int, body []byte, err error) {
+	hdr, err = Deserialize(rd)
+	if err != nil {
+		return Header{}, 0, nil, err
 	}
-	if hdr.Version.Minor > 15 {
-		errors = append(errors, ErrInvalidVersionMinor)
+	var bd []byte
+	n, err := rd.Read(bd)
+	if err != nil {
+		return Header{}, 0, nil, err
+	} else {
+		bd = bd[:n]
 	}
-	// Type
-	if hdr.Type.String() == "UNKNOWN" || hdr.Type == 0 { // type only has 7 bits available
-		errors = append(errors, ErrInvalidMessageType)
-	}
-	// Shorthand+ID
-	if hdr.Shorthand && hdr.ID != 0 {
-		errors = append(errors, ErrShorthandID)
-	}
-
-	return errors
-}
-
-// Zerolog attaches header's fields to the given log event.
-// Intended to be given to *zerolog.Event.Func().
-func (hdr *Header) Zerolog(ev *zerolog.Event) {
-	ev.Str("version", fmt.Sprintf("%d.%d", hdr.Version.Major, hdr.Version.Minor)).
-		Bool("shorthand", hdr.Shorthand).
-		Str("type", hdr.Type.String())
-	if !hdr.Shorthand {
-		ev.Uint64("ID", hdr.ID)
-	}
-}
-
-// Serialize consumes the given header+body and returns it in a wire-ready format.
-// Does not validate the given header or body data.
-func Serialize(v Version, shorthand bool, typ mt.MessageType, id ...slims.NodeID) ([]byte, error) {
-	var nid slims.NodeID
-	if len(id) >= 1 {
-		nid = id[0]
-	}
-
-	return (&Header{Version: v, Shorthand: shorthand, Type: typ, ID: nid}).Serialize()
+	return hdr, n, bd, nil
 }
 
 // ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
