@@ -21,6 +21,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// default prune times
+const (
+	DefaultHelloPruneTime time.Duration = 3 * time.Second
+)
+
 // A VaultKeeper (VK) is a node with organizational and routing capability.
 // The key building block of a Vault.
 type VaultKeeper struct {
@@ -35,11 +40,17 @@ type VaultKeeper struct {
 		cancel    context.CancelFunc // callable to kill ctx
 	}
 
+	// vault information relevant to us
 	structure struct {
 		mu         sync.RWMutex // lock that must be held to interact with the fields of structure
 		height     uint16       // current node height
 		parentID   slims.NodeID // 0 if we are root
 		parentAddr netip.AddrPort
+	}
+
+	// how quickly are pieces of data pruned
+	pruneTime struct {
+		hello time.Duration
 	}
 
 	pendingHellos expiring.Table[slims.NodeID, bool]
@@ -69,6 +80,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			parentID   uint64
 			parentAddr netip.AddrPort
 		}{},
+		pruneTime: struct{ hello time.Duration }{hello: DefaultHelloPruneTime},
 	}
 	vk.net.accepting.Store(false)
 

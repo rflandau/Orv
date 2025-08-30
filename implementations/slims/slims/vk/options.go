@@ -1,6 +1,10 @@
 package vaultkeeper
 
-import "github.com/rs/zerolog"
+import (
+	"time"
+
+	"github.com/rs/zerolog"
+)
 
 // File options.go provides options that can be passed to the vaultkeeper constructor to configure it.
 
@@ -22,4 +26,9 @@ func WithDragonsHoard(initialHeight uint16) VKOption {
 		vk.structure.height = initialHeight
 		vk.structure.mu.Unlock()
 	}
+}
+
+// WithHelloPruneTime overwrites DefaultHelloPruneTime.
+func WithHelloPruneTime(t time.Duration) VKOption {
+	return func(vk *VaultKeeper) { vk.pruneTime.hello = t }
 }

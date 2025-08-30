@@ -11,8 +11,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 )
 
-//const helloPruneTime time.Duration = 3 * time.Second
-
 // handler is the core processing called for each request.
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
@@ -46,7 +44,11 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 // serveHello answers HELLO packets with HELLO_ACK or FAULT.
 // Selects a version based on the request version (the version in the header) and what versions we support.
 func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
-	if len(reqBody) != 0 {
+	// validate parameters
+	if reqHdr.Shorthand {
+		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Hello).Error())
+		return
+	} else if len(reqBody) != 0 {
 		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("HELLO message has body")
 		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Hello).Error())
 		return
@@ -55,6 +57,10 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 	// check the version to determine what version to respond with.
 	// this redundant at the moment as we only support a single version.
 	// TODO
+
+	// install requestor id in our pending table
+	vk.pendingHellos.Store(reqHdr.ID, true, DefaultHelloPruneTime)
+
 	vk.respondSuccess(senderAddr,
 		protocol.Header{Version: protocol.HighestSupported, Type: mt.HelloAck, ID: vk.ID()},
 		&pb.HelloAck{Height: uint32(vk.Height())})
