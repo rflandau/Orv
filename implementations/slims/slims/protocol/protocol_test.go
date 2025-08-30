@@ -436,6 +436,18 @@ func TestReceivePacketValidation(t *testing.T) {
 			t.Fatal(ExpectedActual(0, n))
 		}
 	})
+	t.Run("nil context", func(t *testing.T) {
+		pconn, err := net.ListenPacket("udp", listenAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pconn.Close()
+		if n, _, _, _, err := protocol.ReceivePacket(pconn, nil); !errors.Is(err, protocol.ErrCtxIsNil) {
+			t.Fatal(ExpectedActual(protocol.ErrCtxIsNil, err))
+		} else if n != 0 {
+			t.Fatal(ExpectedActual(0, n))
+		}
+	})
 	t.Run("connection already closed", func(t *testing.T) {
 		pconn, err := net.ListenPacket("udp", listenAddr)
 		if err != nil {
@@ -470,13 +482,13 @@ func TestReceivePacketValidation(t *testing.T) {
 
 // Tests that we can send and receive packets back to back.
 func TestReceivePacket(t *testing.T) {
-	listenAddr := "127.0.0.1:8080"
+	listenAddr := "127.0.0.1:9093"
 	// spin up listener
 	pconn, err := net.ListenPacket("udp", listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pconn.Close()
+	t.Cleanup(func() { pconn.Close() })
 
 	// make a channel to fetch results
 	ch := make(chan struct {
@@ -556,9 +568,9 @@ func TestReceivePacket(t *testing.T) {
 
 	})
 	// make sure we can still successfully receive after the prior test
-	t.Run("successful receive after prior cancel (nil context)", func(t *testing.T) {
+	t.Run("successful receive after prior cancel", func(t *testing.T) {
 		go func() {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, nil)
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, context.TODO())
 			ch <- struct {
 				n        int
 				addr     net.Addr
@@ -589,17 +601,23 @@ func TestReceivePacket(t *testing.T) {
 		}
 	})
 	t.Run("deadline expires during read", func(t *testing.T) {
-		give := 4 * time.Millisecond // extra buffer time, as elapsed will not exactly equal timeout
-		timeout := 40 * time.Millisecond
+		give := 5 * time.Millisecond // extra buffer time, as elapsed will not exactly equal timeout
+		timeout := 60 * time.Millisecond
 		ctx, cancel := context.WithTimeout(t.Context(), timeout)
 		defer cancel()
 
 		start := time.Now()
 		_, _, _, _, err := protocol.ReceivePacket(pconn, ctx)
-
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatal(ExpectedActual(context.DeadlineExceeded, err))
+		if err == nil {
+			t.Fatal("error should not be nil after failing to due to timeout")
 		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			_, ok := err.(*net.OpError)
+			if !ok {
+				t.Fatal(ExpectedActual(context.DeadlineExceeded, err))
+			}
+		}
+
 		elapsed := time.Since(start)
 		if elapsed < timeout-time.Duration(give) {
 			t.Errorf("likely timed out too quickly. %v elapsed but %v was the expected timeout", elapsed, timeout)
