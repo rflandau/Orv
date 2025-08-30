@@ -41,6 +41,12 @@ Orv Slims is built on UDP. This decision was two-pronged:
 
 A production-ready implementation should consider a hybridized layer 4, where packets that do not require acks are sent via UDP and those that do are sent with something that guarantees delivery. Possibly QUIC?
 
+## Building on UDP
+
+Building on UDP and working with the raw buffers is kind of a pain (though infinitely less than it is in C). Slims is built on a trick that makes this much easier: tiny payloads. By packing everything into a single packet (Slims assumes an MTU of just 1KB), we can rely on UDP's integrity (via checksums) and Orv's idempotence so that we do not have to deal with out of order or incomplete payloads.
+
+This trick will not work in every scenario, but Orv's design coincidentally results in very small payloads, allowing it to fit within a single packet even on relatively small MTUs. The only message type that could be an issue is STATUS, as its payload is technically unbounded.
+
 # Compressing Payloads Further
 
 TODO rewrite this section now that it is in DESIGN.
