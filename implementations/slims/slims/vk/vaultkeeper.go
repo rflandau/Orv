@@ -241,9 +241,12 @@ func (vk *VaultKeeper) Stop() {
 	}
 	// do not nil the context or dispatch will attempt to wait on a nil channel.
 	// instead, allow cancel to close the channel and the next .Start() to overwrite the net.ctx reference
-	pconnCloseErr := vk.net.pconn.Close()
 	// TODO await all handlers
-	vk.log.Warn().AnErr("conn close error", pconnCloseErr).Msg("completed graceful shutdown")
+	if err := vk.net.pconn.Close(); err != nil {
+		vk.log.Warn().Err(err).Msg("completed shutting down with an error")
+	} else {
+		vk.log.Info().Msg("completed graceful shutdown")
+	}
 
 }
 
