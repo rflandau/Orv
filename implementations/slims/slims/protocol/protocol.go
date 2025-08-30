@@ -17,6 +17,7 @@ import (
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -34,7 +35,7 @@ type Header struct {
 	// Version of Orv Slims this message intends to use.
 	// As a requestor, this is typically the version you want to use/the version previously agreed upon via HELLO.
 	// As a sender, this typically echos the version sent to you (if you support that version).
-	Version Version
+	Version version.Version
 	// Does this packet omit the ID field?
 	Shorthand bool
 	// Type of message.
@@ -147,7 +148,7 @@ func (hdr *Header) Zerolog(ev *zerolog.Event) {
 // Does not validate the header, the payload, or that the combination is valid.
 //
 // If you just want a header, use header.Serialize().
-func Serialize(v Version, shorthand bool, typ mt.MessageType, id slims.NodeID, payload proto.Message) ([]byte, error) {
+func Serialize(v version.Version, shorthand bool, typ mt.MessageType, id slims.NodeID, payload proto.Message) ([]byte, error) {
 	// generate header
 	hdrB, err := Header{Version: v, Shorthand: shorthand, Type: typ, ID: id}.Serialize()
 	if err != nil {
@@ -190,7 +191,7 @@ func Deserialize(rd io.Reader) (hdr Header, err error) {
 	} else if done {
 		return hdr, errors.New("short read on byte 1 (Version)")
 	} else {
-		hdr.Version = VersionFromByte(b)
+		hdr.Version = version.FromByte(b)
 	}
 
 	// Shorthand and Message Type
