@@ -52,17 +52,16 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("HELLO message has body")
 		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Hello).Error())
 		return
-	}
-
-	// check the version to determine what version to respond with.
-	// this redundant at the moment as we only support a single version.
-	// TODO
+	} // no need to check version here as we would normally reply according to packet rules, but we only support a single version
 
 	// install requestor id in our pending table
 	vk.pendingHellos.Store(reqHdr.ID, true, DefaultHelloPruneTime)
 
 	vk.respondSuccess(senderAddr,
-		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: mt.HelloAck, ID: vk.ID()},
+		protocol.Header{
+			Version: vk.versionSet.HighestSupported(), // at the moment, we only support a single version, so only reply with that version
+			Type:    mt.HelloAck,
+			ID:      vk.ID()},
 		&pb.HelloAck{Height: uint32(vk.Height())})
 }
 
