@@ -80,7 +80,7 @@ func TestTable(t *testing.T) {
 		tbl.Store(&key, val, 20*time.Millisecond)
 		time.Sleep(5 * time.Millisecond)
 		checkLoad(t, &tbl, &key, true, val)
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(16 * time.Millisecond)
 		checkLoad(t, &tbl, &key, false, val)
 	})
 
