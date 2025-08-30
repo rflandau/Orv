@@ -17,8 +17,8 @@ import (
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
 
-// serveStatus answers STATUS packets by serializing most of the data in vk as json.
-// Holds a read lock on structure.
+// serveStatus answers STATUS packets, returning a variety of information about the vk.
+// Briefly holds a read lock on structure.
 func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// no header validation is required
 
@@ -41,6 +41,23 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 	vk.respondSuccess(senderAddr,
 		protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp, ID: vk.id},
 		st)
+}
+
+// serveHello answers HELLO packets with HELLO_ACK or FAULT.
+// Selects a version based on the request version (the version in the header) and what versions we support.
+func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	if len(reqBody) != 0 {
+		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("HELLO message has body")
+		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Hello).Error())
+		return
+	}
+
+	// check the version to determine what version to respond with.
+	// this redundant at the moment as we only support a single version.
+	// TODO
+	vk.respondSuccess(senderAddr,
+		protocol.Header{Version: protocol.HighestSupported, Type: mt.HelloAck, ID: vk.ID()},
+		&pb.HelloAck{Height: uint32(vk.Height())})
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.
