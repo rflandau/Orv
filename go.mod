@@ -10,6 +10,7 @@ require (
 
 require (
 	github.com/dsnet/golib/memfile v1.0.0 // indirect
+	github.com/magefile/mage v1.15.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pion/dtls/v3 v3.0.6 // indirect
