@@ -698,3 +698,119 @@ func TestReceivePacket(t *testing.T) {
 
 	})
 }
+
+// Tests Test_WritePacket to ensure we can write packets, respect contexts, and write packets independently (prior writes do not influence future writes/deadlines/cancellations).
+//
+// ! Does not verify the integrity of the data beyond checking the # of bytes written. That should probably be remedied eventually.
+func TestWritePacket(t *testing.T) {
+	// helper function to make a basic UDP connection we can write to and easily clean up
+	startUDPListener := func(t *testing.T) (_ *net.UDPConn, _ func()) {
+		addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0") // allows OS to choose a port
+		if err != nil {
+			t.Fatalf("ResolveUDPAddr failed: %v", err)
+		}
+		t.Helper()
+
+		srv, err := net.ListenUDP("udp", addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// dial the listener
+		sender, err := net.DialUDP("udp", nil, srv.LocalAddr().(*net.UDPAddr))
+		if err != nil {
+			srv.Close()
+			t.Fatal(err)
+		}
+
+		// reads continually until socket is closed
+		go func() {
+			buf := make([]byte, slims.MaxPacketSize)
+			for {
+				_, _, err := srv.ReadFromUDP(buf)
+				if err != nil {
+					// Expected once the socket is closed.
+					return
+				}
+			}
+		}()
+
+		doneFunc := func() {
+			// close both ends; the server goroutine will exit
+			sender.Close()
+			srv.Close()
+		}
+		return sender, doneFunc
+	}
+
+	t.Run("nil context", func(t *testing.T) {
+		conn, done := startUDPListener(t)
+		defer done()
+
+		_, err := protocol.WritePacket(nil, conn, protocol.Header{}, nil)
+		if !errors.Is(err, slims.ErrCtxIsNil) {
+			t.Fatal(ExpectedActual(slims.ErrCtxIsNil, err))
+		}
+	})
+	conn, done := startUDPListener(t)
+	defer done()
+	t.Run("basic", func(t *testing.T) {
+		n, err := protocol.WritePacket(context.Background(), conn,
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.Status,
+				ID:      1,
+			},
+			nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != int(protocol.LongHeaderLen) {
+			t.Fatal("incorrect bytes written", ExpectedActual(int(protocol.LongHeaderLen), n))
+		}
+	})
+	t.Run("context already cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // immediately cancel
+
+		n, err := protocol.WritePacket(ctx, conn, protocol.Header{}, nil)
+
+		if n != 0 {
+			t.Fatalf("expected 0 bytes written on cancellation, got %d", n)
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(ExpectedActual(context.Canceled, err))
+		}
+	})
+	// repeat basic a couple times on the same connection to ensure we are successfully able to write
+	t.Run("basic", func(t *testing.T) {
+		n, err := protocol.WritePacket(context.Background(), conn,
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.Status,
+				ID:      1,
+			},
+			nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != int(protocol.LongHeaderLen) {
+			t.Fatal("incorrect bytes written", ExpectedActual(int(protocol.LongHeaderLen), n))
+		}
+	})
+	t.Run("basic", func(t *testing.T) {
+		n, err := protocol.WritePacket(context.Background(), conn,
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.Status,
+				ID:      1,
+			},
+			nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != int(protocol.LongHeaderLen) {
+			t.Fatal("incorrect bytes written", ExpectedActual(int(protocol.LongHeaderLen), n))
+		}
+	})
+}

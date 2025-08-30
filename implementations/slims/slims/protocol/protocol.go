@@ -311,3 +311,44 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 		return pkt.n, pkt.addr, hdr, rd.Bytes(), nil
 	}
 }
+
+// WritePacket generates and sends a packet via pconn, to the pre-connected address.
+func WritePacket(ctx context.Context, pconn *net.UDPConn, hdr Header, payload proto.Message) (n int, _ error) {
+	if ctx == nil {
+		return 0, slims.ErrCtxIsNil
+	}
+
+	// clear out any existing deadline and ensure we do the same on exit
+	if err := pconn.SetWriteDeadline(time.Time{}); err != nil {
+		return 0, err
+	}
+	defer pconn.SetWriteDeadline(time.Time{})
+
+	// compose the packet
+	pkt, err := Serialize(hdr.Version, hdr.Shorthand, hdr.Type, hdr.ID, payload)
+	if err != nil {
+		return 0, err
+	}
+
+	// spin up a channel to receive the write results
+	resCh := make(chan struct {
+		n   int
+		err error
+	}, 1) // buffer the channel so we do not leak the goroutine
+	go func() {
+		n, err := pconn.Write(pkt) // use the pre-connected address
+		resCh <- struct {
+			n   int
+			err error
+		}{n, err}
+		close(resCh)
+	}()
+
+	select {
+	case <-ctx.Done(): //handle if the context is cancelled
+		pconn.SetWriteDeadline(time.Now())
+		return 0, ctx.Err()
+	case res := <-resCh:
+		return res.n, res.err
+	}
+}
