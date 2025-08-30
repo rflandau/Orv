@@ -472,11 +472,11 @@ func TestReceivePacketValidation(t *testing.T) {
 func TestReceivePacket(t *testing.T) {
 	listenAddr := "127.0.0.1:8080"
 	// spin up listener
-	rcvr, err := net.ListenPacket("udp", listenAddr)
+	pconn, err := net.ListenPacket("udp", listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rcvr.Close()
+	defer pconn.Close()
 
 	// make a channel to fetch results
 	ch := make(chan struct {
@@ -499,7 +499,7 @@ func TestReceivePacket(t *testing.T) {
 	// start listening for packets equal to the number of tests; forward them
 	go func() {
 		for range tests {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, context.Background())
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, context.Background())
 			ch <- struct {
 				n        int
 				addr     net.Addr
@@ -519,7 +519,7 @@ func TestReceivePacket(t *testing.T) {
 			t.Fatal(err)
 		}
 		// send
-		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		wroteN, err := pconn.WriteTo(hdrB, pconn.LocalAddr())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -538,7 +538,7 @@ func TestReceivePacket(t *testing.T) {
 
 		// spool the receiver back up, using the context
 		go func() {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, ctx)
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, ctx)
 			ch <- struct {
 				n        int
 				addr     net.Addr
@@ -558,7 +558,7 @@ func TestReceivePacket(t *testing.T) {
 	// make sure we can still successfully receive after the prior test
 	t.Run("successful receive after prior cancel (nil context)", func(t *testing.T) {
 		go func() {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, nil)
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, nil)
 			ch <- struct {
 				n        int
 				addr     net.Addr
@@ -574,7 +574,7 @@ func TestReceivePacket(t *testing.T) {
 			t.Fatal(err)
 		}
 		// send
-		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		wroteN, err := pconn.WriteTo(hdrB, pconn.LocalAddr())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -595,7 +595,7 @@ func TestReceivePacket(t *testing.T) {
 		defer cancel()
 
 		start := time.Now()
-		_, _, _, _, err := protocol.ReceivePacket(rcvr, ctx)
+		_, _, _, _, err := protocol.ReceivePacket(pconn, ctx)
 
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatal(ExpectedActual(context.DeadlineExceeded, err))
@@ -612,7 +612,7 @@ func TestReceivePacket(t *testing.T) {
 		defer cancel()
 
 		go func() {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, ctx)
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(pconn, ctx)
 			ch <- struct {
 				n        int
 				addr     net.Addr
@@ -632,7 +632,7 @@ func TestReceivePacket(t *testing.T) {
 			t.Fatal(err)
 		}
 		// send
-		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		wroteN, err := pconn.WriteTo(hdrB, pconn.LocalAddr())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -643,8 +643,8 @@ func TestReceivePacket(t *testing.T) {
 			t.Error(err)
 		} else if res.n != wroteN {
 			t.Error(ExpectedActual(wroteN, res.n))
-		} else if res.addr.String() != rcvr.LocalAddr().String() || res.addr.Network() != rcvr.LocalAddr().Network() {
-			t.Error(ExpectedActual(rcvr.LocalAddr(), res.addr))
+		} else if res.addr.String() != pconn.LocalAddr().String() || res.addr.Network() != pconn.LocalAddr().Network() {
+			t.Error(ExpectedActual(pconn.LocalAddr(), res.addr))
 		} else if res.header.ID != sentID {
 			t.Error(ExpectedActual(sentID, res.header.ID))
 		} else if res.header.Type != sentType {
