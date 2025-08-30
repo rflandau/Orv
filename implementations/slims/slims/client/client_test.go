@@ -97,6 +97,4 @@ func TestStatus(t *testing.T) {
 			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions.AsBytes()))
 		}
 	})
-	// spawn a second VK with alternate values
-
 }
