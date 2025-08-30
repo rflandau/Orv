@@ -2,16 +2,30 @@ package vaultkeeper
 
 import (
 	"errors"
+	"net"
 	"net/netip"
 	"testing"
 
+	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	. "github.com/rflandau/Orv/internal/testsupport"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestVaultKeeper_StartStop(t *testing.T) {
-	vk, err := New(1, netip.MustParseAddrPort("127.0.0.1:8081"))
+	var vkid slims.NodeID = 1
+	vk, err := New(vkid, netip.MustParseAddrPort("127.0.0.1:8081"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if vk.ID() != vkid {
+		t.Error("incorrect ID from getter", ExpectedActual(vkid, vk.ID()))
+	}
+	if vk.Height() != 0 {
+		t.Error("incorrect height from getter", ExpectedActual(vkid, vk.ID()))
 	}
 
 	startAndCheck(t, vk)
@@ -64,4 +78,83 @@ func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 	}
 
 	return alive, nil
+}
+
+func Test_respondError(t *testing.T) {
+	const rcvrAddr string = "127.0.0.1:8081"
+	// spawn a listener to receive the FAULT
+	ch := make(chan struct {
+		n          int
+		senderAddr net.Addr
+		header     protocol.Header
+		respBody   []byte
+		err        error
+	})
+	go func() {
+		rcvr, err := net.ListenPacket("udp", rcvrAddr)
+		if err != nil {
+			ch <- struct {
+				n          int
+				senderAddr net.Addr
+				header     protocol.Header
+				respBody   []byte
+				err        error
+			}{0, nil, protocol.Header{}, nil, err}
+		}
+		defer rcvr.Close()
+		n, senderAddr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, t.Context())
+		ch <- struct {
+			n          int
+			senderAddr net.Addr
+			header     protocol.Header
+			respBody   []byte
+			err        error
+		}{n, senderAddr, respHdr, respBody, err}
+	}()
+
+	const (
+		reason string = "test"
+	)
+	var (
+		vkAddr         = netip.MustParseAddrPort("127.0.0.1:8080")
+		expectedHeader = protocol.Header{
+			Version: protocol.HighestSupported,
+			Type:    mt.Fault,
+			ID:      1,
+		}
+	)
+	// spin up the vk
+	vk, err := New(1, vkAddr)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer vk.Stop()
+
+	// send the fault packet
+	parsedRcvrAddr, err := net.ResolveUDPAddr("udp", rcvrAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vk.respondError(parsedRcvrAddr, "test")
+
+	res := <-ch
+	// test that it looks as expected
+	if res.err != nil {
+		t.Fatal(err)
+	}
+	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa != vkAddr {
+		t.Error(ExpectedActual(vkAddr, sa))
+	}
+	if res.header != expectedHeader {
+		t.Error(ExpectedActual(expectedHeader, res.header))
+	}
+	bd := &pb.Fault{}
+	if err := proto.Unmarshal(res.respBody, bd); err != nil {
+		t.Fatal(err)
+	}
+	if bd.Reason != reason {
+		t.Error(ExpectedActual(reason, bd.Reason))
+	}
 }
