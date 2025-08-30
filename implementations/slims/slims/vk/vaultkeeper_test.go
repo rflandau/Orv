@@ -168,8 +168,8 @@ func Test_respondError(t *testing.T) {
 // Ensures that the data returned by respondSuccess looks as we expect it to.
 func Test_respondSuccess(t *testing.T) {
 	var (
-		port            = rand.UintN(math.MaxUint16)
-		rcvrAddr string = "127.0.0.1:" + strconv.FormatInt(int64(port), 10)
+		port     = rand.UintN(math.MaxUint16)
+		rcvrAddr = "127.0.0.1:" + strconv.FormatInt(int64(port), 10)
 	)
 	// spawn a listener to receive the FAULT
 	ch := make(chan struct {
