@@ -449,8 +449,8 @@ func TestReceivePacketValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer pconn.Close()
-		if n, _, _, _, err := protocol.ReceivePacket(pconn, nil); !errors.Is(err, protocol.ErrCtxIsNil) {
-			t.Fatal(ExpectedActual(protocol.ErrCtxIsNil, err))
+		if n, _, _, _, err := protocol.ReceivePacket(pconn, nil); !errors.Is(err, slims.ErrCtxIsNil) {
+			t.Fatal(ExpectedActual(slims.ErrCtxIsNil, err))
 		} else if n != 0 {
 			t.Fatal(ExpectedActual(0, n))
 		}

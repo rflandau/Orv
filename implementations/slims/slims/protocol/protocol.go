@@ -64,7 +64,6 @@ var (
 	ErrShorthandID = errors.New("ID is ignored when shorthand is set")
 	// a nil connection was given as a parameter
 	ErrConnIsNil = errors.New("PacketConn is nil")
-	ErrCtxIsNil  = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
 )
 
 //#endregion errors
@@ -256,7 +255,7 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 	if pconn == nil {
 		return 0, nil, Header{}, nil, ErrConnIsNil
 	} else if ctx == nil {
-		return 0, nil, Header{}, nil, ErrCtxIsNil
+		return 0, nil, Header{}, nil, slims.ErrCtxIsNil
 	} else if err := ctx.Err(); err != nil {
 		return 0, nil, Header{}, nil, err
 	}

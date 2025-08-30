@@ -3,6 +3,8 @@
 // Child packages are mostly self-contained, the Orv parent package provides the few shared utilities.
 package slims
 
+import "errors"
+
 // NodeID is the VK or Leaf's unique identifier
 type NodeID = uint64
 
@@ -11,3 +13,5 @@ type NodeID = uint64
 // Thankfully for our allocator, Orv packets should easily fit in a thousand bytes, if not much less.
 // The specific maximum is set arbitrarily and can be changed arbitrarily (at the cost of requiring more heap memory for packet processing and a greater MTU for transmission).
 const MaxPacketSize uint16 = 1024
+
+var ErrCtxIsNil = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
