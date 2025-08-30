@@ -22,7 +22,7 @@ var ErrInvalidAddrPort = errors.New("target must be a valid address+port")
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
 //
 // This subroutine can be invoked by any node.
-func Hello(id slims.NodeID, target netip.AddrPort, ctx context.Context) (vkID slims.NodeID, _ *pb.HelloAck, err error) {
+func Hello(ctx context.Context, id slims.NodeID, target netip.AddrPort) (vkID slims.NodeID, _ *pb.HelloAck, err error) {
 	// validate parameters
 	if ctx == nil {
 		return 0, nil, slims.ErrCtxIsNil
