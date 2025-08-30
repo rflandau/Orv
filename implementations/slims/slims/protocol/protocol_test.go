@@ -18,6 +18,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	. "github.com/rflandau/Orv/internal/testsupport"
+	"google.golang.org/protobuf/proto"
 )
 
 // Tests that Serialize puts out the expected byte string fromm a given header struct.
@@ -584,6 +585,81 @@ func TestReceivePacket(t *testing.T) {
 			t.Error(ExpectedActual(wroteN, res.n))
 		} else if res.header != hdr {
 			t.Error(ExpectedActual(hdr, res.header))
+		}
+	})
+	t.Run("deadline expires during read", func(t *testing.T) {
+		give := 4 * time.Millisecond // extra buffer time, as elapsed will not exactly equal timeout
+		timeout := 40 * time.Millisecond
+		ctx, cancel := context.WithTimeout(t.Context(), timeout)
+		defer cancel()
+
+		start := time.Now()
+		_, _, _, _, err := protocol.ReceivePacket(rcvr, ctx)
+
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal(ExpectedActual(context.DeadlineExceeded, err))
+		}
+		elapsed := time.Since(start)
+		if elapsed < timeout-time.Duration(give) {
+			t.Errorf("likely timed out too quickly. %v elapsed but %v was the expected timeout", elapsed, timeout)
+		}
+	})
+	// now send a packet within a deadline
+	t.Run("successful read under deadline", func(t *testing.T) {
+		timeout := 100 * time.Millisecond
+		ctx, cancel := context.WithTimeout(t.Context(), timeout)
+		defer cancel()
+
+		go func() {
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, ctx)
+			ch <- struct {
+				n        int
+				addr     net.Addr
+				header   protocol.Header
+				respBody []byte
+				err      error
+			}{n, addr, respHdr, respBody, err}
+		}()
+
+		sentVersion := protocol.VersionFromByte(0b00001000)
+		sentShorthand := false
+		sentType := mt.HelloAck
+		sentID := rand.Uint64()
+		payload := &pb.HelloAck{Id: rand.Uint64(), Height: 5, Version: uint32(protocol.Version{15, 2}.Byte())}
+		hdrB, err := protocol.Serialize(sentVersion, sentShorthand, sentType, sentID, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// send
+		wroteN, err := rcvr.WriteTo(hdrB, rcvr.LocalAddr())
+		if err != nil {
+			t.Fatal(err)
+		}
+		// receive
+		res := <-ch
+		// check
+		if res.err != nil {
+			t.Error(err)
+		} else if res.n != wroteN {
+			t.Error(ExpectedActual(wroteN, res.n))
+		} else if res.addr.String() != rcvr.LocalAddr().String() || res.addr.Network() != rcvr.LocalAddr().Network() {
+			t.Error(ExpectedActual(rcvr.LocalAddr(), res.addr))
+		} else if res.header.ID != sentID {
+			t.Error(ExpectedActual(sentID, res.header.ID))
+		} else if res.header.Type != sentType {
+			t.Error(ExpectedActual(sentType, res.header.Type))
+		} else if res.header.Version != sentVersion {
+			t.Error(ExpectedActual(sentVersion, res.header.Version))
+		} else if res.header.Shorthand != sentShorthand {
+			t.Error(ExpectedActual(sentShorthand, res.header.Shorthand))
+		}
+		// check the body
+		ha := pb.HelloAck{}
+		if err := proto.Unmarshal(res.respBody, &ha); err != nil {
+			t.Error(err)
+		}
+		if ha.Id != payload.Id || ha.Height != payload.Height || ha.Version != payload.Version {
+			t.Error(ExpectedActual(ha.String(), payload.String()))
 		}
 
 	})
