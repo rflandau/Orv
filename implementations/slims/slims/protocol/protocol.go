@@ -55,6 +55,7 @@ var (
 	ErrShorthandID = errors.New("ID is ignored when shorthand is set")
 	// a nil connection was given as a parameter
 	ErrConnIsNil = errors.New("PacketConn is nil")
+	ErrCtxIsNil  = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
 )
 
 //#endregion errors
@@ -245,22 +246,18 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 	// validate params
 	if pconn == nil {
 		return 0, nil, Header{}, nil, ErrConnIsNil
+	} else if ctx == nil {
+		return 0, nil, Header{}, nil, ErrCtxIsNil
+	} else if err := ctx.Err(); err != nil {
+		return 0, nil, Header{}, nil, err
 	}
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
+	// set a deadline (if one was given)
+	if ddl, set := ctx.Deadline(); set {
+		if err := pconn.SetReadDeadline(ddl); err != nil {
 			return 0, nil, Header{}, nil, err
 		}
-		// set a deadline (if one was given)
-		if ddl, set := ctx.Deadline(); set {
-			if err := pconn.SetReadDeadline(ddl); err != nil {
-				return 0, nil, Header{}, nil, err
-			}
-		}
-	} else { // if context is nil, use a background context to allow us to "wait" on it
-		ctx = context.Background()
-		if err := pconn.SetReadDeadline(time.Time{}); err != nil {
-			return 0, nil, Header{}, nil, err
-		}
+	} else {
+		pconn.SetReadDeadline(time.Time{})
 	}
 
 	// spin up a channel to receive the packet when it arrives over the connection
