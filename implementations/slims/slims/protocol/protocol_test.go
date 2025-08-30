@@ -10,6 +10,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -270,7 +271,7 @@ func TestDeserialize(t *testing.T) {
 func TestFullSend(t *testing.T) {
 	var (
 		echoServerID slims.NodeID = 1
-		done         bool
+		done         atomic.Bool
 	)
 	// generate a server to echo data back
 	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]:8080")
@@ -280,7 +281,7 @@ func TestFullSend(t *testing.T) {
 	t.Log("listening @ ", pconn.LocalAddr())
 	t.Cleanup(func() {
 		pconn.Close()
-		done = true
+		done.Store(true)
 	})
 
 	var pktbuf = make([]byte, slims.MaxPacketSize)
@@ -294,7 +295,7 @@ func TestFullSend(t *testing.T) {
 			{ // receive
 				rcvdN, senderAddr, reqHdr, _, err = protocol.ReceivePacket(pconn, t.Context())
 				if rcvdN == 0 {
-					if done {
+					if done.Load() {
 						return
 					}
 					continue
