@@ -9,7 +9,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
-	"google.golang.org/protobuf/proto"
 )
 
 //const helloPruneTime time.Duration = 3 * time.Second
@@ -32,23 +31,17 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 
 	vk.structure.mu.RLock()
 	// gather data
-	st := pb.StatusResp{
+	st := &pb.StatusResp{
 		Id:                vk.id,
 		Height:            uint32(vk.structure.height),
 		VersionsSupported: protocol.VersionsSupportedAsBytes(),
 	}
 	vk.structure.mu.RUnlock()
 
-	// serialize via protobuf
-	b, err := proto.Marshal(&st)
-	if err != nil {
-		vk.respondError(senderAddr, err.Error())
-		return
-	}
-
+	// send data to client
 	vk.respondSuccess(senderAddr,
-		&protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp, ID: vk.id},
-		b)
+		protocol.Header{Version: protocol.HighestSupported, Type: mt.StatusResp, ID: vk.id},
+		st)
 }
 
 // serveHello answers HELLO packets by inserting the requestor into the serveHello table.

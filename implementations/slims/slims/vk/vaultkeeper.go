@@ -18,6 +18,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 )
 
 // A VaultKeeper (VK) is a node with organizational and routing capability.
@@ -136,18 +137,22 @@ func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 
 }
 
-func (vk *VaultKeeper) respondSuccess(addr net.Addr, hdr *protocol.Header, body []byte) {
+func (vk *VaultKeeper) respondSuccess(addr net.Addr, hdr protocol.Header, payload proto.Message) {
 	hdrB, err := hdr.Serialize()
 	if err != nil {
 		vk.log.Error().Err(err).Str("target address", addr.String()).Msg("failed to serialize header")
 	}
-	if n, err := vk.net.pconn.WriteTo(append(hdrB, body...), addr); err != nil {
+	payloadB, err := proto.Marshal(payload)
+	if err != nil {
+		vk.log.Error().Err(err).Str("target address", addr.String()).Msg("failed to marshal payload")
+	}
+	if n, err := vk.net.pconn.WriteTo(append(hdrB, payloadB...), addr); err != nil {
 		vk.log.Warn().Err(err).Str("response message type", hdr.Type.String()).Str("target address", addr.String()).Msg("failed to respond")
-	} else if n != (len(hdrB) + len(body)) {
+	} else if n != (len(hdrB) + len(payloadB)) {
 		vk.log.Warn().
 			Int("total bytes written", n).
 			Int("header length (Bytes)", len(hdrB)).
-			Int("body length (Bytes)", len(body)).
+			Int("body length (Bytes)", len(payloadB)).
 			Msg("bytes written does not equal sum of header and body")
 	}
 }
@@ -208,8 +213,8 @@ func (vk *VaultKeeper) dispatch() {
 				// client requests that do not require a handshake
 				case mt.Status:
 					vk.serveStatus(hdr, body, senderAddr)
-				//case mt.Hello:
-				//vk.serveHello(reqHdr, req, resp)*/
+				case mt.Hello:
+					//vk.serveHello(reqHdr, req, resp)
 				// TODO ...
 				default: // non-enumerated type or UNKNOWN
 					vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(hdr.Type), 10))
