@@ -24,8 +24,8 @@ import (
 type VaultKeeper struct {
 	//alive atomic.Bool // has this VK been terminated?
 	log  *zerolog.Logger
-	id   slims.NodeID // unique identifier of this node
-	addr netip.AddrPort
+	id   slims.NodeID   // unique identifier of this node
+	addr netip.AddrPort // address this vk accepts packets on
 	net  struct {
 		accepting atomic.Bool        // are we currently accepting connections?
 		pconn     net.PacketConn     // the packet-oriented UDP connection we are listening on
@@ -114,7 +114,8 @@ func (vk *VaultKeeper) Height() uint16 {
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
 func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 	// compose the response
-	b, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id, &pb.Fault{Reason: reason})
+	b, err := protocol.Serialize(protocol.HighestSupported, false, mt.Fault, vk.id,
+		&pb.Fault{Reason: reason})
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize response header")
 		return
@@ -122,9 +123,9 @@ func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 		vk.log.Warn().Msg("Orv packet is greater than max packet size. It may be truncated on receipt.")
 	}
 
-	if n, err := vk.net.pconn.WriteTo(append(b, []byte(reason)...), addr); err != nil {
+	if n, err := vk.net.pconn.WriteTo(b, addr); err != nil {
 		vk.log.Warn().Err(err).Str("target address", addr.String()).Msg("failed to respond")
-	} else if n != (len(b) + len([]byte(reason))) {
+	} else if n != len(b) {
 		vk.log.Warn().
 			Int("total bytes written", n).
 			Int("header length (Bytes)", len(b)).
