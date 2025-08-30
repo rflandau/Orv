@@ -555,9 +555,9 @@ func TestReceivePacket(t *testing.T) {
 
 	})
 	// make sure we can still successfully receive after the prior test
-	t.Run("successful receive after prior cancel", func(t *testing.T) {
+	t.Run("successful receive after prior cancel (nil context)", func(t *testing.T) {
 		go func() {
-			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, context.Background())
+			n, addr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, nil)
 			ch <- struct {
 				n        int
 				addr     net.Addr
