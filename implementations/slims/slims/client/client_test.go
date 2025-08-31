@@ -2,8 +2,12 @@ package client
 
 import (
 	"context"
+	"math"
+	"math/rand/v2"
 	"net/netip"
 	"slices"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -97,4 +101,47 @@ func TestStatus(t *testing.T) {
 			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions.AsBytes()))
 		}
 	})
+}
+
+// Tests that we can get HELLOs with valid output.
+// Companion to vaultkeeper's Test_serveHello()
+func TestHello(t *testing.T) {
+	var (
+		vkid, nodeID = rand.Uint64(), rand.Uint64()
+		port         = uint16(rand.UintN(math.MaxUint16))
+		ap           = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		repeat       = 5 // number of HELLOs to send
+	)
+	// spawn a VK
+	vk, err := vaultkeeper.New(vkid, ap, vaultkeeper.WithDragonsHoard(2))
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// generate node IDs
+	nodeIDs := make([]slims.NodeID, repeat)
+	var wg sync.WaitGroup
+	for i := range repeat {
+		nodeIDs[i] = rand.Uint64() // while it is theoretically possible for these to overlap, its incredibly unlikely so ¯\_(ツ)_/¯
+		wg.Add(1)
+		go func(nID slims.NodeID) { // kick off a hello for each
+			defer wg.Done()
+			// send a Hello
+			respVKID, respVersion, respBody, err := Hello(context.Background(), nodeID, ap)
+			if err != nil {
+				panic(err)
+			}
+			// validate response
+			if respVKID != vkid {
+				panic(ExpectedActual(vkid, respVKID))
+			} else if respBody.Height != 2 {
+				panic(ExpectedActual(2, respBody.Height))
+			} else if respVersion != protocol.SupportedVersions().HighestSupported() {
+				panic(ExpectedActual(protocol.SupportedVersions().HighestSupported(), respVersion))
+			}
+		}(nodeIDs[i])
+	}
+	wg.Wait()
+
 }
