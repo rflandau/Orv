@@ -203,9 +203,6 @@ func Test_respondSuccess(t *testing.T) {
 		}{n, senderAddr, respHdr, respBody, err}
 	}()
 
-	const (
-		reason string = "test"
-	)
 	var (
 		vkAddr  = netip.MustParseAddrPort("127.0.0.1:8080")
 		sentHdr = protocol.Header{
@@ -266,7 +263,7 @@ func Test_serveHello(t *testing.T) {
 	} else if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
-	for i := range 4 { // run it multiple times
+	for i := range 4 { // run it multiple times to ensure no hangs
 		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
 			// send a hello to the vk
 			clientID := rand.Uint64()
@@ -289,4 +286,39 @@ func Test_serveHello(t *testing.T) {
 			}
 		})
 	}
+	t.Run("pending timeout", func(t *testing.T) {
+		var (
+			vkid    slims.NodeID = rand.Uint64()
+			port    uint16       = uint16(rand.Uint32N(math.MaxUint16))
+			vkAP                 = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+			timeout              = 30 * time.Millisecond
+		)
+		// spin up a VK
+		vk, err := New(vkid, vkAP, WithHelloPruneTime(timeout))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vk.Start(); err != nil {
+			t.Fatal(err)
+		}
+		// send a hello to the vk
+		clientID := rand.Uint64()
+		respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vkAP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if respVKID != vkid {
+			t.Error(ExpectedActual(vkid, respVKID))
+		}
+		if respVKVersion != vk.versionSet.HighestSupported() {
+			t.Error(ExpectedActual(vk.versionSet.HighestSupported(), respVKVersion))
+		}
+		if ack.Height != uint32(vk.Height()) {
+			t.Error(ExpectedActual(vk.Height(), uint16(ack.Height)))
+		}
+		time.Sleep(timeout + 3*time.Millisecond)
+		// check that our clientID has expired
+		if _, found := vk.pendingHellos.Load(clientID); found {
+			t.Errorf("client ID %d is in the vk's pending hellos but should have timed out", clientID)
+		}
+	})
 }
