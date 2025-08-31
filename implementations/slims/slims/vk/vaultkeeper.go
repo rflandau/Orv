@@ -130,6 +130,7 @@ func (vk *VaultKeeper) ID() slims.NodeID {
 }
 
 // Height returns the current height of the vaultkeeper.
+// ! Acquires read lock on structure.
 func (vk *VaultKeeper) Height() uint16 {
 	vk.structure.mu.RLock()
 	defer vk.structure.mu.RUnlock()
