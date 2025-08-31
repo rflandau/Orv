@@ -251,9 +251,9 @@ func Test_respondSuccess(t *testing.T) {
 // Spins up a vk, sends a hello, then checks the vk's pending hello table
 func Test_serveHello(t *testing.T) {
 	var (
-		vkid slims.NodeID = rand.Uint64()
-		port uint16       = uint16(rand.Uint32N(math.MaxUint16))
-		vkAP              = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+		vkid = rand.Uint64()
+		port = uint16(rand.Uint32N(math.MaxUint16))
+		vkAP = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
 	)
 	// spin up a VK
 	ddl, _ := t.Deadline()
@@ -288,10 +288,10 @@ func Test_serveHello(t *testing.T) {
 	}
 	t.Run("pending timeout", func(t *testing.T) {
 		var (
-			vkid    slims.NodeID = rand.Uint64()
-			port    uint16       = uint16(rand.Uint32N(math.MaxUint16))
-			vkAP                 = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
-			timeout              = 30 * time.Millisecond
+			vkid    = rand.Uint64()
+			port    = uint16(rand.Uint32N(math.MaxUint16))
+			vkAP    = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+			timeout = 30 * time.Millisecond
 		)
 		// spin up a VK
 		vk, err := New(vkid, vkAP, WithHelloPruneTime(timeout))
