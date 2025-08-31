@@ -9,7 +9,51 @@ message Fault{
 	string reason = 1;
 }
 
-// client requests
+// Type #3
+// Response to a HELLO request.
+message HelloAck {
+	uint32 height = 1;  // uint16
+}
+
+// Type #4
+// Requesting to join a vault.
+message Join {
+	bool isVK = 1; // is the node requesting to join the vault a VK?
+	uint64 vkAddr = 2; // required iff isVK
+	uint32 height = 3; // uint16 | height of the requestor node 
+}
+
+// Type #5
+// VK accepting the requestor to join underneath it.
+// Once received, requestor can safely mark the VK as its parent.
+message JoinAccept {
+	uint32 height = 1; // uint16 | height of the accepting vk
+}
+
+// Type #6
+// Sent by children to register a service to their parent.
+message Register {
+	string service = 1; // name of the service to be registered
+	string address = 2; // the address at which the service can be accessed
+	string stale = 3; // a Go time string declaring how long w/o a heartbeat until this service is considered prune-able
+}
+
+// Type #7
+message RegisterAccept {
+	string service = 1; // name of the service that was registered
+}
+
+// Type #12
+message ServiceHeartbeat {
+	repeated string services = 1; // name of the services to be refreshed
+}
+
+// Type #13
+message ServiceHeartbeatAck {
+	repeated string services = 1; // name of the services that were refreshed
+}
+
+//#region client requests
 
 // Response to a STATUS request
 message StatusResp {
@@ -18,7 +62,25 @@ message StatusResp {
 	bytes versions_supported = 2;
 }
 
-// Response to a HELLO request
-message HelloAck {
-	uint32 height = 1;  // uint16
+// Type #18
+message List {
+	uint32 hopLimit = 1; // uint16 | number of nodes to traverse (limited by root height)
 }
+
+// Type #19
+message ListResp {
+	repeated string services = 1; // list of services known to the responding vk
+}
+
+// Type #20
+message Get {
+	string service = 1; //  the name of the desired service
+	uint32 hopLimit = 2; // uint16
+}
+
+// Type #21
+message GetResp {
+	string service = 1;
+	string address = 2;
+}
+//#endregion client requests

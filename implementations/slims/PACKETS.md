@@ -99,7 +99,7 @@ If a client wants to see all versions a vk supports, try the [STATUS](#status) p
 
 Sent by a node not part of the vault to request to join under the receiver VK. Sender must have already introduced itself via a recent HELLO.
 
-Repeated or duplicate joins for a node already registered as a child of the VK are thrown away.
+Repeated or duplicate joins for a node already registered as a child of the VK are idempotent, but will proc JOIN_ACCEPTs (as the vk assumes the child did not receive the original acceptance).
 
 ### Payload
 
@@ -137,6 +137,8 @@ If an existing service is registered to the same child node, the new information
     - example: "SSH" 
 2. *address* address the service is bound to. Only populated from leaf to parent
     - example: "172.1.1.54:22" 
+    - example: "20"
+    - example: "rorylandau.com"
 3. *stale*: after how much time without a heartbeat is this service eligible for pruning. Services may be pruned lazily and thus may survive longer than their stale time. Actual implementation is left up to the VK. Services are only guaranteed to *not* be pruned while within their stale time.
     - example:"1m5s45ms"
 
@@ -173,9 +175,21 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 **Type Number:** 12
 
+### Payload
+
+1. *service*: names of the services to refresh
+    - array
+    - example: ["serviceX", "serviceY"]
+
 ## SERVICE_HEARTBEAT_ACK
 
 **Type Number:** 13
+
+### Payload
+
+1. *service*: names of the services that were refreshed
+    - array
+    - example: ["serviceX", "serviceY"]
 
 ## VK_HEARTBEAT
 
@@ -207,7 +221,7 @@ Used by clients and tests to fetch information about the current state of the re
 
 STATUS does not have a payload.
 
-## STATUS_RESP
+## STATUS_RESPONSE
 
 **Type Number:** 17
 
@@ -242,10 +256,24 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 **Type Number:** 19
 
+### Payload
+
+1. *services*: list of services known to the responding vk
+
 ## GET
 
 **Type Number:** 20
 
+### Payload
+
+1. *service*: the name of the desired service
+2. *hop limit*: (OPTIONAL) number of hops to walk up the tree if closer vks do not know of the requested service. 0, 1, and omitted all cause the request to be halted at the first VK. 
+
 ## GET_RESPONSE
 
 **Type Number:** 21
+
+### Payload
+
+1. *service*
+2. *addr*
