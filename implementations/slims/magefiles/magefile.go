@@ -12,7 +12,7 @@ import (
 )
 
 // Recompiles protobuf contracts.
-func CompileProtoBufs() error {
+func CompilePB() error {
 	// ensure protoc-gen-go and protoc are available
 	if _, err := exec.LookPath("protoc-gen-go"); err != nil {
 		return errors.Join(errors.New("protoc-gen-go not available in $PATH"), err)
