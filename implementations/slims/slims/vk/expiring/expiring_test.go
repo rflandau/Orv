@@ -85,10 +85,43 @@ func TestTable(t *testing.T) {
 	})
 
 	t.Run("delete elements", func(t *testing.T) {
-		// insert a new key to be deleted
-		// TODO
-
+		tbl := expiring.Table[string, string]{}
+		// insert and delete a key
+		key, val := "Comet Azur", "Azur Staff"
+		tbl.Store(key, val, 40*time.Millisecond)
+		if !tbl.Delete(key) {
+			t.Fatalf("failed to delete key='%v': not found", key)
+		}
+		checkLoad(t, &tbl, key, false, val)
 		// delete a key that does not exist
+		if tbl.Delete("Aomet Czur") {
+			t.Fatal("successfully deleted non-existent key")
+		}
+	})
+	t.Run("reset", func(t *testing.T) {
+		var (
+			k = struct{ a int }{32}
+			v = 3.14
+		)
+
+		tbl := expiring.Table[struct{ a int }, float64]{}
+		// insert a new key
+		tbl.Store(k, v, 20*time.Millisecond)
+		// test the value
+		time.Sleep(10 * time.Millisecond)
+		checkLoad(t, &tbl, k, true, v)
+		// reset it before it expires
+		if !tbl.Refresh(k, 40*time.Millisecond) {
+			t.Fatal("failed to refresh value prior to original expiry: not found")
+		}
+		time.Sleep(30 * time.Millisecond)
+		checkLoad(t, &tbl, k, true, v)
+		time.Sleep(11 * time.Millisecond)
+		checkLoad(t, &tbl, k, false, v)
+		// refresh a non-existent key
+		if tbl.Refresh(struct{ a int }{1}, 10000000) {
+			t.Fatal("successfully refreshed non-existent key")
+		}
 	})
 
 }
