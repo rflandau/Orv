@@ -4,6 +4,7 @@ package vaultkeeper
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -19,7 +20,7 @@ import (
 
 // serveStatus answers STATUS packets, returning a variety of information about the vk.
 // Briefly holds a read lock on structure.
-func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// no header validation is required
 
 	// check that we were not given a body
@@ -80,12 +81,6 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		return
 	}
 
-	// ensure that the requestor is in our hello table
-	if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
-		vk.respondError(senderAddr, "must send HELLO first and join before it expires")
-		return
-	}
-
 	// unpack the body
 	var j = &pb.Join{}
 	if err := proto.Unmarshal(reqBody, j); err != nil {
@@ -96,6 +91,8 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	// acquire lock
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
 
 	// handle as leaf or as cvk
 	if j.IsVK {
@@ -109,11 +106,28 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 			vk.respondError(senderAddr, ErrBadAddr(addr).Error())
 			return
 		}
-		// check that this node is not already registered as a leaf
-		// TODO
+		// check if we can refresh a node with this ID
+		if !vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk) {
+			// ensure that the requestor is in our hello table
+			if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
+				vk.respondError(senderAddr, "must send HELLO first and join before it expires")
+				return
+			}
+			// install the new child
+			if vk.addCVK(reqHdr.ID, addr) {
+				vk.respondError(senderAddr, fmt.Sprintf("ID %d is already in use by a leaf", reqHdr.ID))
+				return
+			}
+		}
+
 	} else {
 		// check that this node is not already registered as cvk
 		// TODO
+		// ensure that the requestor is in our hello table
+		if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
+			vk.respondError(senderAddr, "must send HELLO first and join before it expires")
+			return
+		}
 	}
 
 	vk.log.Info().Uint64("child ID", reqHdr.ID).Str("child VK address", j.VkAddr).Bool("vk?", j.IsVK).Msg("accepted JOIN")
