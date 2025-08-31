@@ -20,6 +20,7 @@ func TestHello(t *testing.T) {
 		vkid, nodeID = rand.Uint64(), rand.Uint64()
 		port         = uint16(rand.UintN(math.MaxUint16))
 		ap           = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		repeat       = 5
 	)
 	// spawn a VK
 	vk, err := vaultkeeper.New(vkid, ap, vaultkeeper.WithDragonsHoard(2))
@@ -29,15 +30,18 @@ func TestHello(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// send a Hello
-	respVKID, respVersion, respBody, err := client.Hello(context.Background(), nodeID, ap)
-	if err != nil {
-		t.Fatal(err)
-	} else if respVKID != vkid {
-		t.Fatal(ExpectedActual(vkid, respVKID))
-	} else if respBody.Height != 2 {
-		t.Fatal(ExpectedActual(2, respBody.Height))
-	} else if respVersion != protocol.SupportedVersions().HighestSupported() {
-		t.Fatal(ExpectedActual(protocol.SupportedVersions().HighestSupported(), respVersion))
+	for range repeat {
+		// send a Hello
+		respVKID, respVersion, respBody, err := client.Hello(context.Background(), nodeID, ap)
+		if err != nil {
+			t.Fatal(err)
+		} else if respVKID != vkid {
+			t.Fatal(ExpectedActual(vkid, respVKID))
+		} else if respBody.Height != 2 {
+			t.Fatal(ExpectedActual(2, respBody.Height))
+		} else if respVersion != protocol.SupportedVersions().HighestSupported() {
+			t.Fatal(ExpectedActual(protocol.SupportedVersions().HighestSupported(), respVersion))
+		}
 	}
+
 }
