@@ -37,7 +37,20 @@ func WithVersions(s version.Set) VKOption {
 	}
 }
 
+// PruneTimes can be used to configure the time before records are pruned out of a vaultkeeper.
+type PruneTimes struct {
+	Hello   time.Duration // how long should a hello stay in the pending table (which is required for a follow-up JOIN)
+	ChildVK time.Duration // how long can a childVK not send a heartbeat before it is considered stale
+}
+
 // WithHelloPruneTime overwrites DefaultHelloPruneTime.
-func WithHelloPruneTime(t time.Duration) VKOption {
-	return func(vk *VaultKeeper) { vk.pruneTime.hello = t }
+func WithPruneTimes(pt PruneTimes) VKOption {
+	return func(vk *VaultKeeper) {
+		if pt.Hello > 0 {
+			vk.pruneTime.hello = pt.Hello
+		}
+		if pt.ChildVK > 0 {
+			vk.pruneTime.cvk = pt.ChildVK
+		}
+	}
 }

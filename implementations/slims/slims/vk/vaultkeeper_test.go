@@ -257,7 +257,9 @@ func Test_serveHello(t *testing.T) {
 	)
 	// spin up a VK
 	ddl, _ := t.Deadline()
-	vk, err := New(vkid, vkAP, WithHelloPruneTime(time.Until(ddl)))
+	vk, err := New(vkid, vkAP,
+		WithPruneTimes(PruneTimes{Hello: time.Until(ddl)}),
+	)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := vk.Start(); err != nil {
@@ -294,7 +296,7 @@ func Test_serveHello(t *testing.T) {
 			timeout = 30 * time.Millisecond
 		)
 		// spin up a VK
-		vk, err := New(vkid, vkAP, WithHelloPruneTime(timeout))
+		vk, err := New(vkid, vkAP, WithPruneTimes(PruneTimes{Hello: timeout}))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := vk.Start(); err != nil {
