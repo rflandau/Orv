@@ -55,7 +55,7 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 	} // no need to check version here as we would normally reply according to packet rules, but we only support a single version
 
 	// install requestor id in our pending table
-	vk.pendingHellos.Store(reqHdr.ID, true, DefaultHelloPruneTime)
+	vk.pendingHellos.Store(reqHdr.ID, true, vk.pruneTime.hello)
 
 	vk.respondSuccess(senderAddr,
 		protocol.Header{
