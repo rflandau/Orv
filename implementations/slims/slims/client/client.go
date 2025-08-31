@@ -69,19 +69,20 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 
 // Join sends a JOIN packet to the given address, returning the target node's response or an error.
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
+// If you are trying to join as a vk, prefer vaultkeeper.Join().
 //
 // This subroutine can be invoked by any node wishing to join a vault (as a leaf or as a child vk).
 func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req struct {
-	isVK   bool
-	vkAddr netip.AddrPort // required iff isVK: where I am listening
-	height uint16         // required iff isVK: what is my current height
+	IsVK   bool
+	VKAddr netip.AddrPort // required iff isVK: where I am listening
+	Height uint16         // required iff isVK: what is my current height
 }) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
 		return 0, nil, slims.ErrCtxIsNil
 	} else if !target.IsValid() {
 		return 0, nil, ErrInvalidAddrPort
-	} else if req.isVK && !req.vkAddr.IsValid() {
+	} else if req.IsVK && !req.VKAddr.IsValid() {
 		return 0, nil, errors.New("requestor's vk address is required if isVK")
 	}
 	UDPAddr := net.UDPAddrFromAddrPort(target)
@@ -97,7 +98,7 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req str
 	// send
 	if _, err := protocol.WritePacket(ctx, conn,
 		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Join, ID: myID},
-		&pb.Join{IsVK: req.isVK, VkAddr: req.vkAddr.String(), Height: uint32(req.height)}); err != nil {
+		&pb.Join{IsVK: req.IsVK, VkAddr: req.VKAddr.String(), Height: uint32(req.Height)}); err != nil {
 		return 0, nil, err
 	}
 	// receive
