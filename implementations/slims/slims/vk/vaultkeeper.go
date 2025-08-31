@@ -52,7 +52,7 @@ type VaultKeeper struct {
 
 	// vault information relevant to us
 	structure struct {
-		mu         sync.RWMutex // lock that must be held to interact with the fields of structure
+		mu         sync.RWMutex // must be held to interact with this struct
 		height     uint16       // current node height
 		parentID   slims.NodeID // 0 if we are root
 		parentAddr netip.AddrPort
@@ -60,9 +60,24 @@ type VaultKeeper struct {
 
 	// how quickly are pieces of data pruned
 	pruneTime struct {
-		hello time.Duration
+		hello time.Duration // hello without join
+		//servicelessLeaf time.Duration // TODO
+		cvk time.Duration // w/o VK_HEARTBEAT
+		//leaf time.Duration // w/o SERVICE_
 	}
 
+	// direct children of this node.
+	// NOTE(rlandau): leaves are mildly too complex to be represented by a single expiring table.
+	children struct {
+		mu sync.Mutex // must be held to interact with this struct
+
+		cvks expiring.Table[slims.NodeID, struct {
+			services map[string]netip.AddrPort // service name -> service address
+			addr     netip.AddrPort            // vk address
+		}]
+	}
+
+	// Hellos we have received but that have not yet been followed by a JOIN
 	pendingHellos expiring.Table[slims.NodeID, bool]
 }
 
@@ -93,7 +108,11 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			parentID   uint64
 			parentAddr netip.AddrPort
 		}{},
-		pruneTime: struct{ hello time.Duration }{hello: DefaultHelloPruneTime},
+		pruneTime: struct {
+			hello time.Duration
+			//servicelessLeaf time.Duration
+			cvk time.Duration
+		}{},
 	}
 	vk.net.accepting.Store(false)
 
