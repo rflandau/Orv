@@ -25,7 +25,8 @@ import (
 //#region defaults
 
 const (
-	DefaultHelloPruneTime time.Duration = 3 * time.Second
+	DefaultHelloPruneTime            time.Duration = 3 * time.Second
+	DefaultHeartbeatlessCVKPruneTime time.Duration = 3 * time.Second
 )
 
 var (
@@ -112,7 +113,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			hello time.Duration
 			//servicelessLeaf time.Duration
 			cvk time.Duration
-		}{},
+		}{hello: DefaultHelloPruneTime, cvk: DefaultHeartbeatlessCVKPruneTime},
 	}
 	vk.net.accepting.Store(false)
 
