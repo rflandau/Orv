@@ -116,8 +116,8 @@ func (x *HelloAck) GetHeight() uint32 {
 type Join struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	IsVK          bool                   `protobuf:"varint,1,opt,name=isVK,proto3" json:"isVK,omitempty"`     // is the node requesting to join the vault a VK?
-	VkAddr        uint64                 `protobuf:"varint,2,opt,name=vkAddr,proto3" json:"vkAddr,omitempty"` // required iff isVK
-	Height        uint32                 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"` // uint16 | height of the requestor node
+	VkAddr        string                 `protobuf:"bytes,2,opt,name=vkAddr,proto3" json:"vkAddr,omitempty"`  // required iff isVK | address at which the VK can receive requests/INCREMENTs
+	Height        uint32                 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"` // uint16 | required iff isVK | height of the requestor node
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -159,11 +159,11 @@ func (x *Join) GetIsVK() bool {
 	return false
 }
 
-func (x *Join) GetVkAddr() uint64 {
+func (x *Join) GetVkAddr() string {
 	if x != nil {
 		return x.VkAddr
 	}
-	return 0
+	return ""
 }
 
 func (x *Join) GetHeight() uint32 {
@@ -678,7 +678,7 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x06height\x18\x01 \x01(\rR\x06height\"J\n" +
 	"\x04Join\x12\x12\n" +
 	"\x04isVK\x18\x01 \x01(\bR\x04isVK\x12\x16\n" +
-	"\x06vkAddr\x18\x02 \x01(\x04R\x06vkAddr\x12\x16\n" +
+	"\x06vkAddr\x18\x02 \x01(\tR\x06vkAddr\x12\x16\n" +
 	"\x06height\x18\x03 \x01(\rR\x06height\"$\n" +
 	"\n" +
 	"JoinAccept\x12\x16\n" +

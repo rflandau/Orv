@@ -19,8 +19,8 @@ message HelloAck {
 // Requesting to join a vault.
 message Join {
 	bool isVK = 1; // is the node requesting to join the vault a VK?
-	uint64 vkAddr = 2; // required iff isVK
-	uint32 height = 3; // uint16 | height of the requestor node 
+	string vkAddr = 2; // required iff isVK | address at which the VK can receive requests/INCREMENTs
+	uint32 height = 3; // uint16 | required iff isVK | height of the requestor node 
 }
 
 // Type #5
