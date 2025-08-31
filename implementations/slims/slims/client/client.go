@@ -67,6 +67,8 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 	}
 }
 
+// #region client requests
+
 // Status sends a STATUS packet to the given address and returns its answer (or an error).
 // ID is optional; if given, the STATUS packet will be sent long-form.
 // If omitted, the STATUS packet will be sent shorthand.
@@ -88,20 +90,14 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 		reqHdr.Shorthand = false
 		reqHdr.ID = senderID[0]
 	}
-	hdrB, err := reqHdr.Serialize()
-	if err != nil {
-		return 0, sr, err
-	}
 
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
 	if err != nil {
 		return 0, sr, err
 	}
 
-	if n, err := conn.Write(hdrB); err != nil { // TODO include context
+	if _, err := protocol.WritePacket(ctx, conn, reqHdr, nil); err != nil {
 		return 0, sr, err
-	} else if n != len(hdrB) {
-		return 0, sr, fmt.Errorf("unexpected byte count written to target. Expected %dB, wrote %dB", len(hdrB), n)
 	}
 
 	// await a response
@@ -130,3 +126,5 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 		return respHdr.ID, sr, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
 }
+
+// #endregion client requests
