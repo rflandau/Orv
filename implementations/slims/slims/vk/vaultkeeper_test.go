@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -247,5 +248,45 @@ func Test_respondSuccess(t *testing.T) {
 	}
 	if rcvdPayload.Height != sentPayload.Height {
 		t.Error(ExpectedActual(sentPayload.Height, rcvdPayload.Height))
+	}
+}
+
+// Spins up a vk, sends a hello, then checks the vk's pending hello table
+func Test_serveHello(t *testing.T) {
+	var (
+		vkid slims.NodeID = rand.Uint64()
+		port uint16       = uint16(rand.Uint32N(math.MaxUint16))
+		vkAP              = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+	)
+	// spin up a VK
+	ddl, _ := t.Deadline()
+	vk, err := New(vkid, vkAP, WithHelloPruneTime(time.Until(ddl)))
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 4 { // run it multiple times
+		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
+			// send a hello to the vk
+			clientID := rand.Uint64()
+			respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vkAP)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if respVKID != vkid {
+				t.Error(ExpectedActual(vkid, respVKID))
+			}
+			if respVKVersion != vk.versionSet.HighestSupported() {
+				t.Error(ExpectedActual(vk.versionSet.HighestSupported(), respVKVersion))
+			}
+			if ack.Height != uint32(vk.Height()) {
+				t.Error(ExpectedActual(vk.Height(), uint16(ack.Height)))
+			}
+			// check that our clientID is in the pendingHello table
+			if _, found := vk.pendingHellos.Load(clientID); !found {
+				t.Errorf("client ID %d is not in the vk's pending hellos", clientID)
+			}
+		})
 	}
 }
