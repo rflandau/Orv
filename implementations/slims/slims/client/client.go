@@ -67,6 +67,62 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 	}
 }
 
+// Join sends a JOIN packet to the given address, returning the target node's response or an error.
+// Sends the packet as protocol.SupportedVersions().HighestSupported().
+//
+// This subroutine can be invoked by any node wishing to join a vault (as a leaf or as a child vk).
+func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req struct {
+	isVK   bool
+	vkAddr netip.AddrPort // required iff isVK: where I am listening
+	height uint16         // required iff isVK: what is my current height
+}) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
+	// validate parameters
+	if ctx == nil {
+		return 0, nil, slims.ErrCtxIsNil
+	} else if !target.IsValid() {
+		return 0, nil, ErrInvalidAddrPort
+	} else if req.isVK && !req.vkAddr.IsValid() {
+		return 0, nil, errors.New("requestor's vk address is required if isVK")
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	if UDPAddr == nil {
+		return 0, nil, ErrInvalidAddrPort
+	}
+
+	// generate a dialer
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return 0, nil, err
+	}
+	// send
+	if _, err := protocol.WritePacket(ctx, conn,
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Join, ID: myID},
+		&pb.Join{IsVK: req.isVK, VkAddr: req.vkAddr.String(), Height: uint32(req.height)}); err != nil {
+		return 0, nil, err
+	}
+	// receive
+	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	switch respHdr.Type {
+	case mt.Fault:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(respBody, f); err != nil {
+			return respHdr.ID, nil, err
+		}
+		return respHdr.ID, nil, errors.New(f.Reason)
+	case mt.JoinAccept:
+		accept := &pb.JoinAccept{}
+		if err := proto.Unmarshal(respBody, accept); err != nil {
+			return respHdr.ID, nil, err
+		}
+		return respHdr.ID, accept, nil
+	default:
+		return respHdr.ID, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+}
+
 // #region client requests
 
 // Status sends a STATUS packet to the given address and returns its answer (or an error).
