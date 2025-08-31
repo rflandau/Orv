@@ -5,10 +5,12 @@ package vaultkeeper
 import (
 	"bytes"
 	"net"
+	"net/netip"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"google.golang.org/protobuf/proto"
 )
 
 // handler is the core processing called for each request.
@@ -46,7 +48,7 @@ func (vk *VaultKeeper) serveStatus(reqHdr protocol.Header, reqBody []byte, sende
 func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// validate parameters
 	if reqHdr.Shorthand {
-		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.Hello).Error())
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Hello).Error())
 		return
 	} else if len(reqBody) != 0 {
 		vk.log.Warn().Int("body length", len(reqBody)).Str("body", string(bytes.TrimSpace(reqBody))).Msg("HELLO message has body")
@@ -65,34 +67,61 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 		&pb.HelloAck{Height: uint32(vk.Height())})
 }
 
-// serveHello answers HELLO packets by inserting the requestor into the serveHello table.
-/*func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, req *mux.Message, respWriter mux.ResponseWriter) {
+// serveJoin answers JOIN packets with JOIN_ACCEPT or FAULT, installing the requestor as a child iff their height is appropriate.
+func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	if reqHdr.Shorthand {
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Hello).Error())
+		return
+	} else if len(reqBody) == 0 {
+		vk.respondError(senderAddr, ErrBodyRequired(mt.Hello).Error())
+		return
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
+		return
+	}
+
+	// ensure that the requestor is in our hello table
+	if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
+		vk.respondError(senderAddr, "must send HELLO first and join before it expires")
+		return
+	}
+
 	// unpack the body
-	var bd bytes.Buffer
-	if _, err := io.Copy(&bd, req.Body()); err != nil {
-		vk.respondError(respWriter, codes.InternalServerError, err.Error())
+	var j = &pb.Join{}
+	if err := proto.Unmarshal(reqBody, j); err != nil {
+		vk.respondError(senderAddr, "failed to unmarshal body as a Join message")
 		return
 	}
 
-	var pbReq pb.Hello
-	if err := proto.Unmarshal(bd.Bytes(), &pbReq); err != nil {
-		vk.respondError(respWriter, codes.BadRequest, err.Error())
-		return
+	// acquire lock
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+
+	// handle as leaf or as cvk
+	if j.IsVK {
+		// validate rest of body
+		if j.Height != uint32(vk.structure.height)-1 {
+			vk.respondError(senderAddr, ErrBadHeightJoin(vk.structure.height, uint16(j.Height)).Error())
+			return
+		}
+		addr, err := netip.ParseAddrPort(j.VkAddr)
+		if err != nil {
+			vk.respondError(senderAddr, ErrBadAddr(addr).Error())
+			return
+		}
+		// check that this node is not already registered as a leaf
+		// TODO
+	} else {
+		// check that this node is not already registered as cvk
+		// TODO
 	}
 
-	vk.log.Debug().Uint64("requestor id", pbReq.Id).Str("type", mt.Hello.String()).Send()
+	vk.log.Info().Uint64("child ID", reqHdr.ID).Str("child VK address", j.VkAddr).Bool("vk?", j.IsVK).Msg("accepted JOIN")
 
-	// store/update the hello
-	vk.pendingHellos.Store(pbReq.Id, true, helloPruneTime)
+	vk.respondSuccess(senderAddr,
+		protocol.Header{Version: vk.versionSet.HighestSupported(),
+			Type: mt.JoinAccept,
+			ID:   vk.ID(),
+		}, &pb.JoinAccept{})
 
-	// compose the body
-	// TODO
-
-	// set the header and respond
-	vk.respondSuccess(respWriter, codes.Created,
-		protocol.Header{
-			Version: protocol.HighestSupported,
-			Type:    mt.HelloAck,
-		},
-		nil)
-}*/
+}

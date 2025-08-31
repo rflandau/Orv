@@ -243,6 +243,8 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 					vk.serveStatus(hdr, body, senderAddr)
 				case mt.Hello:
 					vk.serveHello(hdr, body, senderAddr)
+				case mt.Join:
+					vk.serveJoin(hdr, body, senderAddr)
 				// TODO ...
 				default: // non-enumerated type or UNKNOWN
 					vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(hdr.Type), 10))
