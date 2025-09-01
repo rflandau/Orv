@@ -27,6 +27,7 @@ import (
 const (
 	DefaultHelloPruneTime            time.Duration = 3 * time.Second
 	DefaultHeartbeatlessCVKPruneTime time.Duration = 3 * time.Second
+	DefaultServicelessLeafPruneTime  time.Duration = 3 * time.Second
 )
 
 var (
@@ -61,9 +62,9 @@ type VaultKeeper struct {
 
 	// how quickly are pieces of data pruned
 	pruneTime struct {
-		hello time.Duration // hello without join
-		//servicelessLeaf time.Duration // TODO
-		cvk time.Duration // w/o VK_HEARTBEAT
+		hello           time.Duration // hello without join
+		servicelessLeaf time.Duration // time after join, if no services are registered
+		cvk             time.Duration // w/o VK_HEARTBEAT
 		//leaf time.Duration // w/o SERVICE_
 	}
 
@@ -76,6 +77,7 @@ type VaultKeeper struct {
 			services map[string]netip.AddrPort // service name -> service address
 			addr     netip.AddrPort            // vk address
 		}]
+		leaves map[slims.NodeID]leaf
 	}
 
 	// Hellos we have received but that have not yet been followed by a JOIN
@@ -110,10 +112,28 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			parentAddr netip.AddrPort
 		}{},
 		pruneTime: struct {
-			hello time.Duration
-			//servicelessLeaf time.Duration
-			cvk time.Duration
-		}{hello: DefaultHelloPruneTime, cvk: DefaultHeartbeatlessCVKPruneTime},
+			hello           time.Duration
+			servicelessLeaf time.Duration
+			cvk             time.Duration
+		}{
+			hello:           DefaultHelloPruneTime,
+			servicelessLeaf: DefaultServicelessLeafPruneTime,
+			cvk:             DefaultHeartbeatlessCVKPruneTime,
+		},
+		children: struct {
+			mu   sync.Mutex
+			cvks expiring.Table[slims.NodeID, struct {
+				services map[string]netip.AddrPort
+				addr     netip.AddrPort
+			}]
+			leaves map[slims.NodeID]leaf
+		}{
+			cvks: expiring.Table[slims.NodeID, struct {
+				services map[string]netip.AddrPort
+				addr     netip.AddrPort
+			}]{},
+			leaves: make(map[slims.NodeID]leaf),
+		},
 	}
 	vk.net.accepting.Store(false)
 
