@@ -13,9 +13,9 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 	// ensure this ID is not already owned by a leaf
-	/*if _, found := vk.children.leaves.Load(cID); found {
+	if _, found := vk.children.leaves[cID]; found {
 		return true
-	}*/ // TODO
+	}
 	vk.children.cvks.Store(cID, struct {
 		services map[string]netip.AddrPort
 		addr     netip.AddrPort
