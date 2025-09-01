@@ -74,3 +74,30 @@ func Test_addLeaf(t *testing.T) {
 		}
 	}
 }
+
+func Test_addCVK(t *testing.T) {
+	vk, err := New(1, netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		WithPruneTimes(PruneTimes{ServicelessLeaf: 40 * time.Millisecond}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// add a cvk
+	cvkID := rand.Uint64()
+	if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::0]:1234")); isLeaf {
+		t.Fatal("conflicted with existing leaf, despite being only child")
+	} else if _, found := vk.children.cvks.Load(cvkID); !found {
+		t.Fatal("failed to find cvk after insertion")
+	}
+	{ // add a leaf and then try to add a conflicting cvk
+		nodeID := rand.Uint64()
+		if isCVK := vk.addLeaf(nodeID); isCVK {
+			t.Fatal("conflicted with existing cvk")
+		}
+		if isLeaf := vk.addCVK(nodeID, netip.MustParseAddrPort("[::0]:1234")); !isLeaf {
+			t.Fatal("expected to conflict with existing leaf")
+		} else if _, found := vk.children.cvks.Load(nodeID); found {
+			t.Fatal("cvk was inserted despite conflicting leaf id")
+		}
+
+	}
+}
