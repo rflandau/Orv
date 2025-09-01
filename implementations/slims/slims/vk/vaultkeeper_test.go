@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -323,4 +324,61 @@ func Test_serveHello(t *testing.T) {
 			t.Errorf("client ID %d is in the vk's pending hellos but should have timed out", clientID)
 		}
 	})
+}
+
+// Tests both the serveJoin handler and the vaultkeeper.Join request method.
+// Companion test to the Join tests in the client package.
+func Test_Join(t *testing.T) {
+	// spin up a parent
+	parentVK, err := New(
+		rand.Uint64(),
+		netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		WithDragonsHoard(1),
+		WithPruneTimes(PruneTimes{Hello: 10 * time.Second}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := parentVK.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer parentVK.Stop()
+
+	// spin up a child
+	childVK, err := New(
+		rand.Uint64(),
+		netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := childVK.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer childVK.Stop()
+
+	// join the child under the parent
+	t.Logf("child (%d) sending HELLO to parent (%d)", childVK.ID(), parentVK.ID())
+	if id, ver, ack, err := client.Hello(t.Context(), childVK.ID(), parentVK.Address()); err != nil {
+		t.Fatal(err)
+	} else if id != parentVK.ID() {
+		t.Fatal(ExpectedActual(parentVK.ID(), id))
+	} else if ver != parentVK.versionSet.HighestSupported() || ver != childVK.versionSet.HighestSupported() {
+		t.Fatalf("versions mismatch.\n %v (response) != %v (parent) != %v (child)", ver, parentVK.versionSet.HighestSupported(), childVK.versionSet.HighestSupported())
+	} else if ack.Height != uint32(parentVK.Height()) {
+		t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
+	}
+	t.Logf("child (%d) sending JOIN to parent (%d)", childVK.ID(), parentVK.ID())
+	if err := childVK.Join(t.Context(), parentVK.Address()); err != nil {
+		t.Fatal(err)
+	}
+	// validate changes to the child
+	if childVK.structure.parentID != parentVK.ID() {
+		t.Error(ExpectedActual(parentVK.ID(), childVK.structure.parentID))
+	}
+	if childVK.structure.parentAddr != parentVK.Address() {
+		t.Error(ExpectedActual(parentVK.Address(), childVK.structure.parentAddr))
+	}
+	// validate that the child is in the parent's children tables
+	if _, found := parentVK.children.cvks.Load(childVK.ID()); !found {
+		t.Error("did not find a child vk associated to childVK's ID")
+	}
 }

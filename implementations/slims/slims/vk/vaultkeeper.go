@@ -157,6 +157,11 @@ func (vk *VaultKeeper) Height() uint16 {
 	return vk.structure.height
 }
 
+// Address returns the address+port of the vaultkeeper.
+func (vk *VaultKeeper) Address() netip.AddrPort {
+	return vk.addr
+}
+
 //#endregion getters
 
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.

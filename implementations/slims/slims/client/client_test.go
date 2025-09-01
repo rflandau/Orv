@@ -1,4 +1,4 @@
-package client
+package client_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
 	. "github.com/rflandau/Orv/internal/testsupport"
@@ -24,7 +25,7 @@ func TestStatus(t *testing.T) {
 		if err == nil {
 			t.Fatal("unexpected nil error")
 		}
-		if _, sr, err := Status(ap, nil); err == nil {
+		if _, sr, err := client.Status(ap, nil); err == nil {
 			t.Fatal("unexpected nil error")
 		} else if sr != nil {
 			t.Fatal("unexpected non-nil response")
@@ -52,7 +53,7 @@ func TestStatus(t *testing.T) {
 		// submit a shorthand status request
 		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
 		defer cancel()
-		respVKID, respSR, err := Status(vkAddr, ctx)
+		respVKID, respSR, err := client.Status(vkAddr, ctx)
 		if err != nil {
 			t.Fatal(err)
 		} else if respSR == nil {
@@ -86,7 +87,7 @@ func TestStatus(t *testing.T) {
 		// submit a longform status request
 		ctxB, cancelB := context.WithTimeout(t.Context(), reqTimeout)
 		defer cancelB()
-		respVKID, respSR, err := Status(netip.MustParseAddrPort("[::0]:8082"), ctxB, 100)
+		respVKID, respSR, err := client.Status(netip.MustParseAddrPort("[::0]:8082"), ctxB, 100)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +129,7 @@ func TestHello(t *testing.T) {
 		go func(nID slims.NodeID) { // kick off a hello for each
 			defer wg.Done()
 			// send a Hello
-			respVKID, respVersion, respBody, err := Hello(context.Background(), nodeID, ap)
+			respVKID, respVersion, respBody, err := client.Hello(context.Background(), nodeID, ap)
 			if err != nil {
 				panic(err)
 			}
@@ -143,5 +144,148 @@ func TestHello(t *testing.T) {
 		}(nodeIDs[i])
 	}
 	wg.Wait()
+}
+
+// NOTE(rlandau): does not test vk-joins; those are tested in the vaultkeeper package.
+func TestJoin(t *testing.T) {
+	var (
+		nodeID       = rand.Uint64()
+		port         = uint16(rand.UintN(math.MaxUint16))
+		VKAP         = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		repeat uint8 = 3 // for tests that run multiple times, the # of times to run
+	)
+	// spawn a VK
+	vk, err := vaultkeeper.New(rand.Uint64(), VKAP)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer vk.Stop()
+
+	t.Run("premature join", func(t *testing.T) {
+		for range repeat {
+			// send a join
+			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
+				IsVK   bool
+				VKAddr netip.AddrPort
+				Height uint16
+			}{false, netip.AddrPort{}, 0})
+			if err == nil {
+				t.Fatal("expected a Join error due to premature join")
+			} else if accept != nil {
+				t.Fatalf("expected accept to be nil due to failure. Found %#v instead", accept)
+			}
+			if vkID != vk.ID() {
+				t.Fatal(ExpectedActual(vk.ID(), vkID))
+			}
+		}
+	})
+	t.Run("join after mismatch hello", func(t *testing.T) {
+		for range repeat {
+			// send a hello, but for a different ID
+			if vkID, _, ack, err := client.Hello(t.Context(), nodeID-uint64(rand.Uint()), VKAP); err != nil {
+				t.Fatal(err)
+			} else if vkID != vk.ID() {
+				t.Fatal(ExpectedActual(vk.ID(), vkID))
+			} else if ack == nil {
+				t.Fatal("nil response body on successful hello")
+			} else if ack.Height != uint32(vk.Height()) {
+				t.Fatal(ExpectedActual(uint32(vk.Height()), ack.Height))
+			}
+			// send a join
+			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
+				IsVK   bool
+				VKAddr netip.AddrPort
+				Height uint16
+			}{false, netip.AddrPort{}, 0})
+			if err == nil {
+				t.Fatal("expected a Join error due to premature join")
+			} else if accept != nil {
+				t.Fatalf("expected accept to be nil due to failure. Found %#v instead", accept)
+			}
+			if vkID != vk.ID() {
+				t.Fatal(ExpectedActual(vk.ID(), vkID))
+			}
+		}
+	})
+	t.Run("join and repeat", func(t *testing.T) {
+		for i := range repeat {
+			t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
+				// send a hello
+				if vkID, _, ack, err := client.Hello(t.Context(), nodeID, VKAP); err != nil {
+					t.Fatal(err)
+				} else if vkID != vk.ID() {
+					t.Fatal(ExpectedActual(vk.ID(), vkID))
+				} else if ack == nil {
+					t.Fatal("nil response body on successful hello")
+				} else if ack.Height != uint32(vk.Height()) {
+					t.Fatal(ExpectedActual(uint32(vk.Height()), ack.Height))
+				}
+				// send a join
+				vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
+					IsVK   bool
+					VKAddr netip.AddrPort
+					Height uint16
+				}{false, netip.AddrPort{}, 0})
+				// validate
+				if err != nil {
+					t.Fatal(err)
+				} else if accept.Height != uint32(vk.Height()) {
+					t.Fatal(ExpectedActual(uint32(vk.Height()), accept.Height))
+				}
+				if vkID != vk.ID() {
+					t.Fatal(ExpectedActual(vk.ID(), vkID))
+				}
+
+			})
+		}
+	})
+	// tests that join fails if too much time passes after a successfully HELLO.
+	// !spawns a new VK, rather than using the parent tests's vk.
+	t.Run("join after hello expires", func(t *testing.T) {
+		nodeID := rand.Uint64N(math.MaxUint16)
+		vkBAP := netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(rand.Uint64N(math.MaxUint16), 10))
+		vkB, err := vaultkeeper.New(
+			rand.Uint64(),
+			vkBAP,
+			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: 30 * time.Millisecond}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vkB.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer vkB.Stop()
+		t.Log("VKID: ", vkB.ID())
+		t.Log("NodeID: ", nodeID)
+		// send a hello
+		vkIDHello, _, ack, err := client.Hello(t.Context(), nodeID, vkBAP)
+		if err != nil {
+			t.Fatal(err)
+		} else if vkIDHello != vkB.ID() {
+			t.Fatal(ExpectedActual(vkB.ID(), vkIDHello))
+		} else if ack.Height != uint32(vkB.Height()) {
+			t.Fatal(uint32(vkB.Height()), ack.Height)
+		}
+		t.Log("VKID: ", vkB.ID())
+		t.Log("NodeID: ", nodeID)
+		// wait for that hello to expire
+		time.Sleep(31 * time.Millisecond)
+		// try to join
+		if vkIDJoin, accept, err := client.Join(t.Context(), nodeID, vkBAP, struct {
+			IsVK   bool
+			VKAddr netip.AddrPort
+			Height uint16
+		}{false, netip.AddrPort{}, 0}); err == nil {
+			t.Fatal("expected a Join error due hello expiration")
+		} else if accept != nil {
+			t.Fatalf("expected accept to be nil due to failure. Found %#v instead", accept)
+		} else if vkIDJoin != vkIDHello {
+			t.Fatal(ExpectedActual(vkIDHello, vkIDJoin))
+		} else if vkIDJoin != vkB.ID() {
+			t.Fatal(ExpectedActual(vkB.ID(), vkIDJoin))
+		}
+	})
 
 }

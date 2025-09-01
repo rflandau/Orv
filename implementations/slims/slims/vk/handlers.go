@@ -91,8 +91,6 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	// acquire lock
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
-	vk.children.mu.Lock()
-	defer vk.children.mu.Unlock()
 
 	// handle as leaf or as cvk
 	if j.IsVK {
