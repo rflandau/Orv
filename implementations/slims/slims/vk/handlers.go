@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -71,10 +72,10 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 // serveJoin answers JOIN packets with JOIN_ACCEPT or FAULT, installing the requestor as a child iff their height is appropriate.
 func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	if reqHdr.Shorthand {
-		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Hello).Error())
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Join).Error())
 		return
 	} else if len(reqBody) == 0 {
-		vk.respondError(senderAddr, ErrBodyRequired(mt.Hello).Error())
+		vk.respondError(senderAddr, ErrBodyRequired(mt.Join).Error())
 		return
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
 		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
@@ -84,7 +85,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	// unpack the body
 	var j = &pb.Join{}
 	if err := proto.Unmarshal(reqBody, j); err != nil {
-		vk.respondError(senderAddr, "failed to unmarshal body as a Join message")
+		vk.respondError(senderAddr, "failed to unmarshal body as a JOIN message")
 		return
 	}
 
@@ -119,11 +120,13 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		}
 
 	} else {
-		// check that this node is not already registered as cvk
-		// TODO
 		// ensure that the requestor is in our hello table
 		if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
 			vk.respondError(senderAddr, "must send HELLO first and join before it expires")
+			return
+		}
+		if isCVK := vk.addLeaf(reqHdr.ID); isCVK {
+			vk.respondError(senderAddr, fmt.Sprintf("ID %d is already in use by child vk", reqHdr.ID))
 			return
 		}
 	}
@@ -134,6 +137,55 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		protocol.Header{Version: vk.versionSet.HighestSupported(),
 			Type: mt.JoinAccept,
 			ID:   vk.ID(),
-		}, &pb.JoinAccept{})
+		}, &pb.JoinAccept{Height: uint32(vk.structure.height)})
+
+}
+
+func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	// validate parameters
+	if reqHdr.Shorthand {
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Hello).Error())
+		return
+	} else if len(reqBody) == 0 {
+		vk.respondError(senderAddr, ErrBodyRequired(mt.Register).Error())
+		return
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
+		return
+	}
+	// parse and validate body
+	var registerReq pb.Register
+	if err := proto.Unmarshal(reqBody, &registerReq); err != nil {
+		vk.respondError(senderAddr, "failed to unmarshal body as a REGISTER message: "+err.Error())
+		return
+	} else if registerReq.Service == "" {
+		vk.respondError(senderAddr, "service name cannot be empty")
+		return
+	}
+	serviceStaleTime, err := time.ParseDuration(registerReq.Stale)
+	if err != nil {
+		vk.respondError(senderAddr, "bad stale time: "+err.Error())
+		return
+	}
+	serviceAddress, err := netip.ParseAddrPort(registerReq.Address)
+	if err != nil {
+		vk.respondError(senderAddr, "bad service address: "+err.Error())
+		return
+	}
+	// register the service
+	if err := vk.addService(reqHdr.ID, registerReq.Service, serviceAddress, serviceStaleTime); err != nil {
+		vk.respondError(senderAddr, err.Error())
+		return
+	}
+
+	// respond with acceptance
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    mt.RegisterAccept,
+		ID:      vk.id,
+	}, &pb.RegisterAccept{Service: registerReq.Service})
+
+	// propagate the REGISTER up the vault
+	// TODO
 
 }
