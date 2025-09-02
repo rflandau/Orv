@@ -151,7 +151,45 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 	}
 
 	// add this child as a provider of the service
-	// TODO
+	if providers, found := vk.children.allServices[service]; found {
+		// providers already exist for this service
+		for i, p := range providers { // check if this child is already a known provider
+			if p.childID == childID {
+				vk.log.Debug().
+					Uint64("provider/childID", p.childID).
+					Str("service", service).
+					Str("old address", p.addr.String()).
+					Str("new address", addr.String()).
+					Msgf("service is already known to be provided by the child. Updating address...")
+
+				// just make sure the latest address is known
+				vk.children.allServices[service][i].addr = addr
+				return nil
+			}
+		}
+		// if we made it this far, then providers exist for the service, but this child is not one of them.
+		// So add it.
+		vk.log.Debug().
+			Uint64("provider/childID", childID).
+			Str("service", service).
+			Str("address", addr.String()).
+			Msgf("registering new service provider")
+		vk.children.allServices[service] = append(vk.children.allServices[service], struct {
+			childID slims.NodeID
+			addr    netip.AddrPort
+		}{childID: childID, addr: addr})
+	} else { // totally new service with no other providers
+		vk.log.Info().
+			Uint64("provider/childID", childID).
+			Str("service", service).
+			Msg("adding new service to list of all services")
+		vk.children.allServices[service] = []struct {
+			childID slims.NodeID
+			addr    netip.AddrPort
+		}{
+			{childID: childID, addr: addr},
+		}
+	}
 
 	return nil
 }

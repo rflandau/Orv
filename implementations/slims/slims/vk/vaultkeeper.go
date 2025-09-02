@@ -73,11 +73,19 @@ type VaultKeeper struct {
 	children struct {
 		mu sync.Mutex // must be held to interact with this struct
 
+		// child vks
 		cvks expiring.Table[slims.NodeID, struct {
 			services map[string]netip.AddrPort // service name -> service address
-			addr     netip.AddrPort            // vk address
+			addr     netip.AddrPort            // address that the vk service is remotely accessible at
 		}]
+		// non-routing/serving children
 		leaves map[slims.NodeID]leaf
+		// alternate view of the cvks and leaves fields.
+		// service name -> array of (ID of child providing the service and the address the service is available at)
+		allServices map[string][]struct {
+			childID slims.NodeID
+			addr    netip.AddrPort
+		}
 	}
 
 	// Hellos we have received but that have not yet been followed by a JOIN
@@ -126,7 +134,11 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 				services map[string]netip.AddrPort
 				addr     netip.AddrPort
 			}]
-			leaves map[slims.NodeID]leaf
+			leaves      map[slims.NodeID]leaf
+			allServices map[string][]struct {
+				childID slims.NodeID
+				addr    netip.AddrPort
+			}
 		}{
 			cvks: expiring.Table[slims.NodeID, struct {
 				services map[string]netip.AddrPort
