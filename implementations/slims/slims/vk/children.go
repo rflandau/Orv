@@ -1,6 +1,7 @@
 package vaultkeeper
 
 import (
+	"fmt"
 	"net/netip"
 	"time"
 
@@ -51,7 +52,7 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 	}
 	// install the new leaf
 	vk.children.leaves[lID] = leaf{
-		servicelessPruner: vk.startPruneServicelessTimer(lID),
+		servicelessPruner: vk.servicelessLeafPrune(lID),
 		services: make(map[string]struct {
 			pruner *time.Timer
 			stale  time.Duration
@@ -62,9 +63,9 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 }
 
 // helper function intended to be given to time.AfterFunc.
-// Tests the ID after servicelessPruneTime has elapsed to check that it has registered at least one service;
-// if it has not, trim the leaf out of the set.
-func (vk *VaultKeeper) startPruneServicelessTimer(lID slims.NodeID) *time.Timer {
+// Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
+// if it has not, trim the leaf out of the set of children.
+func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
 	return time.AfterFunc(vk.pruneTime.servicelessLeaf, func() {
 		// acquire lock
 		vk.children.mu.Lock()
@@ -79,4 +80,78 @@ func (vk *VaultKeeper) startPruneServicelessTimer(lID slims.NodeID) *time.Timer 
 			delete(vk.children.leaves, lID)
 		}
 	})
+}
+
+// Adds a new service under the child, be they a leaf or a vk.
+// Stale is only used for leaf services.
+//
+// ! Assumes that parameters, other than childID, have already been validated.
+func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr netip.AddrPort, stale time.Duration) error {
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+
+	// figure out which kind of child it is
+	if leaf, found := vk.children.leaves[childID]; found { // add service to leaf
+		// if the service already exists, just stop its timer; it will be replaced with updated info
+		if serviceInfo, found := leaf.services[service]; found {
+			vk.log.Debug().
+				Uint64("child", childID).
+				Str("service", service).
+				Dur("old stale time", serviceInfo.stale).
+				Str("old service address", serviceInfo.addr.String()).
+				Msg("replacing existing service")
+			serviceInfo.pruner.Stop()
+		}
+		// install the new service
+		vk.log.Debug().
+			Uint64("child", childID).
+			Str("service", service).
+			Dur("stale time", stale).
+			Str("service address", addr.String()).
+			Msg("registering service to leaf")
+		leaf.services[service] = struct {
+			pruner *time.Timer
+			stale  time.Duration
+			addr   netip.AddrPort
+		}{pruner: time.AfterFunc(stale, func() {
+			// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
+			vk.children.mu.Lock()
+			defer vk.children.mu.Unlock()
+
+			if _, found := vk.children.leaves[childID]; found { // if the child still exists...
+				delete(vk.children.leaves[childID].services, service)
+				// TODO send a DEREGISTER up the tree
+				vk.log.Info().
+					Uint64("child", childID).
+					Str("service", service).
+					Dur("stale time", stale).
+					Msg("pruned service from leaf")
+			} else {
+				vk.log.Info().
+					Uint64("child", childID).
+					Str("service", service).
+					Msg("failed to pruned service from leaf: child no longer exists")
+			}
+		}),
+			stale: stale,
+			addr:  addr}
+	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
+		// refresh the cvk's prune timer
+		if !vk.children.cvks.Refresh(childID, vk.pruneTime.cvk) {
+			return fmt.Errorf("failed to register service %s to child vk %d: child vk was pruned during look up", service, childID)
+		}
+		cvk.services[service] = addr // update or set our info
+		vk.log.Debug().
+			Uint64("child", childID).
+			Str("service", service).
+			Str("service address", addr.String()).
+			Msgf("registered/updated service %s on child vk %d", service, childID)
+	} else {
+		return fmt.Errorf("id %d does not correspond to any known child", childID)
+	}
+
+	// add this child as a provider of the service
+	// TODO
+
+	return nil
 }
