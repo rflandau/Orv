@@ -44,16 +44,20 @@ func Test_addLeaf(t *testing.T) {
 		if isCVK := vk.addLeaf(leafID); isCVK {
 			t.Fatal("conflicted with existing cvk, but no cvks should exist")
 		}
+		vk.children.mu.Lock()
 		// ensure the leaf exists
 		if _, found := vk.children.leaves[leafID]; !found {
 			t.Error("failed to find leaf after insertion")
 		}
+		vk.children.mu.Unlock()
 		// let the leaf expire
 		time.Sleep(41 * time.Millisecond)
 		// ensure the leaf does not exist
+		vk.children.mu.Lock()
 		if _, found := vk.children.leaves[leafID]; found {
 			t.Error("leaf should have expired")
 		}
+		vk.children.mu.Unlock()
 	}
 	// add a cvk, then add a leaf with the same id
 	{
@@ -98,6 +102,5 @@ func Test_addCVK(t *testing.T) {
 		} else if _, found := vk.children.cvks.Load(nodeID); found {
 			t.Fatal("cvk was inserted despite conflicting leaf id")
 		}
-
 	}
 }
