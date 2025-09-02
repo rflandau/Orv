@@ -140,14 +140,24 @@ func Test_addService(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		// verify the service exists on the cvk
 		vk.children.mu.Lock()
+		// verify the service exists on the cvk
 		if cvk, found := vk.children.cvks.Load(cvkID); !found {
 			t.Fatal("failed to find just-added cvk")
 		} else if cvk.services[serviceName] != serviceAddr {
 			t.Fatal("incorrect service address", ExpectedActual(serviceAddr, cvk.services[serviceName]))
 		}
+		// verify that the service is listed with one provider
+		if providers, found := vk.children.allServices[serviceName]; !found {
+			t.Fatal("failed to find providers for newly-added service")
+		} else if len(providers) != 1 {
+			t.Fatal("incorrect provider count", ExpectedActual(1, len(providers)))
+		} else if _, found := providers[cvkID]; !found {
+			t.Fatalf("cvk is not a provider of the service: %#v", providers)
+		}
 		vk.children.mu.Unlock()
+		// wait for the cvk to time out so we can ensure it is removed as a provider
+		// TODO
 	})
 	t.Run("service to leaf plus expiry", func(t *testing.T) {
 		var (
@@ -168,8 +178,8 @@ func Test_addService(t *testing.T) {
 		if err := vk.addService(leafID, serviceName, serviceAddr, serviceStale); err != nil {
 			t.Fatal(err)
 		}
-		// verify the service exists on the leaf
 		vk.children.mu.Lock()
+		// verify the service exists on the leaf
 		if leaf, found := vk.children.leaves[leafID]; !found {
 			t.Fatal("failed to find just-added leaf")
 		} else if service, found := leaf.services[serviceName]; !found {
@@ -179,6 +189,12 @@ func Test_addService(t *testing.T) {
 		} else if service.stale != serviceStale {
 			t.Fatal("incorrect stale time", ExpectedActual(serviceStale, service.stale))
 		}
+		// verify the leaf is a provider of the service
+		if addr, found := vk.children.allServices[serviceName][leafID]; !found {
+			t.Fatal("leaf is not considered a provider of the service")
+		} else if addr != serviceAddr {
+			t.Fatal("bad service address in providers table", ExpectedActual(serviceAddr, addr))
+		}
 		vk.children.mu.Unlock()
 		// wait for the service to get pruned from the leaf
 		time.Sleep(serviceStale + 1*time.Millisecond)
@@ -187,6 +203,8 @@ func Test_addService(t *testing.T) {
 			t.Fatal("leaf was pruned out")
 		} else if _, found := leaf.services[serviceName]; found {
 			t.Fatal("leaf service should have been pruned, but was found")
+		} else if _, found := vk.children.allServices[serviceName][leafID]; found {
+			t.Fatal("leaf is still listed as a provider of service in the providers table")
 		}
 		vk.children.mu.Unlock()
 	})
