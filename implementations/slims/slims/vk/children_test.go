@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/rflandau/Orv/implementations/slims/internal/misc"
+	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func Test_addLeaf(t *testing.T) {
@@ -103,4 +105,90 @@ func Test_addCVK(t *testing.T) {
 			t.Fatal("cvk was inserted despite conflicting leaf id")
 		}
 	}
+}
+
+func Test_addService(t *testing.T) {
+	t.Run("unknown child", func(t *testing.T) {
+		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := vk.addService(1234, "ssh", netip.AddrPort{}, 1); err == nil {
+			t.Fatal("expected error when given an ID for a child that DNE")
+		}
+	})
+	t.Run("service to cvk", func(t *testing.T) {
+		var (
+			cvkID       = rand.Uint64()
+			serviceName = randomdata.Currency()
+			serviceAddr = netip.MustParseAddrPort("1.1.1.1:1")
+		)
+		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// add a cvk
+		if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::0]:4567")); isLeaf {
+			t.Fatal("leaf should not exist on a fresh vk")
+		}
+		// add a service to the cvk
+		if err := vk.addService(
+			cvkID,
+			serviceName,
+			serviceAddr,
+			0, // stale does not apply to cvk services
+		); err != nil {
+			t.Fatal(err)
+		}
+		// verify the service exists on the cvk
+		vk.children.mu.Lock()
+		if cvk, found := vk.children.cvks.Load(cvkID); !found {
+			t.Fatal("failed to find just-added cvk")
+		} else if cvk.services[serviceName] != serviceAddr {
+			t.Fatal("incorrect service address", ExpectedActual(serviceAddr, cvk.services[serviceName]))
+		}
+		vk.children.mu.Unlock()
+	})
+	t.Run("service to leaf plus expiry", func(t *testing.T) {
+		var (
+			leafID       = rand.Uint64()
+			serviceName  = randomdata.Currency()
+			serviceAddr  = netip.MustParseAddrPort("1.1.1.1:1")
+			serviceStale = 30 * time.Millisecond
+		)
+		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// add a leaf
+		if isCVK := vk.addLeaf(leafID); isCVK {
+			t.Fatal("cvk should not exist on a fresh vk")
+		}
+		// add a service to the leaf
+		if err := vk.addService(leafID, serviceName, serviceAddr, serviceStale); err != nil {
+			t.Fatal(err)
+		}
+		// verify the service exists on the leaf
+		vk.children.mu.Lock()
+		if leaf, found := vk.children.leaves[leafID]; !found {
+			t.Fatal("failed to find just-added leaf")
+		} else if service, found := leaf.services[serviceName]; !found {
+			t.Fatal("failed to find service registered to leaf")
+		} else if service.addr != serviceAddr {
+			t.Fatal("incorrect service address", ExpectedActual(serviceAddr, service.addr))
+		} else if service.stale != serviceStale {
+			t.Fatal("incorrect stale time", ExpectedActual(serviceStale, service.stale))
+		}
+		vk.children.mu.Unlock()
+		// wait for the service to get pruned from the leaf
+		time.Sleep(serviceStale + 1*time.Millisecond)
+		vk.children.mu.Lock()
+		if leaf, found := vk.children.leaves[leafID]; !found {
+			t.Fatal("leaf was pruned out")
+		} else if _, found := leaf.services[serviceName]; found {
+			t.Fatal("leaf service should have been pruned, but was found")
+		}
+		vk.children.mu.Unlock()
+	})
+
 }

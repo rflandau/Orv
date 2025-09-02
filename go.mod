@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/dsnet/golib/memfile v1.0.0 // indirect
 	github.com/magefile/mage v1.15.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
