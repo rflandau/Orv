@@ -113,26 +113,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 			pruner *time.Timer
 			stale  time.Duration
 			addr   netip.AddrPort
-		}{pruner: time.AfterFunc(stale, func() {
-			// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
-			vk.children.mu.Lock()
-			defer vk.children.mu.Unlock()
-
-			if _, found := vk.children.leaves[childID]; found { // if the child still exists...
-				delete(vk.children.leaves[childID].services, service)
-				// TODO send a DEREGISTER up the tree
-				vk.log.Info().
-					Uint64("child", childID).
-					Str("service", service).
-					Dur("stale time", stale).
-					Msg("pruned service from leaf")
-			} else {
-				vk.log.Info().
-					Uint64("child", childID).
-					Str("service", service).
-					Msg("failed to pruned service from leaf: child no longer exists")
-			}
-		}),
+		}{pruner: time.AfterFunc(stale, func() { pruneServiceFromLeaf(vk, childID, service) }),
 			stale: stale,
 			addr:  addr}
 	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
@@ -152,44 +133,55 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 
 	// add this child as a provider of the service
 	if providers, found := vk.children.allServices[service]; found {
-		// providers already exist for this service
-		for i, p := range providers { // check if this child is already a known provider
-			if p.childID == childID {
-				vk.log.Debug().
-					Uint64("provider/childID", p.childID).
-					Str("service", service).
-					Str("old address", p.addr.String()).
-					Str("new address", addr.String()).
-					Msgf("service is already known to be provided by the child. Updating address...")
-
-				// just make sure the latest address is known
-				vk.children.allServices[service][i].addr = addr
-				return nil
-			}
-		}
-		// if we made it this far, then providers exist for the service, but this child is not one of them.
-		// So add it.
-		vk.log.Debug().
-			Uint64("provider/childID", childID).
-			Str("service", service).
-			Str("address", addr.String()).
-			Msgf("registering new service provider")
-		vk.children.allServices[service] = append(vk.children.allServices[service], struct {
-			childID slims.NodeID
-			addr    netip.AddrPort
-		}{childID: childID, addr: addr})
+		providers[childID] = addr // update or insert ID -> addr
+		vk.log.Debug().Msgf("associated child %d as a provider of service %s at %v", childID, service, addr)
 	} else { // totally new service with no other providers
 		vk.log.Info().
 			Uint64("provider/childID", childID).
 			Str("service", service).
 			Msg("adding new service to list of all services")
-		vk.children.allServices[service] = []struct {
-			childID slims.NodeID
-			addr    netip.AddrPort
-		}{
-			{childID: childID, addr: addr},
+		vk.children.allServices[service] = map[slims.NodeID]netip.AddrPort{
+			childID: addr,
 		}
 	}
 
 	return nil
+}
+
+// pruneServiceFromLeaf is called whenever a service's stale timer is triggered (which can only occurs on leaves as cvk's services do not have stale timers).
+// The service is removed from the leaf's list of services and the leaf is removed from the list of providers of the service.
+// If this was the last service offered by the leaf, the leaf's servicelss prune timer is restarted.
+func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string) {
+	// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+
+	if _, found := vk.children.allServices[service]; found {
+		// remove this leaf as a provider of the service
+		delete(vk.children.allServices[service], childID)
+	}
+
+	// remove this service from the leaf's list of services
+	if _, found := vk.children.leaves[childID]; found {
+		delete(vk.children.leaves[childID].services, service)
+		// TODO send a DEREGISTER up the tree
+		vk.log.Info().
+			Uint64("child", childID).
+			Str("service", service).
+			Msg("pruned service from leaf")
+		// if that was the last service offered by this leaf, restart the leaf's prune timer
+		if len(vk.children.leaves[childID].services) == 0 {
+			if vk.children.leaves[childID].servicelessPruner.Reset(vk.pruneTime.servicelessLeaf) {
+				vk.log.Warn().
+					Uint64("leaf ID", childID).
+					Str("pruned service", service).
+					Msg("restarted serviceless timer, but timer was already running")
+			}
+		}
+	} else {
+		vk.log.Info().
+			Uint64("child", childID).
+			Str("service", service).
+			Msg("failed to pruned service from leaf: child no longer exists")
+	}
 }

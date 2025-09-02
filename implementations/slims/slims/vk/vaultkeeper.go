@@ -81,11 +81,8 @@ type VaultKeeper struct {
 		// non-routing/serving children
 		leaves map[slims.NodeID]leaf
 		// alternate view of the cvks and leaves fields.
-		// service name -> array of (ID of child providing the service and the address the service is available at)
-		allServices map[string][]struct {
-			childID slims.NodeID
-			addr    netip.AddrPort
-		}
+		// service name -> (ID of child providing the service -> address of the service
+		allServices map[string]map[slims.NodeID]netip.AddrPort
 	}
 
 	// Hellos we have received but that have not yet been followed by a JOIN
@@ -135,16 +132,14 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 				addr     netip.AddrPort
 			}]
 			leaves      map[slims.NodeID]leaf
-			allServices map[string][]struct {
-				childID slims.NodeID
-				addr    netip.AddrPort
-			}
+			allServices map[string]map[slims.NodeID]netip.AddrPort
 		}{
 			cvks: expiring.Table[slims.NodeID, struct {
 				services map[string]netip.AddrPort
 				addr     netip.AddrPort
 			}]{},
-			leaves: make(map[slims.NodeID]leaf),
+			leaves:      make(map[slims.NodeID]leaf),
+			allServices: make(map[string]map[slims.NodeID]netip.AddrPort),
 		},
 	}
 	vk.net.accepting.Store(false)
