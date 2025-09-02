@@ -157,7 +157,7 @@ func Test_addService(t *testing.T) {
 		}
 		vk.children.mu.Unlock()
 		// wait for the cvk to time out so we can ensure it is removed as a provider
-		// TODO
+		// TODO add AfterFuncs to expiring tables so vks remove their provided services on timeout
 	})
 	t.Run("service to leaf plus expiry", func(t *testing.T) {
 		var (
