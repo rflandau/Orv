@@ -131,6 +131,8 @@ Echoing responsibility falls to each parent VK to pass the message recursively.
 
 If an existing service is registered to the same child node, the new information will supplant the existing information (ex: address and stale time).
 
+Valid REGISTERs from child vaultkeepers refresh the child's prune time on their parent.
+
 ### Payload
 
 1. *service*:  name of the service to be registered
