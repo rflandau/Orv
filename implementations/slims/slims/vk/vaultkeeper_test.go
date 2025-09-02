@@ -343,42 +343,74 @@ func Test_Join(t *testing.T) {
 	}
 	defer parentVK.Stop()
 
-	// spin up a child
-	childVK, err := New(
-		rand.Uint64(),
-		netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
-	)
-	if err != nil {
-		t.Fatal(err)
-	} else if err := childVK.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer childVK.Stop()
+	{
+		// spin up a child
+		childVK, err := New(
+			rand.Uint64(),
+			netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		)
+		if err != nil {
+			t.Fatal(err)
+		} else if err := childVK.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer childVK.Stop()
 
-	// join the child under the parent
-	t.Logf("child (%d) sending HELLO to parent (%d)", childVK.ID(), parentVK.ID())
-	if id, ver, ack, err := client.Hello(t.Context(), childVK.ID(), parentVK.Address()); err != nil {
-		t.Fatal(err)
-	} else if id != parentVK.ID() {
-		t.Fatal(ExpectedActual(parentVK.ID(), id))
-	} else if ver != parentVK.versionSet.HighestSupported() || ver != childVK.versionSet.HighestSupported() {
-		t.Fatalf("versions mismatch.\n %v (response) != %v (parent) != %v (child)", ver, parentVK.versionSet.HighestSupported(), childVK.versionSet.HighestSupported())
-	} else if ack.Height != uint32(parentVK.Height()) {
-		t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
+		// join the child under the parent
+		t.Logf("child (%d) sending HELLO to parent (%d)", childVK.ID(), parentVK.ID())
+		if id, ver, ack, err := client.Hello(t.Context(), childVK.ID(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		} else if id != parentVK.ID() {
+			t.Fatal(ExpectedActual(parentVK.ID(), id))
+		} else if ver != parentVK.versionSet.HighestSupported() || ver != childVK.versionSet.HighestSupported() {
+			t.Fatalf("versions mismatch.\n %v (response) != %v (parent) != %v (child)", ver, parentVK.versionSet.HighestSupported(), childVK.versionSet.HighestSupported())
+		} else if ack.Height != uint32(parentVK.Height()) {
+			t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
+		}
+		t.Logf("child (%d) sending JOIN to parent (%d)", childVK.ID(), parentVK.ID())
+		if err := childVK.Join(t.Context(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		// validate changes to the child
+		if childVK.structure.parentID != parentVK.ID() {
+			t.Error(ExpectedActual(parentVK.ID(), childVK.structure.parentID))
+		}
+		if childVK.structure.parentAddr != parentVK.Address() {
+			t.Error(ExpectedActual(parentVK.Address(), childVK.structure.parentAddr))
+		}
+		// validate that the child is in the parent's children tables
+		if _, found := parentVK.children.cvks.Load(childVK.ID()); !found {
+			t.Error("did not find a child vk associated to childVK's ID")
+		}
 	}
-	t.Logf("child (%d) sending JOIN to parent (%d)", childVK.ID(), parentVK.ID())
-	if err := childVK.Join(t.Context(), parentVK.Address()); err != nil {
-		t.Fatal(err)
-	}
-	// validate changes to the child
-	if childVK.structure.parentID != parentVK.ID() {
-		t.Error(ExpectedActual(parentVK.ID(), childVK.structure.parentID))
-	}
-	if childVK.structure.parentAddr != parentVK.Address() {
-		t.Error(ExpectedActual(parentVK.Address(), childVK.structure.parentAddr))
-	}
-	// validate that the child is in the parent's children tables
-	if _, found := parentVK.children.cvks.Load(childVK.ID()); !found {
-		t.Error("did not find a child vk associated to childVK's ID")
+	// join a leaf under parent
+	{
+		leafID := rand.Uint64()
+		t.Logf("child (%d) sending HELLO to parent (%d)", leafID, parentVK.ID())
+		if id, ver, ack, err := client.Hello(t.Context(), leafID, parentVK.Address()); err != nil {
+			t.Fatal(err)
+		} else if id != parentVK.ID() {
+			t.Fatal(ExpectedActual(parentVK.ID(), id))
+		} else if ver != parentVK.versionSet.HighestSupported() {
+			t.Fatalf("versions mismatch.\n %v (response) != %v (parent)", ver, parentVK.versionSet.HighestSupported())
+		} else if ack.Height != uint32(parentVK.Height()) {
+			t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
+		}
+		t.Logf("child (%d) sending JOIN to parent (%d)", leafID, parentVK.ID())
+		if vkID, accept, err := client.Join(t.Context(), leafID, parentVK.Address(), struct {
+			IsVK   bool
+			VKAddr netip.AddrPort
+			Height uint16
+		}{false, netip.AddrPort{}, 0}); err != nil {
+			t.Fatal(err)
+		} else if vkID != parentVK.ID() {
+			t.Fatal(ExpectedActual(parentVK.ID(), vkID))
+		} else if accept.Height != uint32(parentVK.Height()) {
+			t.Fatal(uint32(parentVK.Height()), accept.Height)
+		}
+		// validate that the child is in the parent's children tables
+		if _, found := parentVK.children.leaves[leafID]; !found {
+			t.Error("did not find a child leaf associated to leaf's ID")
+		}
 	}
 }
