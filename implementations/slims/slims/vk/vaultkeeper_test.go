@@ -253,8 +253,7 @@ func Test_respondSuccess(t *testing.T) {
 func Test_serveHello(t *testing.T) {
 	var (
 		vkid = rand.Uint64()
-		port = uint16(rand.Uint32N(math.MaxUint16))
-		vkAP = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+		vkAP = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(misc.RandomPort()), 10))
 	)
 	// spin up a VK
 	ddl, _ := t.Deadline()

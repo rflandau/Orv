@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -490,8 +491,7 @@ func TestReceivePacketValidation(t *testing.T) {
 // Tests that we can send and receive packets back to back.
 func TestReceivePacket(t *testing.T) {
 	var (
-		port       = rand.UintN(math.MaxUint16)
-		listenAddr = "127.0.0.1:" + strconv.FormatUint(uint64(port), 10)
+		listenAddr = "127.0.0.1:" + strconv.FormatUint(uint64(misc.RandomPort()), 10)
 	)
 	curVer, err := version.New(1, 5)
 	if err != nil {
