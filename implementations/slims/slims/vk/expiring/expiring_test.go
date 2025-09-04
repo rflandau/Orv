@@ -3,6 +3,7 @@ package expiring_test
 import (
 	"slices"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -128,16 +129,25 @@ func TestTable(t *testing.T) {
 		var (
 			cleanupBuf         = []int{}
 			expectedCleanupBuf = []int{1, 2, 3}
+			mu                 sync.Mutex
 		)
 		tbl := expiring.Table[string, string]{}
 		tbl.Store("key", "value", 50*time.Millisecond, func() {
+			mu.Lock()
+			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 1)
 		}, func() {
+			mu.Lock()
+			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 2)
 		}, func() {
+			mu.Lock()
+			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 3)
 		})
-		time.Sleep(51 * time.Millisecond)
+		time.Sleep(55 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
 		if slices.Compare(cleanupBuf, expectedCleanupBuf) != 0 {
 			t.Fatal("clean up functions did not execute properly", ExpectedActual(expectedCleanupBuf, cleanupBuf))
 		}
