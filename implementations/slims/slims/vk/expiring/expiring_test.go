@@ -128,22 +128,28 @@ func TestTable(t *testing.T) {
 	t.Run("additional clean up functions", func(t *testing.T) {
 		var (
 			cleanupBuf         = []int{}
-			expectedCleanupBuf = []int{1, 2, 3}
+			expectedCleanupBuf = []int{1, -1, -2, 2, -1, -2, 3, -1, -2}
 			mu                 sync.Mutex
 		)
-		tbl := expiring.Table[string, string]{}
-		tbl.Store("key", "value", 50*time.Millisecond, func() {
+		tbl := expiring.Table[int, int]{}
+		tbl.Store(-1, -2, 50*time.Millisecond, func(k, v int) {
 			mu.Lock()
 			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 1)
-		}, func() {
+			cleanupBuf = append(cleanupBuf, k)
+			cleanupBuf = append(cleanupBuf, v)
+		}, func(k, v int) {
 			mu.Lock()
 			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 2)
-		}, func() {
+			cleanupBuf = append(cleanupBuf, k)
+			cleanupBuf = append(cleanupBuf, v)
+		}, func(k, v int) {
 			mu.Lock()
 			defer mu.Unlock()
 			cleanupBuf = append(cleanupBuf, 3)
+			cleanupBuf = append(cleanupBuf, k)
+			cleanupBuf = append(cleanupBuf, v)
 		})
 		time.Sleep(55 * time.Millisecond)
 		mu.Lock()

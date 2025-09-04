@@ -30,7 +30,8 @@ type Table[key_t comparable, value_t any] struct {
 // Store saves the given k/v and sets them to expire after the given time.
 // If a value was previously associated to this key, it will be overwritten and its timer reset.
 // cleanup functions will be called in given order after the key is deleted from the table.
-func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func()) {
+// Each is given the key and value associated to the record that expired (these values will be the same for each clean up function).
+func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func(k, v)) {
 	// stop existing timer and delete prior value (if applicable)
 	if tmp, found := tbl.m.LoadAndDelete(key); found {
 		tVal, ok := tmp.(timedV[v])
@@ -48,7 +49,7 @@ func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...f
 			tbl.Delete(key)
 			// execute additional clean up functions
 			for _, f := range cleanup {
-				f()
+				f(key, value)
 			}
 		})}
 
