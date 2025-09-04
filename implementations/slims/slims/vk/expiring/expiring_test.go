@@ -1,6 +1,7 @@
 package expiring_test
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -121,6 +122,24 @@ func TestTable(t *testing.T) {
 		// refresh a non-existent key
 		if tbl.Refresh(struct{ a int }{1}, 10000000) {
 			t.Fatal("successfully refreshed non-existent key")
+		}
+	})
+	t.Run("additional clean up functions", func(t *testing.T) {
+		var (
+			cleanupBuf         = []int{}
+			expectedCleanupBuf = []int{1, 2, 3}
+		)
+		tbl := expiring.Table[string, string]{}
+		tbl.Store("key", "value", 50*time.Millisecond, func() {
+			cleanupBuf = append(cleanupBuf, 1)
+		}, func() {
+			cleanupBuf = append(cleanupBuf, 2)
+		}, func() {
+			cleanupBuf = append(cleanupBuf, 3)
+		})
+		time.Sleep(51 * time.Millisecond)
+		if slices.Compare(cleanupBuf, expectedCleanupBuf) != 0 {
+			t.Fatal("clean up functions did not execute properly", ExpectedActual(expectedCleanupBuf, cleanupBuf))
 		}
 	})
 

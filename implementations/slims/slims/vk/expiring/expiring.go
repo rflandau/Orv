@@ -10,7 +10,7 @@ import (
 // wrapped value with an expiration timer attached
 type timedV[value_t any] struct {
 	val value_t
-	exp *time.Timer
+	exp *time.Timer // expiring timer to clear this function out of the table
 }
 
 // A Table is basically a syncmap, but elements prune themselves after their duration elapses.
@@ -29,7 +29,7 @@ type Table[key_t comparable, value_t any] struct {
 
 // Store saves the given k/v and sets them to expire after the given time.
 // If a value was previously associated to this key, it will be overwritten and its timer reset.
-func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration) {
+func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func()) {
 	// stop existing timer and delete prior value (if applicable)
 	if tmp, found := tbl.m.LoadAndDelete(key); found {
 		tVal, ok := tmp.(timedV[v])
@@ -40,10 +40,16 @@ func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration) {
 
 	}
 	// insert the new k/v
-	tVal := timedV[v]{value, time.AfterFunc(expire, func() {
-		// if the time expires, remove ourself
-		tbl.Delete(key)
-	})}
+	tVal := timedV[v]{
+		val: value,
+		exp: time.AfterFunc(expire, func() {
+			// if the time expires, remove ourself
+			tbl.Delete(key)
+			// execute additional clean up functions
+			for _, f := range cleanup {
+				f()
+			}
+		})}
 
 	tbl.m.Store(key, tVal)
 }
