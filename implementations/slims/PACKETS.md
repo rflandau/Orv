@@ -179,7 +179,7 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 ### Payload
 
-1. *service*: names of the services to refresh
+1. *services*: names of the services to refresh
     - array
     - example: ["serviceX", "serviceY"]
 
@@ -189,9 +189,11 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 ### Payload
 
-1. *service*: names of the services that were refreshed
+1. *refreshed*: names of the services that were refreshed
     - array
     - example: ["serviceX", "serviceY"]
+2. *unknown*: names of services that a refresh was requested for, but could not be identified
+    - array
 
 ## VK_HEARTBEAT
 
@@ -270,6 +272,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 1. *service*: the name of the desired service
 2. *hop limit*: (OPTIONAL) number of hops to walk up the tree if closer vks do not know of the requested service. 0, 1, and omitted all cause the request to be halted at the first VK. 
+3. *token*: token is a locally generated identifier that can be used to positively identify the response to this request. The response should only be considered valid if it has this token.
 
 ## GET_RESPONSE
 
@@ -277,5 +280,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *service*
-2. *addr*
+1. *hostID*: ID of the node that is responding to this request.
+2. *service*: name of the requested service.
+3. *addr*: the address the requested service can be accessed at.
+4. *token*: echo of the original request's token
