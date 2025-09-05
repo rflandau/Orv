@@ -566,6 +566,7 @@ type Get struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`    //  the name of the desired service
 	HopLimit      uint32                 `protobuf:"varint,2,opt,name=hopLimit,proto3" json:"hopLimit,omitempty"` // uint16
+	Token         uint64                 `protobuf:"varint,3,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -614,11 +615,20 @@ func (x *Get) GetHopLimit() uint32 {
 	return 0
 }
 
+func (x *Get) GetToken() uint64 {
+	if x != nil {
+		return x.Token
+	}
+	return 0
+}
+
 // Type #21
 type GetResp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
-	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	HostID        uint64                 `protobuf:"varint,1,opt,name=hostID,proto3" json:"hostID,omitempty"`
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	Address       string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	Uint64        uint64                 `protobuf:"varint,4,opt,name=uint64,proto3" json:"uint64,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -653,6 +663,13 @@ func (*GetResp) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
 }
 
+func (x *GetResp) GetHostID() uint64 {
+	if x != nil {
+		return x.HostID
+	}
+	return 0
+}
+
 func (x *GetResp) GetService() string {
 	if x != nil {
 		return x.Service
@@ -665,6 +682,13 @@ func (x *GetResp) GetAddress() string {
 		return x.Address
 	}
 	return ""
+}
+
+func (x *GetResp) GetUint64() uint64 {
+	if x != nil {
+		return x.Uint64
+	}
+	return 0
 }
 
 var File_slims_pb_payloads_proto protoreflect.FileDescriptor
@@ -700,13 +724,16 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x04List\x12\x1a\n" +
 	"\bhopLimit\x18\x01 \x01(\rR\bhopLimit\"&\n" +
 	"\bListResp\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\";\n" +
+	"\bservices\x18\x01 \x03(\tR\bservices\"Q\n" +
 	"\x03Get\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
-	"\bhopLimit\x18\x02 \x01(\rR\bhopLimit\"=\n" +
-	"\aGetResp\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddressB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\bhopLimit\x18\x02 \x01(\rR\bhopLimit\x12\x14\n" +
+	"\x05token\x18\x03 \x01(\x04R\x05token\"m\n" +
+	"\aGetResp\x12\x16\n" +
+	"\x06hostID\x18\x01 \x01(\x04R\x06hostID\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
+	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
+	"\x06uint64\x18\x04 \x01(\x04R\x06uint64B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
