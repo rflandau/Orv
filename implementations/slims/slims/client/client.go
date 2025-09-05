@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var ErrInvalidAddrPort = errors.New("target must be a valid address+port")
+var ErrInvalidAddrPort = net.InvalidAddrError("target must be a valid address+port")
 
 // Hello sends a HELLO packet to the given address, returning the target node's response or an error.
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
