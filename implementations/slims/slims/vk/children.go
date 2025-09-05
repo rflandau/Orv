@@ -102,6 +102,8 @@ func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
 // Adds a new service under the child, be they a leaf or a vk.
 // Stale is only used for leaf services.
 //
+// Acquires the children lock.
+//
 // ! Assumes that parameters, other than childID, have already been validated.
 func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr netip.AddrPort, stale time.Duration) error {
 	vk.children.mu.Lock()
