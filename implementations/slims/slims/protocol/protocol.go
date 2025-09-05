@@ -255,7 +255,7 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 	if pconn == nil {
 		return 0, nil, Header{}, nil, ErrConnIsNil
 	} else if ctx == nil {
-		return 0, nil, Header{}, nil, slims.ErrCtxIsNil
+		return 0, nil, Header{}, nil, slims.ErrNilCtx
 	} else if err := ctx.Err(); err != nil {
 		return 0, nil, Header{}, nil, err
 	}
@@ -315,7 +315,7 @@ func ReceivePacket(pconn net.PacketConn, ctx context.Context) (n int, origAddr n
 // WritePacket generates and sends a packet via pconn, to the pre-connected address.
 func WritePacket(ctx context.Context, pconn *net.UDPConn, hdr Header, payload proto.Message) (n int, _ error) {
 	if ctx == nil {
-		return 0, slims.ErrCtxIsNil
+		return 0, slims.ErrNilCtx
 	}
 
 	// clear out any existing deadline and ensure we do the same on exit

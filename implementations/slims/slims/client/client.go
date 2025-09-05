@@ -26,7 +26,7 @@ var ErrInvalidAddrPort = errors.New("target must be a valid address+port")
 func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID slims.NodeID, vkVersion version.Version, _ *pb.HelloAck, err error) {
 	// validate parameters
 	if ctx == nil {
-		return 0, version.Version{}, nil, slims.ErrCtxIsNil
+		return 0, version.Version{}, nil, slims.ErrNilCtx
 	} else if !target.IsValid() {
 		return 0, version.Version{}, nil, ErrInvalidAddrPort
 	}
@@ -79,7 +79,7 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req str
 }) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
-		return 0, nil, slims.ErrCtxIsNil
+		return 0, nil, slims.ErrNilCtx
 	} else if !target.IsValid() {
 		return 0, nil, ErrInvalidAddrPort
 	} else if req.IsVK && !req.VKAddr.IsValid() {

@@ -14,4 +14,4 @@ type NodeID = uint64
 // The specific maximum is set arbitrarily and can be changed arbitrarily (at the cost of requiring more heap memory for packet processing and a greater MTU for transmission).
 const MaxPacketSize uint16 = 1024
 
-var ErrCtxIsNil = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
+var ErrNilCtx = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")

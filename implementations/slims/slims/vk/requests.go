@@ -14,7 +14,7 @@ import (
 // Returns nil on success
 func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err error) {
 	if ctx == nil {
-		return slims.ErrCtxIsNil
+		return slims.ErrNilCtx
 	}
 
 	vk.structure.mu.Lock()

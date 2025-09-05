@@ -450,8 +450,8 @@ func TestReceivePacketValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer pconn.Close()
-		if n, _, _, _, err := protocol.ReceivePacket(pconn, nil); !errors.Is(err, slims.ErrCtxIsNil) {
-			t.Fatal(ExpectedActual(slims.ErrCtxIsNil, err))
+		if n, _, _, _, err := protocol.ReceivePacket(pconn, nil); !errors.Is(err, slims.ErrNilCtx) {
+			t.Fatal(ExpectedActual(slims.ErrNilCtx, err))
 		} else if n != 0 {
 			t.Fatal(ExpectedActual(0, n))
 		}
@@ -748,8 +748,8 @@ func TestWritePacket(t *testing.T) {
 		defer done()
 
 		_, err := protocol.WritePacket(nil, conn, protocol.Header{}, nil)
-		if !errors.Is(err, slims.ErrCtxIsNil) {
-			t.Fatal(ExpectedActual(slims.ErrCtxIsNil, err))
+		if !errors.Is(err, slims.ErrNilCtx) {
+			t.Fatal(ExpectedActual(slims.ErrNilCtx, err))
 		}
 	})
 	conn, done := startUDPListener(t)

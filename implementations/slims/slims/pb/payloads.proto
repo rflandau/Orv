@@ -76,11 +76,14 @@ message ListResp {
 message Get {
 	string service = 1; //  the name of the desired service
 	uint32 hopLimit = 2; // uint16
+	uint64 token = 3;
 }
 
 // Type #21
 message GetResp {
-	string service = 1;
-	string address = 2;
+	uint64 hostID = 1;
+	string service = 2;
+	string address = 3;
+	uint64 uint64 = 4;
 }
 //#endregion client requests
