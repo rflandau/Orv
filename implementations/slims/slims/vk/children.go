@@ -20,7 +20,24 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 	vk.children.cvks.Store(cID, struct {
 		services map[string]netip.AddrPort
 		addr     netip.AddrPort
-	}{services: make(map[string]netip.AddrPort), addr: addr}, vk.pruneTime.cvk)
+	}{
+		services: make(map[string]netip.AddrPort),
+		addr:     addr},
+		vk.pruneTime.cvk,
+		func(id slims.NodeID, s struct {
+			services map[string]netip.AddrPort
+			addr     netip.AddrPort
+		}) {
+			vk.children.mu.Lock()
+			defer vk.children.mu.Unlock()
+			// remove ourself as a provider for each service
+			for service := range s.services {
+				if providers, found := vk.children.allServices[service]; found {
+					delete(providers, id)
+				}
+			}
+		},
+	)
 	return false
 }
 

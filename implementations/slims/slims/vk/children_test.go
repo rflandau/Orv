@@ -123,7 +123,8 @@ func Test_addService(t *testing.T) {
 			serviceName = randomdata.Currency()
 			serviceAddr = netip.MustParseAddrPort("1.1.1.1:1")
 		)
-		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"),
+			WithPruneTimes(PruneTimes{ChildVK: 50 * time.Millisecond}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,7 +158,18 @@ func Test_addService(t *testing.T) {
 		}
 		vk.children.mu.Unlock()
 		// wait for the cvk to time out so we can ensure it is removed as a provider
-		// TODO add AfterFuncs to expiring tables so vks remove their provided services on timeout
+		time.Sleep(52 * time.Millisecond)
+		// check that the cvk is no longer found and not considered a provider
+		vk.children.mu.Lock()
+		if _, found := vk.children.cvks.Load(cvkID); found {
+			t.Error("cvk should have been pruned out by this time")
+		}
+		if k, found := vk.children.allServices[serviceName]; found {
+			if _, found := k[cvkID]; found {
+				t.Error("cvk was not removed from the list of providers")
+			}
+		}
+		vk.children.mu.Unlock()
 	})
 	t.Run("service to leaf plus expiry", func(t *testing.T) {
 		var (
