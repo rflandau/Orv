@@ -375,7 +375,8 @@ func (x *ServiceHeartbeat) GetServices() []string {
 // Type #13
 type ServiceHeartbeatAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Services      []string               `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"` // name of the services that were refreshed
+	Refreshed     []string               `protobuf:"bytes,1,rep,name=refreshed,proto3" json:"refreshed,omitempty"` // name of the services that were refreshed
+	Unknown       []string               `protobuf:"bytes,2,rep,name=unknown,proto3" json:"unknown,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -410,9 +411,16 @@ func (*ServiceHeartbeatAck) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ServiceHeartbeatAck) GetServices() []string {
+func (x *ServiceHeartbeatAck) GetRefreshed() []string {
 	if x != nil {
-		return x.Services
+		return x.Refreshed
+	}
+	return nil
+}
+
+func (x *ServiceHeartbeatAck) GetUnknown() []string {
+	if x != nil {
+		return x.Unknown
 	}
 	return nil
 }
@@ -714,9 +722,10 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x0eRegisterAccept\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\".\n" +
 	"\x10ServiceHeartbeat\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\"1\n" +
-	"\x13ServiceHeartbeatAck\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\"S\n" +
+	"\bservices\x18\x01 \x03(\tR\bservices\"M\n" +
+	"\x13ServiceHeartbeatAck\x12\x1c\n" +
+	"\trefreshed\x18\x01 \x03(\tR\trefreshed\x12\x18\n" +
+	"\aunknown\x18\x02 \x03(\tR\aunknown\"S\n" +
 	"\n" +
 	"StatusResp\x12\x16\n" +
 	"\x06Height\x18\x01 \x01(\rR\x06Height\x12-\n" +

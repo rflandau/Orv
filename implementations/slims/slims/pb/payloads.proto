@@ -50,7 +50,9 @@ message ServiceHeartbeat {
 
 // Type #13
 message ServiceHeartbeatAck {
-	repeated string services = 1; // name of the services that were refreshed
+	repeated string refreshed = 1; // name of the services that were refreshed
+	repeated string unknown = 2;
+
 }
 
 //#region client requests
