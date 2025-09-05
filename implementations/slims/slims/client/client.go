@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -121,6 +122,111 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req str
 		return respHdr.ID, accept, nil
 	default:
 		return respHdr.ID, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+}
+
+// Register sends a REGISTER packet to the given address, returning the target node's ID and response.
+// This registers a single service with the target so long as myID is a known children.
+func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, service string, serviceAddr netip.AddrPort, stale time.Duration) (vkID slims.NodeID, _ *pb.RegisterAccept, _ error) {
+	// validate parameters
+	if ctx == nil {
+		return // TODO
+	} else if !target.IsValid() {
+		return // TODO
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	if UDPAddr == nil {
+		return //0, nil, ErrInvalidAddrPort
+	}
+
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return 0, nil, err
+	}
+	if _, err := protocol.WritePacket(ctx, conn,
+		protocol.Header{
+			Version: protocol.SupportedVersions().HighestSupported(),
+			Type:    mt.Register,
+			ID:      myID,
+		},
+		&pb.Register{
+			Service: service,
+			Address: serviceAddr.String(),
+			Stale:   stale.String(),
+		}); err != nil {
+
+	}
+	// TODO
+	return 0, nil, nil
+}
+
+// ServiceHeartbeat sends a SERVICE_HEARTBEAT packet to the given address, which must be owned by this node's parent.
+// This should be run in a loop to ensure the service does not get pruned.
+// Because we are using UDP and thus packets can get lost, you should repeat this if no ACK is received (otherwise the service risks being pruned).
+//
+// ServicesRefreshed should be checked to ensure it matches the given list of services; missing services may or may not have been refreshed.
+//
+// Do NOT use this for VK heartbeats. Use vk.Heartbeat() for that (or rely on the automated heartbeating this library implements in VKs).
+// TODO write unit tests and a vk handler for me!
+func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.AddrPort, services []string) (vkID slims.NodeID, servicesRefreshed []string, servicesUnknown []string, rerr error) {
+	if ctx == nil {
+		rerr = slims.ErrNilCtx
+		return
+	} else if !parentAddr.IsValid() {
+		rerr = ErrInvalidAddrPort
+		return
+	} else if len(services) == 0 { // job's done
+		rerr = ErrInvalidAddrPort
+		return
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(parentAddr)
+	if UDPAddr == nil {
+		rerr = ErrInvalidAddrPort
+		return
+	}
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		rerr = err
+		return
+	}
+	// send the packet, but length check it first (assuming no compression)
+	sh := &pb.ServiceHeartbeat{Services: services}
+
+	if int(protocol.LongHeaderLen)+proto.Size(sh) > int(slims.MaxPacketSize) {
+		rerr = errors.New("packet size is too large for max packet buffer")
+		return
+	}
+
+	if _, err := protocol.WritePacket(ctx, conn,
+		protocol.Header{
+			Version: protocol.SupportedVersions().HighestSupported(),
+			Type:    mt.Register,
+			ID:      myID,
+		}, sh); err != nil {
+		rerr = err
+		return
+	}
+	// receive
+	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
+	if err != nil {
+		rerr = err
+		return
+	}
+	switch respHdr.Type {
+	case mt.Fault:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(respBody, f); err != nil {
+			return respHdr.ID, nil, nil, err
+		}
+		return respHdr.ID, nil, nil, errors.New(f.Reason)
+	case mt.JoinAccept:
+		ack := &pb.ServiceHeartbeatAck{}
+		if err := proto.Unmarshal(respBody, ack); err != nil {
+			return respHdr.ID, nil, nil, err
+		}
+		return respHdr.ID, ack.Refreshed, ack.Unknown, nil
+	default:
+		return respHdr.ID, nil, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
 }
 
