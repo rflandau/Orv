@@ -36,12 +36,11 @@ func TestStatus(t *testing.T) {
 
 	t.Run("shorthand request", func(t *testing.T) {
 		var (
-			vkID   slims.NodeID = 1
-			vkAddr              = netip.MustParseAddrPort("[::0]:8081")
+			vkID slims.NodeID = 1
 		)
 
 		// Spawn a VK to hit
-		vkA, err := vaultkeeper.New(vkID, vkAddr)
+		vkA, err := vaultkeeper.New(vkID, RandomLocalhostAddrPort())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -53,7 +52,7 @@ func TestStatus(t *testing.T) {
 		// submit a shorthand status request
 		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
 		defer cancel()
-		respVKID, respSR, err := client.Status(vkAddr, ctx)
+		respVKID, respSR, err := client.Status(vkA.Address(), ctx)
 		if err != nil {
 			t.Fatal(err)
 		} else if respSR == nil {
@@ -72,10 +71,9 @@ func TestStatus(t *testing.T) {
 	})
 	t.Run("longform request", func(t *testing.T) {
 		var (
-			vkID   slims.NodeID = 1
-			vkAddr              = netip.MustParseAddrPort("[::0]:8082")
+			vkID slims.NodeID = 1
 		)
-		vkB, err := vaultkeeper.New(vkID, vkAddr, vaultkeeper.WithDragonsHoard(3))
+		vkB, err := vaultkeeper.New(vkID, RandomLocalhostAddrPort(), vaultkeeper.WithDragonsHoard(3))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +85,7 @@ func TestStatus(t *testing.T) {
 		// submit a longform status request
 		ctxB, cancelB := context.WithTimeout(t.Context(), reqTimeout)
 		defer cancelB()
-		respVKID, respSR, err := client.Status(netip.MustParseAddrPort("[::0]:8082"), ctxB, 100)
+		respVKID, respSR, err := client.Status(vkB.Address(), ctxB, 100)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,8 +107,7 @@ func TestStatus(t *testing.T) {
 func TestHello(t *testing.T) {
 	var (
 		vkid, nodeID = rand.Uint64(), rand.Uint64()
-		port         = uint16(rand.UintN(math.MaxUint16))
-		ap           = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		ap           = RandomLocalhostAddrPort()
 		repeat       = 5 // number of HELLOs to send
 	)
 	// spawn a VK
@@ -150,8 +147,7 @@ func TestHello(t *testing.T) {
 func TestJoin(t *testing.T) {
 	var (
 		nodeID       = rand.Uint64()
-		port         = uint16(rand.UintN(math.MaxUint16))
-		VKAP         = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		VKAP         = RandomLocalhostAddrPort()
 		repeat uint8 = 3 // for tests that run multiple times, the # of times to run
 	)
 	// spawn a VK
@@ -245,10 +241,9 @@ func TestJoin(t *testing.T) {
 	// !spawns a new VK, rather than using the parent tests's vk.
 	t.Run("join after hello expires", func(t *testing.T) {
 		nodeID := rand.Uint64N(math.MaxUint16)
-		vkBAP := netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(rand.Uint64N(math.MaxUint16), 10))
 		vkB, err := vaultkeeper.New(
 			rand.Uint64(),
-			vkBAP,
+			RandomLocalhostAddrPort(),
 			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: 30 * time.Millisecond}),
 		)
 		if err != nil {
@@ -260,7 +255,7 @@ func TestJoin(t *testing.T) {
 		t.Log("VKID: ", vkB.ID())
 		t.Log("NodeID: ", nodeID)
 		// send a hello
-		vkIDHello, _, ack, err := client.Hello(t.Context(), nodeID, vkBAP)
+		vkIDHello, _, ack, err := client.Hello(t.Context(), nodeID, vkB.Address())
 		if err != nil {
 			t.Fatal(err)
 		} else if vkIDHello != vkB.ID() {
@@ -273,7 +268,7 @@ func TestJoin(t *testing.T) {
 		// wait for that hello to expire
 		time.Sleep(31 * time.Millisecond)
 		// try to join
-		if vkIDJoin, accept, err := client.Join(t.Context(), nodeID, vkBAP, struct {
+		if vkIDJoin, accept, err := client.Join(t.Context(), nodeID, vkB.Address(), struct {
 			IsVK   bool
 			VKAddr netip.AddrPort
 			Height uint16

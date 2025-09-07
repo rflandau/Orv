@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -24,11 +23,9 @@ import (
 // Starts and stops a VK back to back, checking that we can successfully send/receive a STATUS message after each start and cannot do so after each stop
 func TestVaultKeeper_StartStop(t *testing.T) {
 	var (
-		vkid   slims.NodeID = 1
-		port                = rand.UintN(math.MaxUint16)
-		vkAddr              = netip.MustParseAddrPort("127.0.0.1:" + strconv.FormatUint(uint64(port), 10))
+		vkid slims.NodeID = 1
 	)
-	vk, err := New(vkid, vkAddr)
+	vk, err := New(vkid, RandomLocalhostAddrPort())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +92,7 @@ func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 
 // Ensures that the data returned by respondError looks as we expect it to.
 func Test_respondError(t *testing.T) {
-	const rcvrAddr string = "127.0.0.1:8081"
+	var rcvrAddr = RandomLocalhostAddrPort().String()
 	// spawn a listener to receive the FAULT
 	ch := make(chan struct {
 		n          int
@@ -125,7 +122,7 @@ func Test_respondError(t *testing.T) {
 		reason string = "test"
 	)
 	var (
-		vkAddr         = netip.MustParseAddrPort("127.0.0.1:8080")
+		vkAddr         = RandomLocalhostAddrPort()
 		expectedHeader = protocol.Header{
 			Version: version.Version{Major: 2},
 			Type:    mt.Fault,
@@ -153,7 +150,7 @@ func Test_respondError(t *testing.T) {
 	if res.err != nil {
 		t.Fatal(err)
 	}
-	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa != vkAddr {
+	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa.Compare(vkAddr) != 0 {
 		t.Error(ExpectedActual(vkAddr, sa))
 	}
 	if res.header != expectedHeader {
@@ -172,7 +169,7 @@ func Test_respondError(t *testing.T) {
 func Test_respondSuccess(t *testing.T) {
 	var (
 		port     = rand.UintN(math.MaxUint16)
-		rcvrAddr = "127.0.0.1:" + strconv.FormatInt(int64(port), 10)
+		rcvrAddr = "[::1]:" + strconv.FormatInt(int64(port), 10)
 	)
 	// spawn a listener to receive the FAULT
 	ch := make(chan struct {
@@ -205,7 +202,7 @@ func Test_respondSuccess(t *testing.T) {
 	}()
 
 	var (
-		vkAddr  = netip.MustParseAddrPort("127.0.0.1:8080")
+		vkAddr  = RandomLocalhostAddrPort()
 		sentHdr = protocol.Header{
 			Version: version.Version{Major: 1, Minor: 12},
 			Type:    mt.HelloAck,
@@ -234,7 +231,7 @@ func Test_respondSuccess(t *testing.T) {
 	if res.err != nil {
 		t.Fatal(err)
 	}
-	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa != vkAddr {
+	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa.Compare(vkAddr) != 0 {
 		t.Error(ExpectedActual(vkAddr, sa))
 	}
 	if res.header != sentHdr {
@@ -253,11 +250,10 @@ func Test_respondSuccess(t *testing.T) {
 func Test_serveHello(t *testing.T) {
 	var (
 		vkid = rand.Uint64()
-		vkAP = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(misc.RandomPort()), 10))
 	)
 	// spin up a VK
 	ddl, _ := t.Deadline()
-	vk, err := New(vkid, vkAP,
+	vk, err := New(vkid, RandomLocalhostAddrPort(),
 		WithPruneTimes(PruneTimes{Hello: time.Until(ddl)}),
 	)
 	if err != nil {
@@ -269,7 +265,7 @@ func Test_serveHello(t *testing.T) {
 		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
 			// send a hello to the vk
 			clientID := rand.Uint64()
-			respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vkAP)
+			respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vk.Address())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -291,12 +287,10 @@ func Test_serveHello(t *testing.T) {
 	t.Run("pending timeout", func(t *testing.T) {
 		var (
 			vkid    = rand.Uint64()
-			port    = uint16(rand.Uint32N(math.MaxUint16))
-			vkAP    = netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
 			timeout = 30 * time.Millisecond
 		)
 		// spin up a VK
-		vk, err := New(vkid, vkAP, WithPruneTimes(PruneTimes{Hello: timeout}))
+		vk, err := New(vkid, RandomLocalhostAddrPort(), WithPruneTimes(PruneTimes{Hello: timeout}))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := vk.Start(); err != nil {
@@ -304,7 +298,7 @@ func Test_serveHello(t *testing.T) {
 		}
 		// send a hello to the vk
 		clientID := rand.Uint64()
-		respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vkAP)
+		respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vk.Address())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -331,7 +325,7 @@ func Test_Join(t *testing.T) {
 	// spin up a parent
 	parentVK, err := New(
 		rand.Uint64(),
-		netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		RandomLocalhostAddrPort(),
 		WithDragonsHoard(1),
 		WithPruneTimes(PruneTimes{Hello: 10 * time.Second}),
 	)
@@ -346,7 +340,7 @@ func Test_Join(t *testing.T) {
 		// spin up a child
 		childVK, err := New(
 			rand.Uint64(),
-			netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+			RandomLocalhostAddrPort(),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -423,7 +417,7 @@ func Test_HeartBeatParent(t *testing.T) {
 		badHBLimit         = 2
 	)
 
-	parent, err := New(rand.Uint64(), netip.MustParseAddrPort("[::0]:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+	parent, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
 		WithDragonsHoard(1), WithPruneTimes(PruneTimes{ChildVK: parentCVKPruneTime}))
 	if err != nil {
 		t.Fatal(err)
@@ -431,7 +425,7 @@ func Test_HeartBeatParent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(parent.Stop)
-	child, err := New(rand.Uint64(), netip.MustParseAddrPort("[::0]:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+	child, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
 		WithCustomHeartbeats(true, childHeartbeatFreq, badHBLimit))
 	if err != nil {
 		t.Fatal(err)

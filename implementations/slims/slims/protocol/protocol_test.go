@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -279,10 +278,10 @@ func TestFullSend(t *testing.T) {
 	var (
 		echoServerID slims.NodeID = 1
 		done         atomic.Bool
-		port         = uint16(rand.UintN(math.MaxUint16))
+		port         = RandomPort()
 	)
 	// generate a server to echo data back
-	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "[::0]:"+strconv.FormatUint(uint64(port), 10))
+	pconn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "127.0.0.1:"+strconv.FormatUint(uint64(port), 10))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +434,7 @@ func TestFullSend(t *testing.T) {
 
 // Tests the edge cases of parameters.
 func TestReceivePacketValidation(t *testing.T) {
-	listenAddr := "[::0]:8080"
+	listenAddr := RandomLocalhostAddrPort().String()
 
 	t.Run("nil connection", func(t *testing.T) {
 		if n, _, _, _, err := protocol.ReceivePacket(nil, t.Context()); !errors.Is(err, protocol.ErrConnIsNil) {
@@ -491,7 +490,7 @@ func TestReceivePacketValidation(t *testing.T) {
 // Tests that we can send and receive packets back to back.
 func TestReceivePacket(t *testing.T) {
 	var (
-		listenAddr = "127.0.0.1:" + strconv.FormatUint(uint64(misc.RandomPort()), 10)
+		listenAddr = RandomLocalhostAddrPort().String()
 	)
 	curVer, err := version.New(1, 5)
 	if err != nil {

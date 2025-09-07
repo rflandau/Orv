@@ -3,17 +3,15 @@ package vaultkeeper
 import (
 	"math/rand/v2"
 	"net/netip"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 )
 
 func Test_addLeaf(t *testing.T) {
-	vk, err := New(1, netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+	vk, err := New(1, RandomLocalhostAddrPort(),
 		WithPruneTimes(PruneTimes{ServicelessLeaf: 40 * time.Millisecond}))
 	if err != nil {
 		t.Fatal(err)
@@ -82,14 +80,14 @@ func Test_addLeaf(t *testing.T) {
 }
 
 func Test_addCVK(t *testing.T) {
-	vk, err := New(1, netip.MustParseAddrPort("127.0.0.1:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+	vk, err := New(1, RandomLocalhostAddrPort(),
 		WithPruneTimes(PruneTimes{ServicelessLeaf: 40 * time.Millisecond}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// add a cvk
 	cvkID := rand.Uint64()
-	if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::0]:1234")); isLeaf {
+	if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::1]:1234")); isLeaf {
 		t.Fatal("conflicted with existing leaf, despite being only child")
 	} else if _, found := vk.children.cvks.Load(cvkID); !found {
 		t.Fatal("failed to find cvk after insertion")
@@ -99,7 +97,7 @@ func Test_addCVK(t *testing.T) {
 		if isCVK := vk.addLeaf(nodeID); isCVK {
 			t.Fatal("conflicted with existing cvk")
 		}
-		if isLeaf := vk.addCVK(nodeID, netip.MustParseAddrPort("[::0]:1234")); !isLeaf {
+		if isLeaf := vk.addCVK(nodeID, netip.MustParseAddrPort("[::1]:1234")); !isLeaf {
 			t.Fatal("expected to conflict with existing leaf")
 		} else if _, found := vk.children.cvks.Load(nodeID); found {
 			t.Fatal("cvk was inserted despite conflicting leaf id")
@@ -109,7 +107,7 @@ func Test_addCVK(t *testing.T) {
 
 func Test_addService(t *testing.T) {
 	t.Run("unknown child", func(t *testing.T) {
-		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		vk, err := New(1, netip.MustParseAddrPort("[::1]:1234"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,13 +121,13 @@ func Test_addService(t *testing.T) {
 			serviceName = randomdata.Currency()
 			serviceAddr = netip.MustParseAddrPort("1.1.1.1:1")
 		)
-		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"),
+		vk, err := New(1, netip.MustParseAddrPort("[::1]:1234"),
 			WithPruneTimes(PruneTimes{ChildVK: 50 * time.Millisecond}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		// add a cvk
-		if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::0]:4567")); isLeaf {
+		if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::1]:4567")); isLeaf {
 			t.Fatal("leaf should not exist on a fresh vk")
 		}
 		// add a service to the cvk
@@ -178,7 +176,7 @@ func Test_addService(t *testing.T) {
 			serviceAddr  = netip.MustParseAddrPort("1.1.1.1:1")
 			serviceStale = 30 * time.Millisecond
 		)
-		vk, err := New(1, netip.MustParseAddrPort("[::0]:1234"))
+		vk, err := New(1, netip.MustParseAddrPort("[::1]:1234"))
 		if err != nil {
 			t.Fatal(err)
 		}
