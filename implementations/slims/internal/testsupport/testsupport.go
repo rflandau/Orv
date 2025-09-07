@@ -64,5 +64,5 @@ func RandomLocalhostAddrPort() netip.AddrPort {
 		}
 	}
 
-	return netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
+	return netip.MustParseAddrPort("[::1]:" + strconv.FormatUint(uint64(port), 10))
 }
