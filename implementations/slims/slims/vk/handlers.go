@@ -187,5 +187,29 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 
 	// propagate the REGISTER up the vault
 	// TODO
+}
+
+// serveVKHeartbeat answers VK_HEARTBEATS, refreshing the associated child VK.
+func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	// validate parameters
+	if reqHdr.Shorthand {
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.VKHeartbeat).Error())
+		return
+	} else if len(reqBody) != 0 {
+		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.VKHeartbeat).Error())
+		return
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
+		return
+	}
+	// check that this is a known cvk ID
+	vk.children.mu.Lock()
+
+	if found := vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk); !found {
+		vk.respondError(senderAddr, fmt.Sprintf("no child vk with ID %d is registered to this parent", reqHdr.ID))
+		return
+	}
+
+	vk.children.mu.Unlock()
 
 }

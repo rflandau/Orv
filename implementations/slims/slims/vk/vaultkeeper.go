@@ -326,15 +326,18 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 				// switch on request type.
 				// Each sub-handler is expected to respond on its own.
 				switch hdr.Type {
-				// client requests that do not require a handshake
-				case mt.Status:
-					vk.serveStatus(hdr, body, senderAddr)
 				case mt.Hello:
 					vk.serveHello(hdr, body, senderAddr)
 				case mt.Join:
 					vk.serveJoin(hdr, body, senderAddr)
 				case mt.Register:
 					vk.serveRegister(hdr, body, senderAddr)
+				// heartbeats
+				case mt.VKHeartbeat:
+					vk.serveVKHeartbeat(hdr, body, senderAddr)
+				// client requests that do not require a handshake
+				case mt.Status:
+					vk.serveStatus(hdr, body, senderAddr)
 				default: // non-enumerated type or UNKNOWN
 					vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(hdr.Type), 10))
 					return
