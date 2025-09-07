@@ -48,10 +48,10 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 func (vk *VaultKeeper) HeartbeatParent() error {
 	vk.structure.mu.RLock()
 	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
+	vk.structure.mu.RUnlock()
 	if UDPParentAddr == nil {
 		return client.ErrInvalidAddrPort
 	}
-	vk.structure.mu.RUnlock()
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
 	if err != nil {
