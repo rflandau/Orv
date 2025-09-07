@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
-	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 func TestTable(t *testing.T) {

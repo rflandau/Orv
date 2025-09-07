@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/internal/misc"
+	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
-	. "github.com/rflandau/Orv/internal/testsupport"
 	"google.golang.org/protobuf/proto"
 )
 

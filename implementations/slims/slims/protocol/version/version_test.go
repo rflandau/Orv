@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
+	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
-	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 // Tests creating a new version from uint8 major and minors and that the byte .Byte() returns is as expected.

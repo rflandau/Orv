@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
-	. "github.com/rflandau/Orv/internal/testsupport"
 )
 
 // Tests Status by spinning up a couple VKs and ensuring Status returns the correct information.

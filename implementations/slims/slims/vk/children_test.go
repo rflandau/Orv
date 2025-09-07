@@ -9,7 +9,7 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/rflandau/Orv/implementations/slims/internal/misc"
-	. "github.com/rflandau/Orv/internal/testsupport"
+	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 )
 
 func Test_addLeaf(t *testing.T) {
