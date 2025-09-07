@@ -71,7 +71,11 @@ func WithPruneTimes(pt PruneTimes) VKOption {
 func WithCustomHeartbeats(enabled bool, frequency time.Duration, limit uint) VKOption {
 	return func(vk *VaultKeeper) {
 		vk.hb.auto = enabled
-		vk.hb.freq = frequency
-		vk.hb.badHeartbeatLimit = limit
+		if frequency > 0 {
+			vk.hb.freq = frequency
+		}
+		if limit > 0 {
+			vk.hb.badHeartbeatLimit = limit
+		}
 	}
 }
