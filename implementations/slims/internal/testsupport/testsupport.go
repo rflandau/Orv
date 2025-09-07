@@ -4,7 +4,11 @@ package testsupport
 import (
 	"fmt"
 	"maps"
+	"net/netip"
+	"strconv"
 	"sync"
+
+	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 )
 
 // ExpectedActual returns a newline-prefixed string comparing the expected result to the actual result.
@@ -38,4 +42,27 @@ func SlicesUnorderedEqual[T comparable](a []T, b []T) bool {
 
 	wg.Wait()
 	return maps.Equal(am, bm)
+}
+
+var (
+	usedPorts   map[uint16]bool = make(map[uint16]bool)
+	usedPortsMu sync.Mutex
+)
+
+// RandomLocalhostAddrPort returns a random addrport pointing to a randomly selected port >= 1024 and localhost.
+// Maintains a map of ports that it has given out to ensure no duplicates.
+// Not a perfect solution, but it is just to support testing so ¯\_(ツ)_/¯
+func RandomLocalhostAddrPort() netip.AddrPort {
+	var port uint16
+	for {
+		port = misc.RandomPort()
+		usedPortsMu.Lock()
+		defer usedPortsMu.Unlock()
+		if _, found := usedPorts[port]; !found {
+			usedPorts[port] = true
+			break
+		}
+	}
+
+	return netip.MustParseAddrPort("[::0]:" + strconv.FormatUint(uint64(port), 10))
 }
