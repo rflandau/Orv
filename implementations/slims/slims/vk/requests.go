@@ -2,10 +2,17 @@ package vaultkeeper
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"net/netip"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
+	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"google.golang.org/protobuf/proto"
 )
 
 // File requests.go implements vk methods to wrap the client requests.
@@ -32,4 +39,48 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	vk.structure.parentAddr = target
 	vk.structure.parentID = parentID
 	return nil
+}
+
+// HeartbeatParent sends a VK_HEARTBEAT to the parent of this vk.
+// VKs do this automatically; you only need to call this function manually if you have disabled automated heartbeats in the VK.
+//
+// ! Does NOT alter the parent information in this VK on a bad or lost heartbeat.
+func (vk *VaultKeeper) HeartbeatParent() error {
+	vk.structure.mu.RLock()
+	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
+	if UDPParentAddr == nil {
+		return client.ErrInvalidAddrPort
+	}
+	vk.structure.mu.RUnlock()
+	// generate a dialer
+	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
+	if err != nil {
+		return err
+	}
+	// send
+	if _, err := protocol.WritePacket(context.Background(), conn,
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.VKHeartbeat, ID: vk.ID()}, nil); err != nil {
+		return err
+	}
+	// receive
+	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, context.Background())
+	if err != nil {
+		return err
+	}
+	switch respHdr.Type {
+	case mt.Fault:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(respBody, f); err != nil {
+			return err
+		}
+		return errors.New(f.Reason)
+	case mt.VKHeartbeatAck:
+		if len(respBody) > 0 {
+			vk.log.Warn().Int("body length", len(respBody)).Bytes("body", respBody).Msg("VK_HEARTBEAT has a non-zero body")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+
 }
