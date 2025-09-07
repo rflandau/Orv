@@ -28,6 +28,7 @@ const (
 	DefaultHelloPruneTime            time.Duration = 3 * time.Second
 	DefaultHeartbeatlessCVKPruneTime time.Duration = 3 * time.Second
 	DefaultServicelessLeafPruneTime  time.Duration = 3 * time.Second
+	DefaultParentHBFreq              time.Duration = 1 * time.Second
 )
 
 var (
@@ -39,7 +40,6 @@ var (
 // A VaultKeeper (VK) is a node with organizational and routing capability.
 // The key building block of a Vault.
 type VaultKeeper struct {
-	//alive atomic.Bool // has this VK been terminated?
 	log  *zerolog.Logger
 	id   slims.NodeID   // unique identifier of this node
 	addr netip.AddrPort // address this vk accepts packets on
@@ -87,6 +87,15 @@ type VaultKeeper struct {
 
 	// Hellos we have received but that have not yet been followed by a JOIN
 	pendingHellos expiring.Table[slims.NodeID, bool]
+	// hearbeat handling
+	// NOTE(rlandau): uses net.accepting to determine whether or not to send heartbeats
+	hb struct {
+		// do we send heartbeats automatically?
+		// Defaults to true.
+		auto bool
+		// how often do we send heartbeats
+		freq time.Duration
+	}
 }
 
 // New generates a new VK instance, optionally modified with opts.
@@ -141,6 +150,10 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			leaves:      make(map[slims.NodeID]leaf),
 			allServices: make(map[string]map[slims.NodeID]netip.AddrPort),
 		},
+		hb: struct {
+			auto bool
+			freq time.Duration
+		}{true, DefaultParentHBFreq},
 	}
 	vk.net.accepting.Store(false)
 
@@ -165,8 +178,31 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 	vk.log.Debug().Func(vk.Zerolog).Msg("vk created")
 
+	// spin out the heartbeater
+	go vk.heartbeater()
+
 	return vk, nil
 
+}
+
+// heartbeater controls the automated heartbeats sent to parent every interval
+// (but only if we are accepting connections at interval time).
+//
+// Intended to be run in a goroutine.
+func (vk *VaultKeeper) heartbeater() {
+	if vk.hb.auto {
+		tkr := time.NewTicker(vk.hb.freq)
+		for {
+			<-tkr.C
+			if !vk.net.accepting.Load() || !vk.structure.parentAddr.IsValid() {
+				continue
+			}
+			// TODO add check for terminate to kill entirely
+
+			// TODO send the heartbeat
+		}
+
+	}
 }
 
 //#region getters
