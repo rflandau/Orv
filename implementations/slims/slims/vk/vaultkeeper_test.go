@@ -413,3 +413,146 @@ func Test_Join(t *testing.T) {
 		}
 	}
 }
+
+// Tests both the serveVKHeartbeat handler and the vaultkeeper.HeartbeatParent request method.
+// Also tests that a cvk will remain registered with the autoheartbeater running and will be autopruned if the autoheartbeater is not running.
+func Test_HeartBeatParent(t *testing.T) {
+	const (
+		parentCVKPruneTime = 100 * time.Millisecond
+		childHeartbeatFreq = 20 * time.Millisecond
+		badHBLimit         = 2
+	)
+
+	parent, err := New(rand.Uint64(), netip.MustParseAddrPort("[::0]:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		WithDragonsHoard(1), WithPruneTimes(PruneTimes{ChildVK: parentCVKPruneTime}))
+	if err != nil {
+		t.Fatal(err)
+	} else if err := parent.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(parent.Stop)
+	child, err := New(rand.Uint64(), netip.MustParseAddrPort("[::0]:"+strconv.FormatUint(uint64(misc.RandomPort()), 10)),
+		WithCustomHeartbeats(true, childHeartbeatFreq, badHBLimit))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// note the lack of start on child at first
+
+	// join child to parent
+	if pVKID, ver, ack, err := client.Hello(t.Context(), child.ID(), parent.Address()); err != nil {
+		t.Fatal(err)
+	} else if pVKID != parent.ID() {
+		t.Error("bad id", ExpectedActual(parent.ID(), pVKID))
+	} else if ver != parent.versionSet.HighestSupported() {
+		t.Error("bad version", ExpectedActual(parent.versionSet.HighestSupported(), ver))
+	} else if ack.Height != uint32(parent.Height()) {
+		t.Error("bad height", ExpectedActual(uint32(parent.Height()), ack.Height))
+	}
+	if err := child.Join(t.Context(), parent.Address()); err != nil {
+		t.Fatal("failed to join child under parent:", err)
+	}
+	// ensure child is in the parent's table
+	parent.children.mu.Lock()
+	if v, found := parent.children.cvks.Load(child.ID()); !found {
+		t.Error("failed to find child in parent's table")
+	} else if len(v.services) != 0 {
+		t.Error("child has services registered to it, but should have none")
+	}
+	parent.children.mu.Unlock()
+	// ensure the child knows about its parent
+	checkParent(t, child, struct {
+		height     uint16
+		parentID   slims.NodeID
+		parentAddr netip.AddrPort
+	}{0, parent.ID(), parent.Address()})
+	// allow the child to get pruned due to the heartbeater not running (as it has not been started)
+	time.Sleep(parentCVKPruneTime + 1*time.Millisecond)
+	// confirm the child is not considered a child by the parent
+	parent.children.mu.Lock()
+	if _, found := parent.children.cvks.Load(child.ID()); found {
+		t.Error("child should have been pruned")
+	}
+	parent.children.mu.Unlock()
+	// ensure the child still believes it has a parent
+	checkParent(t, child, struct {
+		height     uint16
+		parentID   slims.NodeID
+		parentAddr netip.AddrPort
+	}{0, parent.ID(), parent.Address()})
+	// start the child
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(child.Stop)
+	// allow plenty of time for the autoheartbeater to hit the parent, receive bad requests, and prune the parent from the child
+	time.Sleep(childHeartbeatFreq * (badHBLimit * 2))
+	// confirm that the child no longer considers itself to have a parent
+	checkParent(t, child, struct {
+		height     uint16
+		parentID   slims.NodeID
+		parentAddr netip.AddrPort
+	}{0, 0, netip.AddrPort{}})
+
+	// have the child rejoin, now that its heartbeater is active
+	if pVKID, ver, ack, err := client.Hello(t.Context(), child.ID(), parent.Address()); err != nil {
+		t.Fatal(err)
+	} else if pVKID != parent.ID() {
+		t.Error("bad id", ExpectedActual(parent.ID(), pVKID))
+	} else if ver != parent.versionSet.HighestSupported() {
+		t.Error("bad version", ExpectedActual(parent.versionSet.HighestSupported(), ver))
+	} else if ack.Height != uint32(parent.Height()) {
+		t.Error("bad height", ExpectedActual(uint32(parent.Height()), ack.Height))
+	}
+	if err := child.Join(t.Context(), parent.Address()); err != nil {
+		t.Fatal("failed to join child under parent:", err)
+	}
+	// ensure child is in the parent's table
+	parent.children.mu.Lock()
+	if v, found := parent.children.cvks.Load(child.ID()); !found {
+		t.Error("failed to find child in parent's table")
+	} else if len(v.services) != 0 {
+		t.Error("child has services registered to it, but should have none")
+	}
+	parent.children.mu.Unlock()
+	// ensure the child knows about its parent
+	checkParent(t, child, struct {
+		height     uint16
+		parentID   slims.NodeID
+		parentAddr netip.AddrPort
+	}{0, parent.ID(), parent.Address()})
+	// wait for prune time to elapse to ensure child is still.... actually a child
+	time.Sleep(parentCVKPruneTime * 2)
+	// ensure child is in the parent's table
+	parent.children.mu.Lock()
+	if v, found := parent.children.cvks.Load(child.ID()); !found {
+		t.Error("failed to find child in parent's table")
+	} else if len(v.services) != 0 {
+		t.Error("child has services registered to it, but should have none")
+	}
+	parent.children.mu.Unlock()
+	// ensure the child knows about its parent
+	checkParent(t, child, struct {
+		height     uint16
+		parentID   slims.NodeID
+		parentAddr netip.AddrPort
+	}{0, parent.ID(), parent.Address()})
+}
+
+// checkParent tests that that the values in vk match the values in expected.
+//
+// ! Acquires and releases vk's structure lock.
+func checkParent(t *testing.T, vk *VaultKeeper, expected struct {
+	height     uint16
+	parentID   slims.NodeID
+	parentAddr netip.AddrPort
+}) {
+	vk.structure.mu.RLock()
+	if vk.structure.height != expected.height {
+		t.Error("bad height", ExpectedActual(expected.height, vk.structure.height))
+	} else if vk.structure.parentID != expected.parentID {
+		t.Error("bad parent ID", ExpectedActual(expected.parentID, vk.structure.parentID))
+	} else if vk.structure.parentAddr != expected.parentAddr {
+		t.Error("bad parent addr", ExpectedActual(expected.parentAddr, vk.structure.parentAddr))
+	}
+	vk.structure.mu.RUnlock()
+}
