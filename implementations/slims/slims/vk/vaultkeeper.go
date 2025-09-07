@@ -177,7 +177,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			Uint64("vkid", vk.id).
 			Timestamp().
 			Caller().
-			Logger().Level(zerolog.WarnLevel)
+			Logger().Level(zerolog.DebugLevel)
 		vk.log = &l
 	}
 
@@ -196,10 +196,16 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 // Intended to be run in a goroutine.
 func (vk *VaultKeeper) runAutoHeartbeat() {
 	if vk.hb.auto {
+		// spool up a couple new loggers to use
+		hbLog := vk.log.With().Str("sublogger", "autoHB").Logger()
+		hbSampled := hbLog.Sample(zerolog.Sometimes)
+
+		hbLog.Debug().Dur("frequency", vk.hb.freq).Uint("limit", vk.hb.badHeartbeatLimit).Msg("starting auto heartbeater")
 		tkr := time.NewTicker(vk.hb.freq)
 		badHBCount := 0
 		for {
 			<-tkr.C
+			hbSampled.Debug().Msg("heartbeater waking")
 			if !vk.net.accepting.Load() {
 				continue
 			}
@@ -209,24 +215,28 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 			vk.structure.mu.RUnlock()
 
 			if !pAddr.IsValid() {
+				hbSampled.Debug().Msg("heartbeater skipping due to invalid parent addr")
 				continue
 			}
 
 			// TODO add check for terminate to kill entirely
 
 			if err := vk.HeartbeatParent(); err != nil {
-				vk.log.Warn().Uint64("parent ID", p).Str("parent addr", pAddr.String()).Err(err).Msg("failed to heartbeat parent")
+				hbLog.Warn().Uint64("parent ID", p).Str("parent addr", pAddr.String()).Err(err).Msg("failed to heartbeat parent")
 				badHBCount += 1
+			} else {
+				badHBCount = 0
 			}
+
 			if badHBCount >= int(vk.hb.badHeartbeatLimit) {
-				vk.log.Info().Msg("assuming parent is dead due to consecutive bad heartbeats")
+				hbLog.Info().Msg("assuming parent is dead due to consecutive bad heartbeats")
 				vk.structure.mu.Lock()
 				// only alter the parent if our data is still valid
 				if vk.structure.parentID == p && vk.structure.parentAddr == pAddr {
 					vk.structure.parentID = 0
 					vk.structure.parentAddr = netip.AddrPort{}
 				} else {
-					vk.log.Info().
+					hbLog.Info().
 						Uint64("parent ID", vk.structure.parentID).
 						Uint64("cached parent ID", p).
 						Str("parent addr", vk.structure.parentAddr.String()).
