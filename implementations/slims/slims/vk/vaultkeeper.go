@@ -29,6 +29,8 @@ const (
 	DefaultHeartbeatlessCVKPruneTime time.Duration = 3 * time.Second
 	DefaultServicelessLeafPruneTime  time.Duration = 3 * time.Second
 	DefaultParentHBFreq              time.Duration = 1 * time.Second
+
+	DefaultBadHeartbeatLimit uint = 3
 )
 
 var (
@@ -95,6 +97,8 @@ type VaultKeeper struct {
 		auto bool
 		// how often do we send heartbeats
 		freq time.Duration
+		// when we fail to heartbeat our parent this many times consecutively, the parent will be dropped
+		badHeartbeatLimit uint
 	}
 }
 
@@ -151,9 +155,10 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			allServices: make(map[string]map[slims.NodeID]netip.AddrPort),
 		},
 		hb: struct {
-			auto bool
-			freq time.Duration
-		}{true, DefaultParentHBFreq},
+			auto              bool
+			freq              time.Duration
+			badHeartbeatLimit uint
+		}{true, DefaultParentHBFreq, DefaultBadHeartbeatLimit},
 	}
 	vk.net.accepting.Store(false)
 
