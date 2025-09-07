@@ -4,11 +4,11 @@ package testsupport
 import (
 	"fmt"
 	"maps"
+	"math"
+	"math/rand/v2"
 	"net/netip"
 	"strconv"
 	"sync"
-
-	"github.com/rflandau/Orv/implementations/slims/internal/misc"
 )
 
 // ExpectedActual returns a newline-prefixed string comparing the expected result to the actual result.
@@ -44,6 +44,11 @@ func SlicesUnorderedEqual[T comparable](a []T, b []T) bool {
 	return maps.Equal(am, bm)
 }
 
+// RandomPort returns a random port number from 1024 - 65535
+func RandomPort() uint16 {
+	return uint16(1024 + rand.Uint32N((math.MaxUint16 - 1024)))
+}
+
 var (
 	usedPorts   map[uint16]bool = make(map[uint16]bool)
 	usedPortsMu sync.Mutex
@@ -55,7 +60,7 @@ var (
 func RandomLocalhostAddrPort() netip.AddrPort {
 	var port uint16
 	for {
-		port = misc.RandomPort()
+		port = RandomPort()
 		usedPortsMu.Lock()
 		defer usedPortsMu.Unlock()
 		if _, found := usedPorts[port]; !found {
