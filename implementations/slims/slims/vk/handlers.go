@@ -144,7 +144,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// validate parameters
 	if reqHdr.Shorthand {
-		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Hello).Error())
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.Register).Error())
 		return
 	} else if len(reqBody) == 0 {
 		vk.respondError(senderAddr, ErrBodyRequired(mt.Register).Error())
