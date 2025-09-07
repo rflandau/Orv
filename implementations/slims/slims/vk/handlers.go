@@ -185,11 +185,16 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 		ID:      vk.id,
 	}, &pb.RegisterAccept{Service: registerReq.Service})
 
-	// propagate the REGISTER up the vault
+	// TODO propagate the REGISTER up the vault
+	vk.structure.mu.Lock()
+	if vk.structure.parentAddr.IsValid() {
+	}
+
+	vk.structure.mu.Unlock()
 	// TODO
 }
 
-// serveVKHeartbeat answers VK_HEARTBEATS, refreshing the associated child VK.
+// serveVKHeartbeat answers VK_HEARTBEATS, refreshing the associated child VK (if found).
 func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// validate parameters
 	if reqHdr.Shorthand {
@@ -205,11 +210,19 @@ func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, 
 	// check that this is a known cvk ID
 	vk.children.mu.Lock()
 
-	if found := vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk); !found {
+	found := vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk)
+
+	vk.children.mu.Unlock()
+	if !found {
 		vk.respondError(senderAddr, fmt.Sprintf("no child vk with ID %d is registered to this parent", reqHdr.ID))
 		return
 	}
-
-	vk.children.mu.Unlock()
+	vk.log.Debug().Uint64("child ID", reqHdr.ID).Msg("refreshed child vk")
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version:   vk.versionSet.HighestSupported(),
+		Shorthand: false,
+		Type:      mt.VKHeartbeatAck,
+		ID:        vk.id,
+	}, nil)
 
 }
