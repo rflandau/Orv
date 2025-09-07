@@ -184,27 +184,59 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 	vk.log.Debug().Func(vk.Zerolog).Msg("vk created")
 
 	// spin out the heartbeater
-	go vk.heartbeater()
+	go vk.runAutoHeartbeat()
 
 	return vk, nil
 
 }
 
-// heartbeater controls the automated heartbeats sent to parent every interval
+// runAutoHeartbeat controls the automated heartbeats sent to parent every interval
 // (but only if we are accepting connections at interval time).
 //
 // Intended to be run in a goroutine.
-func (vk *VaultKeeper) heartbeater() {
+func (vk *VaultKeeper) runAutoHeartbeat() {
 	if vk.hb.auto {
 		tkr := time.NewTicker(vk.hb.freq)
+		badHBCount := 0
 		for {
 			<-tkr.C
-			if !vk.net.accepting.Load() || !vk.structure.parentAddr.IsValid() {
+			if !vk.net.accepting.Load() {
 				continue
 			}
+			// cache parent information
+			vk.structure.mu.RLock()
+			p, pAddr := vk.structure.parentID, vk.structure.parentAddr
+			vk.structure.mu.RUnlock()
+
+			if !pAddr.IsValid() {
+				continue
+			}
+
 			// TODO add check for terminate to kill entirely
 
-			// TODO send the heartbeat
+			if err := vk.HeartbeatParent(); err != nil {
+				vk.log.Warn().Uint64("parent ID", p).Str("parent addr", pAddr.String()).Err(err).Msg("failed to heartbeat parent")
+				badHBCount += 1
+			}
+			if badHBCount >= int(vk.hb.badHeartbeatLimit) {
+				vk.log.Info().Msg("assuming parent is dead due to consecutive bad heartbeats")
+				vk.structure.mu.Lock()
+				// only alter the parent if our data is still valid
+				if vk.structure.parentID == p && vk.structure.parentAddr == pAddr {
+					vk.structure.parentID = 0
+					vk.structure.parentAddr = netip.AddrPort{}
+				} else {
+					vk.log.Info().
+						Uint64("parent ID", vk.structure.parentID).
+						Uint64("cached parent ID", p).
+						Str("parent addr", vk.structure.parentAddr.String()).
+						Str("cached parent addr", pAddr.String()).
+						Msg("parent data is stale. Heartbeater refrained from pruning parent.")
+				}
+				vk.structure.mu.Unlock()
+				// clear the count
+				badHBCount = 0
+			}
 		}
 
 	}
