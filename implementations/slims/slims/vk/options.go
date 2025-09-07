@@ -58,3 +58,13 @@ func WithPruneTimes(pt PruneTimes) VKOption {
 		}
 	}
 }
+
+// WithCustomHeartbeats allows you to modify the default automatic heartbeat timings or turn them off entirely.
+//
+// ! If heartbeats are disabled, this VK's parent will prune it unless some other mechanism is set up to send heartbeats on our behalf.
+func WithCustomHeartbeats(enabled bool, frequency time.Duration) VKOption {
+	return func(vk *VaultKeeper) {
+		vk.hb.auto = enabled
+		vk.hb.freq = frequency
+	}
+}
