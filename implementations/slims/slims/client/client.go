@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -228,6 +229,77 @@ func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.A
 	default:
 		return respHdr.ID, nil, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
+}
+
+// ParentInfo can be used to pass validate-able parent info to client requests.
+type ParentInfo struct {
+	ID   slims.NodeID
+	Addr netip.AddrPort
+}
+
+// AutoServiceHeartbeat spins out a goroutine to send heartbeats for services on behalf of myID every frequency.
+// Easy way to spin up heartbeating for your service(s) without having to manually incorporate ServiceHeartbeats.
+//
+// If hberrs is nil, errors will be thrown away.
+// If not nil, hberrs will be closed when the heartbeater dies.
+//
+// If p.ID does not equal the ID returned by ServiceHeartbeat, the goroutine will send an error and die.
+//
+// If a service is returned as unknown (it expired or was otherwise removed from the parent, thus failing to heartbeat), it will be removed from the list of services to heartbeat.
+// If no services remain to be heartbeated for, the goroutine will exit.
+//
+// TODO test me
+func AutoServiceHeartbeat(timeout, frequency time.Duration, myID slims.NodeID, p ParentInfo, servicesToHB []string, hbErrs chan<- error) (cancel chan<- bool, _ error) {
+	// validate params
+	if frequency <= 0 {
+		return nil, errors.New("frequency must be a positive duration")
+	} else if !p.Addr.IsValid() {
+		return nil, ErrInvalidAddrPort
+	}
+
+	cnl := make(chan bool)
+	services := slices.Clone(servicesToHB) // copy so we can safely alter list
+	go func() {
+		for len(services) > 0 {
+			select {
+			case <-cnl: // die on cancel
+				if hbErrs != nil {
+					close(hbErrs)
+				}
+				return
+			case <-time.After(frequency): // send HB on freq
+				// send the request
+				ctx, c := context.WithTimeout(context.Background(), timeout)
+				pVKID, _, unknown, err := ServiceHeartbeat(ctx, myID, p.Addr, servicesToHB)
+				if err != nil {
+					if hbErrs != nil {
+						hbErrs <- err
+					}
+				}
+				if pVKID != p.ID {
+					if hbErrs != nil {
+						hbErrs <- fmt.Errorf("parent ID mismatch. Expected %d but ServiceHeartbeat was answered by %d. Operation complete", p.ID, pVKID)
+						close(hbErrs)
+					}
+					c()
+					return
+				}
+				// send each unknown service as an error and remove it from the services to be pinged
+				for _, unk := range unknown {
+					hbErrs <- fmt.Errorf("service %s is considered unknown by parent @ %v", unk, p.Addr)
+					services = slices.DeleteFunc(services, func(svc string) bool {
+						return svc == unk
+					})
+				}
+				c()
+			}
+		}
+		// if we finished by running out of valid services, close out the channel and call it a day
+		if hbErrs != nil {
+			close(hbErrs)
+		}
+	}()
+	return cnl, nil
 }
 
 // #region client requests
