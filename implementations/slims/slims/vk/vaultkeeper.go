@@ -518,23 +518,44 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 		}{Enabled: vk.hb.auto, Frequency: vk.hb.freq, Limit: vk.hb.badHeartbeatLimit},
 	}
 	// attach children
-	// TODO range over cvks
-	snap.Children.Leaves = make(map[slims.NodeID]map[string]struct {
-		stale time.Duration
-		addr  netip.AddrPort
-	}, len(vk.children.leaves))
-	for id, l := range vk.children.leaves {
-		services := make(map[string]struct {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		snap.Children.CVKs = make(map[slims.NodeID]struct {
+			services map[string]netip.AddrPort
+			addr     netip.AddrPort
+		})
+		vk.children.cvks.Range(func(ni slims.NodeID, s struct {
+			services map[string]netip.AddrPort
+			addr     netip.AddrPort
+		}) bool {
+			// add the pair to the table
+			snap.Children.CVKs[ni] = s
+			return true
+		})
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		snap.Children.Leaves = make(map[slims.NodeID]map[string]struct {
 			stale time.Duration
 			addr  netip.AddrPort
-		}, len(l.services))
-		for service, info := range l.services { // transmogrify each service
-			services[service] = struct {
+		}, len(vk.children.leaves))
+		for id, l := range vk.children.leaves {
+			services := make(map[string]struct {
 				stale time.Duration
 				addr  netip.AddrPort
-			}{info.stale, info.addr}
+			}, len(l.services))
+			for service, info := range l.services { // transmogrify each service
+				services[service] = struct {
+					stale time.Duration
+					addr  netip.AddrPort
+				}{info.stale, info.addr}
+			}
+			snap.Children.Leaves[id] = services
 		}
-		snap.Children.Leaves[id] = services
-	}
+	}()
+	wg.Wait()
 	return snap
 }
