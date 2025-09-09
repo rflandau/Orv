@@ -44,6 +44,11 @@ func ErrInternalError(details string) error {
 	return errors.New("an internal error occurred: " + details)
 }
 
+// ErrFailedToUnmarshal indicates that the payload failed to unmarshal as the expected type.
+func ErrFailedToUnmarshal(typ mt.MessageType, err error) error {
+	return fmt.Errorf("failed to unmarshal body as a %s message: %w", typ.String(), err)
+}
+
 var (
 	ErrDead = errors.New("this VaultKeeper is dead")
 )

@@ -382,6 +382,8 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 				// heartbeats
 				case mt.VKHeartbeat:
 					vk.serveVKHeartbeat(hdr, body, senderAddr)
+				case mt.ServiceHeartbeat:
+					vk.serveServiceHeartbeat(hdr, body, senderAddr)
 				// client requests that do not require a handshake
 				case mt.Status:
 					vk.serveStatus(hdr, body, senderAddr)

@@ -156,7 +156,7 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 	// parse and validate body
 	var registerReq pb.Register
 	if err := proto.Unmarshal(reqBody, &registerReq); err != nil {
-		vk.respondError(senderAddr, "failed to unmarshal body as a REGISTER message: "+err.Error())
+		vk.respondError(senderAddr, ErrFailedToUnmarshal(mt.Register, err).Error())
 		return
 	} else if registerReq.Service == "" {
 		vk.respondError(senderAddr, "service name cannot be empty")
@@ -194,7 +194,56 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 	// TODO
 }
 
-// serveVKHeartbeat answers VK_HEARTBEATS, refreshing the associated child VK (if found).
+// serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.
+func (vk *VaultKeeper) serveServiceHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+	//validate parameters
+	if reqHdr.Shorthand {
+		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.ServiceHeartbeat).Error())
+		return
+	} else if len(reqBody) == 0 {
+		vk.respondError(senderAddr, ErrBodyRequired(mt.ServiceHeartbeat).Error())
+		return
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
+		return
+	}
+	//unpack the body
+	msg := pb.ServiceHeartbeat{}
+	if err := proto.Unmarshal(reqBody, &msg); err != nil {
+		vk.respondError(senderAddr, ErrFailedToUnmarshal(mt.ServiceHeartbeat, err).Error())
+	}
+	// check that this is a known leaf ID
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+	s, found := vk.children.leaves[reqHdr.ID]
+	if !found {
+		vk.respondError(senderAddr, fmt.Sprintf("no child leaf with ID %d is registered to this parent", reqHdr.ID))
+		return
+	}
+	response := &pb.ServiceHeartbeatAck{
+		Refreshed: make([]string, 0),
+		Unknown:   make([]string, 0),
+	}
+	// refresh each service given
+	for _, svc := range msg.GetServices() {
+		leafService, found := s.services[svc]
+		if !found ||
+			!leafService.pruner.Stop() { // had expired, but was not yet pruned; allow pruner to do its job
+			response.Unknown = append(response.Unknown, svc)
+			continue
+		}
+		leafService.pruner.Reset(leafService.stale)
+		vk.log.Debug().Uint64("leaf ID", reqHdr.ID).Str("service", svc).Msg("refreshed service")
+		response.Refreshed = append(response.Refreshed, svc)
+	}
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    mt.ServiceHeartbeatAck,
+		ID:      vk.ID(),
+	}, response)
+}
+
+// serveVKHeartbeat answers VK_HEARTBEATs, refreshing the associated child VK (if found).
 func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
 	// validate parameters
 	if reqHdr.Shorthand {
@@ -224,5 +273,4 @@ func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, 
 		Type:      mt.VKHeartbeatAck,
 		ID:        vk.id,
 	}, nil)
-
 }
