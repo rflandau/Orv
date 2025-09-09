@@ -1,6 +1,7 @@
 package expiring_test
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"sync"
@@ -158,7 +159,31 @@ func TestTable(t *testing.T) {
 			t.Fatal("clean up functions did not execute properly", ExpectedActual(expectedCleanupBuf, cleanupBuf))
 		}
 	})
+}
 
+func TestTable_Range(t *testing.T) {
+	in := map[string]int{
+		"icerind hatchet": 1,
+		"backhand blade":  -2,
+		"misericorde":     1000,
+		"reduvia":         11,
+	}
+	// create an expiring table from input
+	tbl := expiring.Table[string, int]{}
+	for k, v := range in {
+		tbl.Store(k, v, 3*time.Second)
+	}
+
+	// rebuild in by ranging over in
+	out := make(map[string]int)
+	tbl.Range(func(s string, i int) bool {
+		out[s] = i
+		return true
+	})
+
+	if !maps.Equal(in, out) {
+		t.Fatal("input and output maps do not match", ExpectedActual(in, out))
+	}
 }
 
 // tests the load returns the expected value and found state.

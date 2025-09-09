@@ -103,3 +103,33 @@ func (tbl *Table[key_t, value_t]) Refresh(key key_t, expire time.Duration) (foun
 	tVal.exp.Reset(expire)
 	return true
 }
+
+// Range is a standard sync.Map range call and follows all the same rules and caveats.
+// They are restated here for ease-of-access:
+//
+/*
+Range calls f sequentially for each key and value present in the map. If f returns false, range stops the iteration.
+
+Range does not necessarily correspond to any consistent snapshot of the Map's contents: no key will be visited more than once, but if the value for any key is stored or deleted concurrently (including by f), Range may reflect any mapping for that key from any point during the Range call. Range does not block other methods on the receiver; even f itself may call any method on m.
+
+Range may be O(N) with the number of elements in the map even if f returns false after a constant number of calls.
+*/
+func (tbl *Table[key_t, value_t]) Range(f func(key_t, value_t) bool) {
+	tbl.m.Range(func(key, value any) bool {
+		// type assert k and v
+		aKey, ok := key.(key_t)
+		if !ok {
+			panic("failed to cast any key as key_t despite type safe wrapper")
+		}
+
+		tmp, found := tbl.m.Load(key)
+		if !found {
+			return false
+		}
+		tVal, ok := tmp.(timedV[value_t])
+		if !ok {
+			panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
+		}
+		return f(aKey, tVal.val)
+	})
+}
