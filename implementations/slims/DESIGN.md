@@ -47,6 +47,12 @@ Building on UDP and working with the raw buffers is kind of a pain (though infin
 
 This trick will not work in every scenario, but Orv's design coincidentally results in very small payloads, allowing it to fit within a single packet even on relatively small MTUs. The only message type that could be an issue is STATUS, as its payload is technically unbounded.
 
+### Resending Packets
+
+The Slims prototype does *not* do much in the way of automatic retries (such as in the case of a lost request/response). A production-ready version should automate retrying a request if a response is not received within the context deadline, up to a specified limit.
+
+These were omitted from the current version of Slims due to time-constraints; they are an obvious addition and thus do little to explore the finer points of Orv (as was one of the goals in building Slims).
+
 # Compressing Payloads Further
 
 TODO rewrite this section now that it is in DESIGN.
