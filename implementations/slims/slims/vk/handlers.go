@@ -85,7 +85,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	// unpack the body
 	var j = &pb.Join{}
 	if err := proto.Unmarshal(reqBody, j); err != nil {
-		vk.respondError(senderAddr, "failed to unmarshal body as a JOIN message")
+		vk.respondError(senderAddr, ErrFailedToUnmarshal(mt.Join, err).Error())
 		return
 	}
 
