@@ -421,36 +421,26 @@ func (vk *VaultKeeper) Stop() {
 
 // Zerolog pretty prints the state of the vk into the given zerolog event.
 // Intended to be given to *zerolog.Event.Func().
-func (vk *VaultKeeper) Zerolog(e *zerolog.Event) { // TODO
-	e.Uint64("vkid", vk.id).
-		Uint16("height", vk.structure.height).
-		Str("address", vk.addr.String())
-	vk.structure.mu.RLock()
-	e.Uint16("height", vk.structure.height).
-		Uint64("parent id", vk.structure.parentID).
-		Str("parent address", vk.structure.parentAddr.String())
-	vk.structure.mu.RUnlock()
+// Uses vk.Snapshot() under the hood.
+func (vk *VaultKeeper) Zerolog(e *zerolog.Event) {
+	snap := vk.Snapshot()
 
-	/*vk.children.mu.Lock()
-	defer vk.children.mu.Unlock()
-	// iterate through your children
-	for cid, srvMap := range vk.children.leaves { // leaves
-		a := zerolog.Arr()
-		for sn := range srvMap {
-			a.Str(sn)
-		}
-
-		e.Array(fmt.Sprintf("leaf %d", cid), a)
+	e.Uint64("vkid", snap.ID).
+		Uint16("height", snap.Height).
+		Str("address", snap.Addr.String()).
+		Bool("accepting connections?", snap.AcceptingConnections).
+		Any("supported versions", snap.Versions)
+	if snap.ParentAddr.IsValid() {
+		e.Uint64("parent ID", snap.ParentID).Str("parent address", snap.ParentAddr.String())
+	} else {
+		e.Bool("is root?", true)
 	}
-
-	for cid, v := range vk.children.vks { // child VKs
-		a := zerolog.Arr()
-		for sn := range v.services {
-			a.Str(sn)
-		}
-
-		e.Array(fmt.Sprintf("cVK %d", cid), a)
-	}*/
+	e.Any("prune times", snap.PruneTimes).
+		Any("child VKs", snap.Children.CVKs).
+		Any("leaves", snap.Children.Leaves)
+	e.Bool("auto heartbeater enabled?", snap.AutoHeartbeater.Enabled).
+		Dur("heartbeat frequency", snap.AutoHeartbeater.Frequency).
+		Uint("bad heartbeat limit", snap.AutoHeartbeater.Limit)
 }
 
 type VKSnapshot struct {
