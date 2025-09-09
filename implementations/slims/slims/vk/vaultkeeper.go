@@ -63,7 +63,7 @@ type VaultKeeper struct {
 	}
 
 	// how quickly are pieces of data pruned
-	pruneTime struct {
+	pruneTime struct { // TODO replace with PruneTimes
 		hello           time.Duration // hello without join
 		servicelessLeaf time.Duration // time after join, if no services are registered
 		cvk             time.Duration // w/o VK_HEARTBEAT
@@ -421,7 +421,7 @@ func (vk *VaultKeeper) Stop() {
 
 // Zerolog pretty prints the state of the vk into the given zerolog event.
 // Intended to be given to *zerolog.Event.Func().
-func (vk *VaultKeeper) Zerolog(e *zerolog.Event) {
+func (vk *VaultKeeper) Zerolog(e *zerolog.Event) { // TODO
 	e.Uint64("vkid", vk.id).
 		Uint16("height", vk.structure.height).
 		Str("address", vk.addr.String())
@@ -451,4 +451,90 @@ func (vk *VaultKeeper) Zerolog(e *zerolog.Event) {
 
 		e.Array(fmt.Sprintf("cVK %d", cid), a)
 	}*/
+}
+
+type VKSnapshot struct {
+	ID                   slims.NodeID   // unique ID
+	Addr                 netip.AddrPort // address listening at
+	AcceptingConnections bool           // is the VK current accepting Orv connections/requests?
+	Versions             version.Set    // supported versions
+	Height               uint16
+	ParentID             slims.NodeID   // ID of this node's parent. If ParentAddr is not valid, then this should be ignored.
+	ParentAddr           netip.AddrPort // Address of this node's parent's Orv endpoint
+	PruneTimes           PruneTimes
+	Children             struct {
+		CVKs map[slims.NodeID]struct {
+			services map[string]netip.AddrPort // service name -> service address
+			addr     netip.AddrPort            // Orv endpoint the child can receive Orv requests on
+		} // cvkID -> ((service name -> service address), cvk Orv address)
+		Leaves map[slims.NodeID]map[string]struct {
+			stale time.Duration
+			addr  netip.AddrPort
+		} // leafID -> (service name -> (stale, service address))
+	}
+	AutoHeartbeater struct {
+		Enabled   bool // is the autohb running?
+		Frequency time.Duration
+		Limit     uint
+	}
+}
+
+// Snapshot returns a point-in-time snapshot of the vk at call time.
+// All locks are acquired before data is gathered and released on returned.
+// Data is not guaranteed to be entirely consistent due to the use of multiple locks across multiple structs.
+//
+// Other nodes should prefer sending STATUS packets to retrieve metadata.
+//
+// If you are using zerolog, call vk.Zerolog() instead, as that will properly format this data into a single log item.
+func (vk *VaultKeeper) Snapshot() VKSnapshot {
+	// acquire all locks
+	vk.structure.mu.RLock()
+	defer vk.structure.mu.RUnlock()
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+	snap := VKSnapshot{
+		ID:                   vk.id,
+		Addr:                 vk.addr,
+		AcceptingConnections: vk.net.accepting.Load(),
+		Versions:             vk.versionSet,
+		Height:               vk.structure.height,
+		ParentID:             vk.structure.parentID,
+		ParentAddr:           vk.structure.parentAddr,
+		// TODO prunetimes
+		Children: struct {
+			CVKs map[slims.NodeID]struct {
+				services map[string]netip.AddrPort
+				addr     netip.AddrPort
+			}
+			Leaves map[slims.NodeID]map[string]struct {
+				stale time.Duration
+				addr  netip.AddrPort
+			}
+		}{},
+		AutoHeartbeater: struct {
+			Enabled   bool
+			Frequency time.Duration
+			Limit     uint
+		}{Enabled: vk.hb.auto, Frequency: vk.hb.freq, Limit: vk.hb.badHeartbeatLimit},
+	}
+	// attach children
+	// TODO range over cvks
+	snap.Children.Leaves = make(map[slims.NodeID]map[string]struct {
+		stale time.Duration
+		addr  netip.AddrPort
+	}, len(vk.children.leaves))
+	for id, l := range vk.children.leaves {
+		services := make(map[string]struct {
+			stale time.Duration
+			addr  netip.AddrPort
+		}, len(l.services))
+		for service, info := range l.services { // transmogrify each service
+			services[service] = struct {
+				stale time.Duration
+				addr  netip.AddrPort
+			}{info.stale, info.addr}
+		}
+		snap.Children.Leaves[id] = services
+	}
+	return snap
 }
