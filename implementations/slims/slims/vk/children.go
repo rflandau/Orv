@@ -23,7 +23,7 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 	}{
 		services: make(map[string]netip.AddrPort),
 		addr:     addr},
-		vk.pruneTime.cvk,
+		vk.pruneTime.ChildVK,
 		func(id slims.NodeID, s struct {
 			services map[string]netip.AddrPort
 			addr     netip.AddrPort
@@ -83,7 +83,7 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 // Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
 // if it has not, trim the leaf out of the set of children.
 func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
-	return time.AfterFunc(vk.pruneTime.servicelessLeaf, func() {
+	return time.AfterFunc(vk.pruneTime.ServicelessLeaf, func() {
 		// acquire lock
 		vk.children.mu.Lock()
 		defer vk.children.mu.Unlock()
@@ -137,7 +137,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 			addr:  addr}
 	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
 		// refresh the cvk's prune timer
-		if !vk.children.cvks.Refresh(childID, vk.pruneTime.cvk) {
+		if !vk.children.cvks.Refresh(childID, vk.pruneTime.ChildVK) {
 			return fmt.Errorf("failed to register service %s to child vk %d: child vk was pruned during look up", service, childID)
 		}
 		cvk.services[service] = addr // update or set our info
@@ -190,7 +190,7 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 			Msg("pruned service from leaf")
 		// if that was the last service offered by this leaf, restart the leaf's prune timer
 		if len(vk.children.leaves[childID].services) == 0 {
-			if vk.children.leaves[childID].servicelessPruner.Reset(vk.pruneTime.servicelessLeaf) {
+			if vk.children.leaves[childID].servicelessPruner.Reset(vk.pruneTime.ServicelessLeaf) {
 				vk.log.Warn().
 					Uint64("leaf ID", childID).
 					Str("pruned service", service).

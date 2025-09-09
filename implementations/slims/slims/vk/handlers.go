@@ -106,7 +106,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 			return
 		}
 		// check if we can refresh a node with this ID
-		if !vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk) {
+		if !vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.ChildVK) {
 			// ensure that the requestor is in our hello table
 			if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
 				vk.respondError(senderAddr, "must send HELLO first and join before it expires")

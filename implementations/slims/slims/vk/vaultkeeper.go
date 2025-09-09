@@ -63,12 +63,7 @@ type VaultKeeper struct {
 	}
 
 	// how quickly are pieces of data pruned
-	pruneTime struct { // TODO replace with PruneTimes
-		hello           time.Duration // hello without join
-		servicelessLeaf time.Duration // time after join, if no services are registered
-		cvk             time.Duration // w/o VK_HEARTBEAT
-		//leaf time.Duration // w/o SERVICE_
-	}
+	pruneTime PruneTimes
 
 	// direct children of this node.
 	// NOTE(rlandau): leaves are mildly too complex to be represented by a single expiring table.
@@ -129,14 +124,10 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			parentID   uint64
 			parentAddr netip.AddrPort
 		}{},
-		pruneTime: struct {
-			hello           time.Duration
-			servicelessLeaf time.Duration
-			cvk             time.Duration
-		}{
-			hello:           DefaultHelloPruneTime,
-			servicelessLeaf: DefaultServicelessLeafPruneTime,
-			cvk:             DefaultHeartbeatlessCVKPruneTime,
+		pruneTime: PruneTimes{
+			Hello:           DefaultHelloPruneTime,
+			ServicelessLeaf: DefaultServicelessLeafPruneTime,
+			ChildVK:         DefaultHeartbeatlessCVKPruneTime,
 		},
 		children: struct {
 			mu   sync.Mutex
