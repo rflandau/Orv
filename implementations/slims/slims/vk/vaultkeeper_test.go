@@ -1,15 +1,18 @@
 package vaultkeeper
 
 import (
+	"context"
 	"errors"
 	"math"
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -17,6 +20,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -549,4 +553,184 @@ func checkParent(t *testing.T, vk *VaultKeeper, expected struct {
 		t.Error("bad parent addr", ExpectedActual(expected.parentAddr, vk.structure.parentAddr))
 	}
 	vk.structure.mu.RUnlock()
+}
+
+func Test_serveServiceHeartbeat(t *testing.T) {
+	var (
+		requestorAddr *net.UDPAddr
+		responses     chan struct {
+			n        int
+			origAddr net.Addr
+			hdr      protocol.Header
+			body     []byte
+			err      error
+		}
+	)
+	{ // spin up a listener to receive responses and a channel to forward them on
+		earAP := RandomLocalhostAddrPort()
+		requestorAddr = net.UDPAddrFromAddrPort(earAP)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		pconn, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", earAP.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		responses = make(chan struct {
+			n        int
+			origAddr net.Addr
+			hdr      protocol.Header
+			body     []byte
+			err      error
+		})
+		// send all packets received across the channel
+		go func() {
+			for ctx.Err() == nil {
+				n, origAddr, hdr, body, err := protocol.ReceivePacket(pconn, t.Context())
+				responses <- struct {
+					n        int
+					origAddr net.Addr
+					hdr      protocol.Header
+					body     []byte
+					err      error
+				}{n, origAddr, hdr, body, err}
+			}
+		}()
+	}
+	t.Logf("requestor address: %v", requestorAddr)
+
+	// can be used in test creation to ensure that the ID in the header matches the ID of one or more registered services
+	staticID := rand.Uint64()
+
+	tests := []struct {
+		name               string
+		registeredServices map[uint64]string // leaf ID the service is registered to -> the name of the service
+		reqHdr             protocol.Header
+		reqBody            *pb.ServiceHeartbeat
+		expectedFault      bool
+		expectedBody       *pb.ServiceHeartbeatAck // only checked if expectedType is mt.ServiceHeartbeatAck
+	}{
+		{"shorthand",
+			nil,
+			protocol.Header{
+				Version:   protocol.SupportedVersions().HighestSupported(),
+				Shorthand: true,
+				Type:      mt.ServiceHeartbeat,
+				ID:        rand.Uint64(),
+			}, &pb.ServiceHeartbeat{},
+			true,
+			nil,
+		},
+		{"bad version",
+			nil,
+			protocol.Header{
+				Version: version.Version{Major: 0, Minor: 0},
+				Type:    mt.ServiceHeartbeat,
+				ID:      rand.Uint64(),
+			}, &pb.ServiceHeartbeat{},
+			true,
+			nil,
+		},
+		{"no services registered (equivalent to no services registered to requesting parent)",
+			nil,
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.ServiceHeartbeat,
+				ID:      rand.Uint64(),
+			}, &pb.ServiceHeartbeat{Services: []string{randomdata.Currency(), randomdata.Currency()}},
+			true,
+			nil,
+		},
+		{"simple success",
+			map[uint64]string{staticID: "some service"},
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.ServiceHeartbeat,
+				ID:      staticID,
+			},
+			&pb.ServiceHeartbeat{Services: []string{"some service"}},
+			false,
+			&pb.ServiceHeartbeatAck{Refreshed: []string{"some service"}},
+		}, // TODO
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// spin up the vk
+			vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+				WithPruneTimes(PruneTimes{10 * time.Second, 10 * time.Second, 10 * time.Second}), // functionally disable prune times for ease of use // TODO
+				WithLogger(&zerolog.Logger{}), // suppress logging
+			)
+			if err != nil {
+				t.Fatal(err)
+			} else if err := vk.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer vk.Stop()
+			t.Logf("vk address: %v", vk.Address())
+			// create required services
+			for leafID, service := range tt.registeredServices {
+				// register leaf
+				if vk.addLeaf(leafID) {
+					t.Fatal("bad result from addLeaf: cvk overlap but no cvks are registered")
+				}
+				// register service
+				if err := vk.addService(leafID, service, netip.MustParseAddrPort("127.0.0.1:0"), 10*time.Second); err != nil {
+					t.Fatal("failed to add service: ", err)
+				}
+			}
+
+			// marshal the body
+			bd, err := proto.Marshal(tt.reqBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			vk.serveServiceHeartbeat(tt.reqHdr, bd, requestorAddr)
+			vkResp := <-responses
+			// check for values set across all tests
+			if vkResp.err != nil {
+				t.Fatal(err)
+			} else if vkResp.n == 0 {
+				t.Fatal("a 0 byte response was found", vkResp)
+			} else if vkResp.origAddr.String() != vk.addr.String() {
+				t.Fatal(ExpectedActual(requestorAddr.String(), vkResp.origAddr.String()))
+			} else if vkResp.hdr.ID != vk.ID() {
+				t.Fatal(ExpectedActual(vk.ID(), vkResp.hdr.ID))
+			}
+			// check for test-specific values
+			if (vkResp.hdr.Type == mt.Fault) != tt.expectedFault {
+				var msg string
+				// if this is a fault, we can pull extra information from it
+				if vkResp.hdr.Type == mt.Fault {
+					msg = "Expected SERVICE_HEARTBEAT_ACK, got FAULT"
+					// unpack as fault
+					var f pb.Fault
+					if err := proto.Unmarshal(vkResp.body, &f); err != nil {
+						msg += "[failed to unmarshal as fault]"
+					} else {
+						msg += " (" + f.Reason + ")"
+					}
+				} else {
+					msg = "Expected FAULT, got SERVICE_HEARTBEAT_ACK"
+				}
+				t.Fatal(msg)
+			}
+			switch vkResp.hdr.Type {
+			case mt.Fault:
+				// unpack as fault
+				var f pb.Fault
+				if err := proto.Unmarshal(vkResp.body, &f); err != nil {
+					t.Fatal("failed to unmarshal body as fault")
+				}
+			case mt.ServiceHeartbeatAck:
+				var ack pb.ServiceHeartbeatAck //TODO
+				if err := proto.Unmarshal(vkResp.body, &ack); err != nil {
+					t.Fatal("failed to unmarshal body as service heartbeat")
+				}
+				if slices.Compare(ack.Refreshed, tt.expectedBody.Refreshed) != 0 {
+					t.Error(ExpectedActual(tt.expectedBody.Refreshed, ack.Refreshed))
+				}
+			default:
+				t.Fatal("unhandled expected type:", vkResp.hdr.Type.String())
+			}
+		})
+	}
 }
