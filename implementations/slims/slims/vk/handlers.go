@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -235,6 +236,11 @@ func (vk *VaultKeeper) serveServiceHeartbeat(reqHdr protocol.Header, reqBody []b
 		leafService.pruner.Reset(leafService.stale)
 		vk.log.Debug().Uint64("leaf ID", reqHdr.ID).Str("service", svc).Msg("refreshed service")
 		response.Refreshed = append(response.Refreshed, svc)
+	}
+	// if no services were refreshed successfully, send back a fault
+	if len(response.Refreshed) == 0 {
+		vk.respondError(senderAddr, "all listed services are unknown. Services: "+strings.Join(response.Unknown, ","))
+		return
 	}
 	vk.respondSuccess(senderAddr, protocol.Header{
 		Version: vk.versionSet.HighestSupported(),
