@@ -247,6 +247,8 @@ func DeserializeWithBody(rd io.Reader) (hdr Header, nBody int, body []byte, err 
 // ReceivePacket reads from the given connection, unmarshals the prefix into a header, and returns the rest as a body.
 // The context can be used to cancel or timeout the read. If this occurs, all values will be zero except for err, which will equal ctx.Err().
 //
+// ! err represents a local error; header's type should be checked for fault to check for a remote error.
+//
 // ! pconn's read deadline is destructively set according to the given context and NOT reset on exit.
 // If the given context has a deadline, it will supplant pconn's read deadline.
 // If the given context does not have a deadline, pconn's read deadline will be removed.
