@@ -154,28 +154,57 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 1. *service*: name of the service that was registered.
     - example: "SSH"
-    
 
 ## MERGE
 
 **Type Number:** 8
 
+Sent by a vk to indicate that the target vk should become one of its children (like a reverse JOIN). Only used in root-root interactions. Must follow a HELLO_ACK. Should not be considered confirmed until a MERGE_ACCEPT is received by the requestor.
+
+### Payload
+
+1. *height*: the current height of the requestor node
+2. *vkAddr* address the requestor vk will be listening for heartbeats on
+
 ## MERGE_ACCEPT
 
 **Type Number:** 9
+
+Sent by a vk to accept a vk's request to merge. Only used in root-root interactions.
+
+Once received, the original vk (the vk that originally sent the MERGE) can safely consider itself to be the root of the newly merged vault, with the MERGE_ACCEPT sender a child vk. The requestor node must then update its height and send an INCREMENT to each child vk that was not part of the prior merge.
+
+MERGE_ACCEPT has no payload.
 
 ## INCREMENT
 
 **Type Number:** 10
 
+Sent by the new root of a freshly merged vault to inform all existing children of their new height (which should be a simple +1).
+Children who receive an INCREMENT must echo it to *their* child vks.
+Do **not** send INCREMENT down the newly merged branch; in other words, do not send one to the vk that just sent a MERGE_ACCEPT as its height is already correct.
+
+If a vk receives an INCREMENT with an unexpected height from its parent, handling is implementation-dependent. However, the child must take steps to remedy the solution. It may leave the vault, it may request a STATUS from its parent (to verify height), or it may do something else; it may *not* remain in the vault with a height inconsistent to that of there rest of the vault.
+
+### Payload
+
+1. *newHeight*: the new height the receiver should adjust themselves to. It should be their current height + 1.
+
 ## INCREMENT_ACK
 
 **Type Number:** 11
 
+**Optionally** sent by the a child vk after it has adjusted its height so the parent knows it does not need to resend the INCREMENT. Counts as a VK_HEARTBEAT.
+
+### Payload
+
+1. *newHeight*: the height the child vk just set itself and its branch to.
 
 ## SERVICE_HEARTBEAT
 
 **Type Number:** 12
+
+Sent by a leaf to refresh the lifetimes of all services named therein.
 
 ### Payload
 
@@ -186,6 +215,10 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 ## SERVICE_HEARTBEAT_ACK
 
 **Type Number:** 13
+
+Sent by a parent vk to acknowledge receipt of a SERVICE_HEARTBEAT and enumerate the services that were refreshed.
+
+If no services were refreshed, a FAULT is sent instead.
 
 ### Payload
 
@@ -254,7 +287,8 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *hop limit*: (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
+1. *token*: a requestor-generated token used to identify this request. To consider a response valid, it must echo back this token.
+2. *hop limit*: (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
 
 ## LIST_RESPONSE
 
