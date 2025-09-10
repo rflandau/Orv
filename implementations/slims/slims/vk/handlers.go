@@ -33,7 +33,7 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 
 	vk.structure.mu.RLock()
 	// gather data
-	st := &pb.StatusResp{
+	st := &pb.StatusResp{ // TODO
 		Height:            uint32(vk.structure.height),
 		VersionsSupported: vk.versionSet.AsBytes(),
 	}
@@ -59,7 +59,7 @@ func (vk *VaultKeeper) serveHello(reqHdr protocol.Header, reqBody []byte, sender
 	} // no need to check version here as we would normally reply according to packet rules, but we only support a single version
 
 	// install requestor id in our pending table
-	vk.pendingHellos.Store(reqHdr.ID, true, vk.pruneTime.hello)
+	vk.pendingHellos.Store(reqHdr.ID, true, vk.pruneTime.Hello)
 
 	vk.respondSuccess(senderAddr,
 		protocol.Header{
@@ -259,7 +259,7 @@ func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, 
 	// check that this is a known cvk ID
 	vk.children.mu.Lock()
 
-	found := vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.cvk)
+	found := vk.children.cvks.Refresh(reqHdr.ID, vk.pruneTime.ChildVK)
 
 	vk.children.mu.Unlock()
 	if !found {
