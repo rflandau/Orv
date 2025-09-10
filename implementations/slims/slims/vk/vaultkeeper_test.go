@@ -650,7 +650,18 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			&pb.ServiceHeartbeat{Services: []string{"some service"}},
 			false,
 			&pb.ServiceHeartbeatAck{Refreshed: []string{"some service"}},
-		}, // TODO
+		},
+		{"all unknown",
+			map[uint64]string{staticID: "some service"},
+			protocol.Header{
+				Version: protocol.SupportedVersions().HighestSupported(),
+				Type:    mt.ServiceHeartbeat,
+				ID:      staticID,
+			},
+			&pb.ServiceHeartbeat{Services: []string{"misspelled service"}},
+			true,
+			nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
