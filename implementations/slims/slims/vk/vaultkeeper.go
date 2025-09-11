@@ -445,12 +445,12 @@ type VKSnapshot struct {
 	PruneTimes           PruneTimes
 	Children             struct {
 		CVKs map[slims.NodeID]struct {
-			services map[string]netip.AddrPort // service name -> service address
-			addr     netip.AddrPort            // Orv endpoint the child can receive Orv requests on
+			Services map[string]netip.AddrPort // service name -> service address
+			Addr     netip.AddrPort            // Orv endpoint the child can receive Orv requests on
 		} // cvkID -> ((service name -> service address), cvk Orv address)
 		Leaves map[slims.NodeID]map[string]struct {
-			stale time.Duration
-			addr  netip.AddrPort
+			Stale time.Duration
+			Addr  netip.AddrPort
 		} // leafID -> (service name -> (stale, service address))
 	}
 	AutoHeartbeater struct {
@@ -484,12 +484,12 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 		// TODO prunetimes
 		Children: struct {
 			CVKs map[slims.NodeID]struct {
-				services map[string]netip.AddrPort
-				addr     netip.AddrPort
+				Services map[string]netip.AddrPort
+				Addr     netip.AddrPort
 			}
 			Leaves map[slims.NodeID]map[string]struct {
-				stale time.Duration
-				addr  netip.AddrPort
+				Stale time.Duration
+				Addr  netip.AddrPort
 			}
 		}{},
 		AutoHeartbeater: struct {
@@ -504,15 +504,18 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 	go func() {
 		defer wg.Done()
 		snap.Children.CVKs = make(map[slims.NodeID]struct {
-			services map[string]netip.AddrPort
-			addr     netip.AddrPort
+			Services map[string]netip.AddrPort
+			Addr     netip.AddrPort
 		})
 		vk.children.cvks.Range(func(ni slims.NodeID, s struct {
 			services map[string]netip.AddrPort
 			addr     netip.AddrPort
 		}) bool {
 			// add the pair to the table
-			snap.Children.CVKs[ni] = s
+			snap.Children.CVKs[ni] = struct {
+				Services map[string]netip.AddrPort
+				Addr     netip.AddrPort
+			}{s.services, s.addr}
 			return true
 		})
 	}()
@@ -520,18 +523,18 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 	go func() {
 		defer wg.Done()
 		snap.Children.Leaves = make(map[slims.NodeID]map[string]struct {
-			stale time.Duration
-			addr  netip.AddrPort
+			Stale time.Duration
+			Addr  netip.AddrPort
 		}, len(vk.children.leaves))
 		for id, l := range vk.children.leaves {
 			services := make(map[string]struct {
-				stale time.Duration
-				addr  netip.AddrPort
+				Stale time.Duration
+				Addr  netip.AddrPort
 			}, len(l.services))
 			for service, info := range l.services { // transmogrify each service
 				services[service] = struct {
-					stale time.Duration
-					addr  netip.AddrPort
+					Stale time.Duration
+					Addr  netip.AddrPort
 				}{info.stale, info.addr}
 			}
 			snap.Children.Leaves[id] = services
