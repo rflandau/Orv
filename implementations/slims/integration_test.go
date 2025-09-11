@@ -35,7 +35,8 @@ func TestTwoLayerVault(t *testing.T) {
 	var goodCVKs = make([]*vaultkeeper.VaultKeeper, rand.UintN(10))
 	var wg sync.WaitGroup
 	for i := range goodCVKs {
-		goodCVKs[i], err = vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort())
+		goodCVKs[i], err = vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+			vaultkeeper.WithCustomHeartbeats(true, childHeartbeatFreq, badHBLimit))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := goodCVKs[i].Start(); err != nil {
