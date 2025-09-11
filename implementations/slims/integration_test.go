@@ -22,7 +22,6 @@ func TestTwoLayerVault(t *testing.T) {
 		childHeartbeatFreq = 20 * time.Millisecond
 		badHBLimit         = 2
 	)
-
 	parent, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
 		vaultkeeper.WithDragonsHoard(1),
 		vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{ChildVK: parentCVKPruneTime}))
@@ -59,11 +58,26 @@ func TestTwoLayerVault(t *testing.T) {
 			if err := cvk.Join(t.Context(), parent.Address()); err != nil {
 				t.Errorf("cvk(%d) failed to JOIN: %v", cvk.ID(), err)
 			}
+			t.Logf("cvk (ID%d) joined parent", cvk.ID())
+
 		}(goodCVKs[i])
 	}
 	wg.Wait()
+	t.Logf("added %d cvks.", len(goodCVKs))
+	time.Sleep(5 * time.Millisecond)
 	// check that the parent recognizes all good cvks
-	// TODO
+	{
+		snap := parent.Snapshot()
+		for i, gcvk := range goodCVKs {
+			if v, found := snap.Children.CVKs[gcvk.ID()]; !found {
+				t.Errorf("failed to find child #%d (ID%d)", i, gcvk.ID())
+			} else if len(v.Services) != 0 {
+				t.Errorf("expected no services to be registered to child #%d (ID%d). Found: %v", i, gcvk.ID(), v.Services)
+			} else if v.Addr != goodCVKs[i].Address() {
+				t.Error("bad cvk address", ExpectedActual(goodCVKs[i].Address(), v.Addr))
+			}
+		}
+	}
 	// add a cvk that does not heartbeat and ensure it (and it alone) is pruned
 	// TODO
 }
