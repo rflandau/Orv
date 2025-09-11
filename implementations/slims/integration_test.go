@@ -65,18 +65,7 @@ func TestTwoLayerVault(t *testing.T) {
 	t.Logf("added %d cvks.", len(goodCVKs))
 	time.Sleep(5 * time.Millisecond)
 	// check that the parent recognizes all good cvks
-	{
-		snap := parent.Snapshot()
-		for i, gcvk := range goodCVKs {
-			if v, found := snap.Children.CVKs[gcvk.ID()]; !found {
-				t.Errorf("failed to find child #%d (ID%d)", i, gcvk.ID())
-			} else if len(v.Services) != 0 {
-				t.Errorf("expected no services to be registered to child #%d (ID%d). Found: %v", i, gcvk.ID(), v.Services)
-			} else if v.Addr != goodCVKs[i].Address() {
-				t.Error("bad cvk address", ExpectedActual(goodCVKs[i].Address(), v.Addr))
-			}
-		}
-	}
+	allGoodChildrenValid(t, parent.Snapshot(), goodCVKs)
 	// add a cvk that does not heartbeat and ensure it (and it alone) is pruned
 	badCVK, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
 		vaultkeeper.WithCustomHeartbeats(false, 0, 0))
@@ -111,11 +100,27 @@ func TestTwoLayerVault(t *testing.T) {
 		}
 	}
 	// allow bad CVK to expire
-	time.Sleep(parentCVKPruneTime)
+	time.Sleep(parentCVKPruneTime + 5*time.Millisecond)
 	// confirm that bad cvk is no longer considered a child
 	{
 		if _, found := parent.Snapshot().Children.CVKs[badCVK.ID()]; found {
 			t.Errorf("bad child (ID%d) has not been pruned", badCVK.ID())
+		}
+	}
+	// check that the parent still recognizes all good cvks
+	allGoodChildrenValid(t, parent.Snapshot(), goodCVKs)
+}
+
+// check that the parent recognizes all good cvks
+func allGoodChildrenValid(t *testing.T, snapshot vaultkeeper.VKSnapshot, goodCVKs []*vaultkeeper.VaultKeeper) {
+	t.Helper()
+	for i, gcvk := range goodCVKs {
+		if v, found := snapshot.Children.CVKs[gcvk.ID()]; !found {
+			t.Errorf("failed to find child #%d (ID%d)", i, gcvk.ID())
+		} else if len(v.Services) != 0 {
+			t.Errorf("expected no services to be registered to child #%d (ID%d). Found: %v", i, gcvk.ID(), v.Services)
+		} else if v.Addr != goodCVKs[i].Address() {
+			t.Error("bad cvk address", ExpectedActual(goodCVKs[i].Address(), v.Addr))
 		}
 	}
 }
