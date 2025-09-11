@@ -59,7 +59,6 @@ func TestTwoLayerVault(t *testing.T) {
 				t.Errorf("cvk(%d) failed to JOIN: %v", cvk.ID(), err)
 			}
 			t.Logf("cvk (ID%d) joined parent", cvk.ID())
-
 		}(goodCVKs[i])
 	}
 	wg.Wait()
@@ -79,5 +78,44 @@ func TestTwoLayerVault(t *testing.T) {
 		}
 	}
 	// add a cvk that does not heartbeat and ensure it (and it alone) is pruned
-	// TODO
+	badCVK, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+		vaultkeeper.WithCustomHeartbeats(false, 0, 0))
+	if err != nil {
+		t.Fatal("failed to create bad (heartbeat-less) CVK: ", err)
+	} else if err := badCVK.Start(); err != nil {
+		t.Fatal("failed to start bad cvk", err)
+	}
+	if pvk, ver, ack, err := client.Hello(t.Context(), badCVK.ID(), parent.Address()); err != nil {
+		t.Errorf("cvk(%d) failed to HELLO: %v", badCVK.ID(), err)
+	} else if pvk != parent.ID() {
+		t.Error("bad response parent ID", ExpectedActual(parent.ID(), pvk))
+	} else if ver != protocol.SupportedVersions().HighestSupported() {
+		t.Error("bad version", ExpectedActual(protocol.SupportedVersions().HighestSupported(), ver))
+	} else if ack.Height != 1 {
+		t.Error("bad response parent height", ExpectedActual(1, ack.Height))
+	}
+	// join
+	if err := badCVK.Join(t.Context(), parent.Address()); err != nil {
+		t.Errorf("badCVK(%d) failed to JOIN: %v", badCVK.ID(), err)
+	}
+	t.Logf("badCVK (ID%d) joined parent", badCVK.ID())
+	// check that badCVk is considered a child
+	{
+		snap := parent.Snapshot()
+		if v, found := snap.Children.CVKs[badCVK.ID()]; !found {
+			t.Errorf("failed to find bad child (ID%d)", badCVK.ID())
+		} else if len(v.Services) != 0 {
+			t.Errorf("expected no services to be registered to bad child (ID%d). Found: %v", badCVK.ID(), v.Services)
+		} else if v.Addr != badCVK.Address() {
+			t.Error("bad cvk address", ExpectedActual(badCVK.Address(), v.Addr))
+		}
+	}
+	// allow bad CVK to expire
+	time.Sleep(parentCVKPruneTime)
+	// confirm that bad cvk is no longer considered a child
+	{
+		if _, found := parent.Snapshot().Children.CVKs[badCVK.ID()]; found {
+			t.Errorf("bad child (ID%d) has not been pruned", badCVK.ID())
+		}
+	}
 }
