@@ -1,19 +1,123 @@
 package slims_test
 
+// This file provides external testing to the slims library.
+// Lots of overlap with individual unit tests, making this somewhat redundant.
+
 import (
+	"maps"
 	"math/rand/v2"
+	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
+	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
+	"github.com/rs/zerolog"
 )
 
-// This file provides external testing to the slims library.
-// Lots of overlap with individual unit tests, making this somewhat redundant.
+// HeaderSerialization tests are serviced by implementations/slims/slims/protocol/protocol_test.go (and most thoroughly by TestFullSend()).
+
+// EndpointArgs tests are serviced.... all over the place.
+// This implementation does not use endpoints; instead, we switch on packet types. See basically all the tests in implementations/slims/slims/client/client_test.go and all of the Test_serve* tests in  implementations/slims/slims/vk/vaultkeeper_test.go.
+
+// StatusRequest is services via TestVaultKeeper_StartStop in implementations/slims/slims/vk/vaultkeeper_test.go and TestStatus in implementations/slims/slims/client/client_test.go.
+
+type leaf struct {
+	id       slims.NodeID
+	services map[string]netip.AddrPort // service -> service addr
+}
+
+// TestMultiServiceMultiLeaf spins up a single vk and joins multiple leaves under it. Each leaf offers at least one service and at least one service is offered by multiple leaves.
+func TestMultiServiceMultiLeaf(t *testing.T) {
+	const (
+		maxLeaves          uint32 = 25
+		maxServicesPerLeaf uint32 = 3
+
+		leafPrune  time.Duration = 100 * time.Millisecond
+		leafHBFreq time.Duration = 20 * time.Millisecond
+	)
+	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+		vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{
+			Hello:           3 * time.Second,        // functionally disabled
+			ServicelessLeaf: 200 * time.Millisecond, // to prove that heartbeats actually work
+			ChildVK:         3 * time.Second,        // irrelevant for this test
+		}), vaultkeeper.WithLogger(&zerolog.Logger{}))
+	if err != nil {
+		t.Fatal(err)
+	} else if err := vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// spawn a bunch of leaves and channels to catch heartbeat errors from them.
+	var (
+		leaves = make([]leaf, rand.Uint32N(maxLeaves+1))
+		hbErrs = make([]chan error, len(leaves)) // initialized with each leaf
+	)
+
+	for i := range leaves {
+		hbErrs = make([]chan error, 10)
+		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
+		leaves[i] = leaf{
+			id:       rand.Uint64(),
+			services: make(map[string]netip.AddrPort, serviceCount),
+		}
+
+		// attach it to the vk
+		parentID, _, ack, err := client.Hello(t.Context(), leaves[i].id, vk.Address())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parentID != vk.ID() {
+			t.Error(ExpectedActual(vk.ID(), parentID))
+		}
+		if ack.Height != uint32(vk.Height()) {
+			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
+		}
+		parentID, accept, err := client.Join(t.Context(), leaves[i].id, vk.Address(), struct {
+			IsVK   bool
+			VKAddr netip.AddrPort
+			Height uint16
+		}{false, netip.AddrPort{}, 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parentID != vk.ID() {
+			t.Error(ExpectedActual(vk.ID(), parentID))
+		}
+		if accept.Height != uint32(vk.Height()) {
+			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
+		}
+		for range serviceCount {
+			serviceName := randomdata.SillyName()
+			leaves[i].services[serviceName] = RandomLocalhostAddrPort()
+			parentID, accept, err := client.Register(t.Context(), vk.ID(), vk.Address(), serviceName, leaves[i].services[serviceName], 3*time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if parentID != vk.ID() {
+				t.Error(ExpectedActual(vk.ID(), parentID))
+			} else if serviceName != accept.Service {
+				t.Error(ExpectedActual(accept.Service, serviceName))
+			}
+			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].services[serviceName], leaves[i].id)
+		}
+
+		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{vk.ID(), vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hbErrs[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			cancel <- true
+		}()
+	}
+	// assign each leaf a random service and then randomly add "ssh" to two different leaves (to ensure we have an overlapping service)
+	// TODO
+}
 
 // TestTwoLayerVault spins up a root vk and joins several children under it, then ensures only the ones with no auto-beater get pruned.
 func TestTwoLayerVault(t *testing.T) {
