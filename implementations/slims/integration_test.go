@@ -95,7 +95,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		for range serviceCount {
 			serviceName := randomdata.SillyName()
 			leaves[i].services[serviceName] = RandomLocalhostAddrPort()
-			parentID, accept, err := client.Register(t.Context(), vk.ID(), vk.Address(), serviceName, leaves[i].services[serviceName], 3*time.Minute)
+			parentID, accept, err := client.Register(t.Context(), leaves[i].id, vk.Address(), serviceName, leaves[i].services[serviceName], 3*time.Minute)
 			if err != nil {
 				t.Fatal(err)
 			}
