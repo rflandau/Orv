@@ -4,12 +4,14 @@ package vaultkeeper
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
 	"strings"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
@@ -19,6 +21,8 @@ import (
 // handler is the core processing called for each request.
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
+
+const registerPropagateTimeout time.Duration = 1 * time.Second
 
 // serveStatus answers STATUS packets, returning a variety of information about the vk.
 // Briefly holds a read lock on structure.
@@ -186,13 +190,24 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 		ID:      vk.id,
 	}, &pb.RegisterAccept{Service: registerReq.Service})
 
-	// TODO propagate the REGISTER up the vault
 	vk.structure.mu.Lock()
 	if vk.structure.parentAddr.IsValid() {
+		// register the service to our parent under our name
+		// TODO  test me
+		ctx, cancel := context.WithTimeout(context.Background(), registerPropagateTimeout)
+		defer cancel()
+		if parentID, accept, err := client.Register(ctx, vk.id, vk.structure.parentAddr, registerReq.Service, serviceAddress, 0); err != nil {
+			vk.log.Error().Err(err).Uint64("parent id", vk.structure.parentID).Msg("failed to register service with parent")
+		} else {
+			if parentID != vk.structure.parentID {
+				vk.log.Warn().Uint64("expected parent id", vk.structure.parentID).Uint64("actual parent id", parentID).Msg("incorrect response ID from parent when registering service")
+			} else if accept.Service != registerReq.Service {
+				vk.log.Warn().Uint64("expected parent id", vk.structure.parentID).Uint64("actual parent id", parentID).Msg("incorrect response ID from parent when registering service")
+			}
+		}
+		vk.log.Debug().AnErr("register error", err).Str("service", registerReq.Service).Str("service address", serviceAddress.String()).Msg("registered child service to parent")
 	}
-
 	vk.structure.mu.Unlock()
-	// TODO
 }
 
 // serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.
