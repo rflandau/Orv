@@ -131,9 +131,9 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req str
 func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, service string, serviceAddr netip.AddrPort, stale time.Duration) (vkID slims.NodeID, _ *pb.RegisterAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
-		return // TODO
+		return 0, nil, slims.ErrNilCtx
 	} else if !target.IsValid() {
-		return // TODO
+		return 0, nil, ErrInvalidAddrPort
 	}
 	UDPAddr := net.UDPAddrFromAddrPort(target)
 	if UDPAddr == nil {
@@ -157,8 +157,27 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 		}); err != nil {
 
 	}
-	// TODO
-	return 0, nil, nil
+	// receive
+	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	switch respHdr.Type {
+	case mt.Fault:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(respBody, f); err != nil {
+			return respHdr.ID, nil, err
+		}
+		return respHdr.ID, nil, errors.New(f.Reason)
+	case mt.RegisterAccept:
+		accept := &pb.RegisterAccept{}
+		if err := proto.Unmarshal(respBody, accept); err != nil {
+			return respHdr.ID, nil, err
+		}
+		return respHdr.ID, accept, nil
+	default:
+		return respHdr.ID, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
 }
 
 // ServiceHeartbeat sends a SERVICE_HEARTBEAT packet to the given address, which must be owned by this node's parent.
