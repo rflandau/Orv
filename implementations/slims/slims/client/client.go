@@ -240,6 +240,8 @@ type ParentInfo struct {
 // AutoServiceHeartbeat spins out a goroutine to send heartbeats for services on behalf of myID every frequency.
 // Easy way to spin up heartbeating for your service(s) without having to manually incorporate ServiceHeartbeats.
 //
+// hbWriteTimeout sets the timeout for each HB send.
+//
 // If hberrs is nil, errors will be thrown away.
 // If not nil, hberrs will be closed when the heartbeater dies.
 //
@@ -249,7 +251,7 @@ type ParentInfo struct {
 // If no services remain to be heartbeated for, the goroutine will exit.
 //
 // TODO test me
-func AutoServiceHeartbeat(timeout, frequency time.Duration, myID slims.NodeID, p ParentInfo, servicesToHB []string, hbErrs chan<- error) (cancel chan<- bool, _ error) {
+func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.NodeID, p ParentInfo, servicesToHB []string, hbErrs chan<- error) (cancel chan<- bool, _ error) {
 	// validate params
 	if frequency <= 0 {
 		return nil, errors.New("frequency must be a positive duration")
@@ -269,7 +271,7 @@ func AutoServiceHeartbeat(timeout, frequency time.Duration, myID slims.NodeID, p
 				return
 			case <-time.After(frequency): // send HB on freq
 				// send the request
-				ctx, c := context.WithTimeout(context.Background(), timeout)
+				ctx, c := context.WithTimeout(context.Background(), hbWriteTimeout)
 				pVKID, _, unknown, err := ServiceHeartbeat(ctx, myID, p.Addr, servicesToHB)
 				if err != nil {
 					if hbErrs != nil {
