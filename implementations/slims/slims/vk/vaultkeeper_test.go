@@ -555,10 +555,6 @@ func checkParent(t *testing.T, vk *VaultKeeper, expected struct {
 	vk.structure.mu.RUnlock()
 }
 
-func Test_serveRegister(t *testing.T) {
-	// TODO
-}
-
 // spawnResponseListener spools up a *unbuffered* UDP packet listener that echoes each packet it receives over the returned channel.
 // Because the listener is unbuffered, it will block the listener until the channel is consumed.
 //
@@ -606,8 +602,116 @@ func spawnResponseListener(t *testing.T) (requestorAddr *net.UDPAddr, resp chan 
 	return requestorAddr, resp, cancel
 }
 
-// Spins up a VK and crafts serviceHeartbeat packets to send to it, directing the response over a dummy response listener.
+func Test_serveRegister(t *testing.T) {
+	const servicelessLeafPT time.Duration = 400 * time.Millisecond
+
+	requestorAddr, respCh, cancel := spawnResponseListener(t)
+	defer cancel()
+	t.Logf("requestor address: %v", requestorAddr)
+
+	// test expired join (no services registered in time) // TODO
+	// test out of order (only JOIN)
+	// test normal // TODO
+
+	tests := []struct {
+		name      string
+		sendHELLO bool
+		join      struct {
+			send bool // send one at all?
+			req  struct {
+				IsVK   bool
+				VKAddr netip.AddrPort
+				Height uint16
+			}
+		}
+		registerDelay time.Duration // how long to wait after sending a JOIN (or when a JOIN would have been sent) before sending the register
+		header        protocol.Header
+		body          proto.Message
+		wantType      mt.MessageType
+	}{
+		{"only HELLO",
+			true,
+			struct {
+				send bool
+				req  struct {
+					IsVK   bool
+					VKAddr netip.AddrPort
+					Height uint16
+				}
+			}{
+				false,
+				struct {
+					IsVK   bool
+					VKAddr netip.AddrPort
+					Height uint16
+				}{false, netip.AddrPort{}, 0}},
+			0, protocol.Header{}, &pb.Register{}, mt.Fault},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// spin up the vk
+			vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+				WithPruneTimes(PruneTimes{10 * time.Second, servicelessLeafPT, 10 * time.Second}),
+				WithLogger(&zerolog.Logger{}), // suppress logging
+			)
+			if err != nil {
+				t.Fatal(err)
+			} else if err := vk.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer vk.Stop()
+			t.Logf("vk address: %v", vk.Address())
+
+			// generate a child ID to use
+			childID := rand.Uint64()
+
+			// send a HELLO (if applicable)
+			if tt.sendHELLO {
+				// only bother to check err; the other tests check hello for us quite a bit
+				if _, _, _, err := client.Hello(t.Context(), childID, vk.Address()); err != nil {
+					t.Fatal("failed to HELLO:", err)
+				}
+			}
+			if tt.join.send {
+				// only bother to check err; the other tests check join for us quite a bit
+				if _, _, err := client.Join(t.Context(), childID, vk.Address(), tt.join.req); err != nil {
+					t.Fatal("failed to JOIN:", err)
+				}
+			}
+			if tt.registerDelay > 0 {
+				time.Sleep(tt.registerDelay)
+			}
+
+			// craft a packet
+			bd, err := proto.Marshal(tt.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// use the requestor addr to receive the packet echo
+			vk.serveRegister(tt.header, bd, requestorAddr)
+			registerResp := <-respCh
+			if registerResp.err != nil {
+				t.Fatal(err)
+			}
+			if registerResp.origAddr.String() != vk.addr.String() {
+				t.Error("bad address", ExpectedActual(vk.addr.String(), registerResp.origAddr.String()))
+			}
+			if registerResp.hdr.ID != vk.ID() {
+				t.Error("bad vk ID", ExpectedActual(vk.ID(), registerResp.hdr.ID))
+			}
+			if registerResp.hdr.Type != tt.wantType {
+				t.Error("bad response message type", ExpectedActual(tt.wantType, registerResp.hdr.Type))
+			}
+		})
+	}
+
+	// TODO
+}
+
+// Each test spins up a VK and crafts serviceHeartbeat packets to send to it, directing the response over a dummy response listener.
 // Validates the response packet matches the information contained in the VK.
+// NOTE(rlandau): the dummy response listener is shared across all tests.
 func Test_serveServiceHeartbeat(t *testing.T) {
 	requestorAddr, respCh, cancel := spawnResponseListener(t)
 	defer cancel()
@@ -747,7 +851,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 					t.Fatal("failed to unmarshal body as fault")
 				}
 			case mt.ServiceHeartbeatAck:
-				var ack pb.ServiceHeartbeatAck //TODO
+				var ack pb.ServiceHeartbeatAck
 				if err := proto.Unmarshal(vkResp.body, &ack); err != nil {
 					t.Fatal("failed to unmarshal body as service heartbeat")
 				}
