@@ -78,11 +78,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		if ack.Height != uint32(vk.Height()) {
 			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
 		}
-		parentID, accept, err := client.Join(t.Context(), leaves[i].id, vk.Address(), struct {
-			IsVK   bool
-			VKAddr netip.AddrPort
-			Height uint16
-		}{false, netip.AddrPort{}, 0})
+		parentID, accept, err := client.Join(t.Context(), leaves[i].id, vk.Address(), client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0})
 		if err != nil {
 			t.Fatal(err)
 		}

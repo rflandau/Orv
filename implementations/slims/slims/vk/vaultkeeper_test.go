@@ -394,11 +394,7 @@ func Test_Join(t *testing.T) {
 			t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
 		}
 		t.Logf("child (%d) sending JOIN to parent (%d)", leafID, parentVK.ID())
-		if vkID, accept, err := client.Join(t.Context(), leafID, parentVK.Address(), struct {
-			IsVK   bool
-			VKAddr netip.AddrPort
-			Height uint16
-		}{false, netip.AddrPort{}, 0}); err != nil {
+		if vkID, accept, err := client.Join(t.Context(), leafID, parentVK.Address(), client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}); err != nil {
 			t.Fatal(err)
 		} else if vkID != parentVK.ID() {
 			t.Fatal(ExpectedActual(parentVK.ID(), vkID))
@@ -618,11 +614,7 @@ func Test_serveRegister(t *testing.T) {
 		sendHELLO bool
 		join      struct {
 			send bool // send one at all?
-			req  struct {
-				IsVK   bool
-				VKAddr netip.AddrPort
-				Height uint16
-			}
+			req  client.JoinInfo
 		}
 		registerDelay time.Duration // how long to wait after sending a JOIN (or when a JOIN would have been sent) before sending the register
 		header        protocol.Header
@@ -633,18 +625,10 @@ func Test_serveRegister(t *testing.T) {
 			true,
 			struct {
 				send bool
-				req  struct {
-					IsVK   bool
-					VKAddr netip.AddrPort
-					Height uint16
-				}
+				req  client.JoinInfo
 			}{
 				false,
-				struct {
-					IsVK   bool
-					VKAddr netip.AddrPort
-					Height uint16
-				}{false, netip.AddrPort{}, 0}},
+				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
 			0, protocol.Header{}, &pb.Register{}, mt.Fault},
 	}
 

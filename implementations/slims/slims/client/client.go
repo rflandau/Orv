@@ -69,16 +69,20 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 	}
 }
 
+// JoinInfo contains information about the requestor used to compose the JOIN request.
+// If you are trying to join as a vk, prefer vaultkeeper.Join() (which will populate this for you).
+type JoinInfo struct {
+	IsVK   bool           // am I a VK?
+	VKAddr netip.AddrPort // required iff isVK: where I am listening
+	Height uint16         // required iff isVK: what is my current height
+}
+
 // Join sends a JOIN packet to the given address, returning the target node's response or an error.
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
 // If you are trying to join as a vk, prefer vaultkeeper.Join().
 //
 // This subroutine can be invoked by any node wishing to join a vault (as a leaf or as a child vk).
-func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req struct {
-	IsVK   bool
-	VKAddr netip.AddrPort // required iff isVK: where I am listening
-	Height uint16         // required iff isVK: what is my current height
-}) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
+func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req JoinInfo) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
 		return 0, nil, slims.ErrNilCtx

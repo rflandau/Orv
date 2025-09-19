@@ -162,11 +162,7 @@ func TestJoin(t *testing.T) {
 	t.Run("premature join", func(t *testing.T) {
 		for range repeat {
 			// send a join
-			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
-				IsVK   bool
-				VKAddr netip.AddrPort
-				Height uint16
-			}{false, netip.AddrPort{}, 0})
+			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, client.JoinInfo{false, netip.AddrPort{}, 0})
 			if err == nil {
 				t.Fatal("expected a Join error due to premature join")
 			} else if accept != nil {
@@ -190,11 +186,7 @@ func TestJoin(t *testing.T) {
 				t.Fatal(ExpectedActual(uint32(vk.Height()), ack.Height))
 			}
 			// send a join
-			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
-				IsVK   bool
-				VKAddr netip.AddrPort
-				Height uint16
-			}{false, netip.AddrPort{}, 0})
+			vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, client.JoinInfo{false, netip.AddrPort{}, 0})
 			if err == nil {
 				t.Fatal("expected a Join error due to premature join")
 			} else if accept != nil {
@@ -219,11 +211,7 @@ func TestJoin(t *testing.T) {
 					t.Fatal(ExpectedActual(uint32(vk.Height()), ack.Height))
 				}
 				// send a join
-				vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, struct {
-					IsVK   bool
-					VKAddr netip.AddrPort
-					Height uint16
-				}{false, netip.AddrPort{}, 0})
+				vkID, accept, err := client.Join(t.Context(), nodeID, VKAP, client.JoinInfo{false, netip.AddrPort{}, 0})
 				// validate
 				if err != nil {
 					t.Fatal(err)
@@ -268,11 +256,7 @@ func TestJoin(t *testing.T) {
 		// wait for that hello to expire
 		time.Sleep(31 * time.Millisecond)
 		// try to join
-		if vkIDJoin, accept, err := client.Join(t.Context(), nodeID, vkB.Address(), struct {
-			IsVK   bool
-			VKAddr netip.AddrPort
-			Height uint16
-		}{false, netip.AddrPort{}, 0}); err == nil {
+		if vkIDJoin, accept, err := client.Join(t.Context(), nodeID, vkB.Address(), client.JoinInfo{false, netip.AddrPort{}, 0}); err == nil {
 			t.Fatal("expected a Join error due hello expiration")
 		} else if accept != nil {
 			t.Fatalf("expected accept to be nil due to failure. Found %#v instead", accept)

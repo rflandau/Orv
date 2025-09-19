@@ -27,11 +27,7 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 
-	parentID, _, err := client.Join(ctx, vk.id, target, struct {
-		IsVK   bool
-		VKAddr netip.AddrPort
-		Height uint16
-	}{true, vk.addr, vk.structure.height})
+	parentID, _, err := client.Join(ctx, vk.id, target, client.JoinInfo{IsVK: true, VKAddr: vk.addr, Height: vk.structure.height})
 	if err != nil {
 		return err
 	}
