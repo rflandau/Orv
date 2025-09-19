@@ -555,47 +555,62 @@ func checkParent(t *testing.T, vk *VaultKeeper, expected struct {
 	vk.structure.mu.RUnlock()
 }
 
-func Test_serveServiceHeartbeat(t *testing.T) {
-	var (
-		requestorAddr *net.UDPAddr
-		responses     chan struct {
-			n        int
-			origAddr net.Addr
-			hdr      protocol.Header
-			body     []byte
-			err      error
-		}
-	)
-	{ // spin up a listener to receive responses and a channel to forward them on
-		earAP := RandomLocalhostAddrPort()
-		requestorAddr = net.UDPAddrFromAddrPort(earAP)
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		pconn, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", earAP.String())
-		if err != nil {
-			t.Fatal(err)
-		}
-		responses = make(chan struct {
-			n        int
-			origAddr net.Addr
-			hdr      protocol.Header
-			body     []byte
-			err      error
-		})
-		// send all packets received across the channel
-		go func() {
-			for ctx.Err() == nil {
-				n, origAddr, hdr, body, err := protocol.ReceivePacket(pconn, t.Context())
-				responses <- struct {
-					n        int
-					origAddr net.Addr
-					hdr      protocol.Header
-					body     []byte
-					err      error
-				}{n, origAddr, hdr, body, err}
-			}
-		}()
+func Test_serveRegister(t *testing.T) {
+	// TODO
+}
+
+// spawnResponseListener spools up a *unbuffered* UDP packet listener that echoes each packet it receives over the returned channel.
+// Because the listener is unbuffered, it will block the listener until the channel is consumed.
+//
+// Can be cancelled with the returned function.
+// The listener only stops (and then closes the channel) after cancel() is invoked.
+// Calls Fatal if it fails to create the listener.
+func spawnResponseListener(t *testing.T) (requestorAddr *net.UDPAddr, resp chan struct {
+	n        int             // number of bytes in the packet
+	origAddr net.Addr        // originator address
+	hdr      protocol.Header // packet header
+	body     []byte          // packet body
+	err      error           // error listening
+}, cancel func()) {
+	t.Helper()
+	// spin up a listener to receive responses and a channel to forward them on
+	earAP := RandomLocalhostAddrPort()
+	requestorAddr = net.UDPAddrFromAddrPort(earAP)
+	ctx, cancel := context.WithCancel(t.Context())
+	pconn, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", earAP.String())
+	if err != nil {
+		t.Fatal(err)
 	}
+	resp = make(chan struct {
+		n        int
+		origAddr net.Addr
+		hdr      protocol.Header
+		body     []byte
+		err      error
+	})
+	// send all packets received across the channel
+	go func() {
+		for ctx.Err() == nil {
+			n, origAddr, hdr, body, err := protocol.ReceivePacket(pconn, t.Context())
+			resp <- struct {
+				n        int
+				origAddr net.Addr
+				hdr      protocol.Header
+				body     []byte
+				err      error
+			}{n, origAddr, hdr, body, err}
+		}
+		close(resp)
+	}()
+
+	return requestorAddr, resp, cancel
+}
+
+// Spins up a VK and crafts serviceHeartbeat packets to send to it, directing the response over a dummy response listener.
+// Validates the response packet matches the information contained in the VK.
+func Test_serveServiceHeartbeat(t *testing.T) {
+	requestorAddr, respCh, cancel := spawnResponseListener(t)
+	defer cancel()
 	t.Logf("requestor address: %v", requestorAddr)
 
 	// can be used in test creation to ensure that the ID in the header matches the ID of one or more registered services
@@ -667,7 +682,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// spin up the vk
 			vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
-				WithPruneTimes(PruneTimes{10 * time.Second, 10 * time.Second, 10 * time.Second}), // functionally disable prune times for ease of use // TODO
+				WithPruneTimes(PruneTimes{10 * time.Second, 10 * time.Second, 10 * time.Second}),
 				WithLogger(&zerolog.Logger{}), // suppress logging
 			)
 			if err != nil {
@@ -695,7 +710,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				t.Fatal(err)
 			}
 			vk.serveServiceHeartbeat(tt.reqHdr, bd, requestorAddr)
-			vkResp := <-responses
+			vkResp := <-respCh
 			// check for values set across all tests
 			if vkResp.err != nil {
 				t.Fatal(err)
