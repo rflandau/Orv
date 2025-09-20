@@ -21,9 +21,108 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type FaultCode int32
+
+const (
+	FaultCode_A FaultCode = 0
+	FaultCode_B FaultCode = 1
+)
+
+// Enum value maps for FaultCode.
+var (
+	FaultCode_name = map[int32]string{
+		0: "A",
+		1: "B",
+	}
+	FaultCode_value = map[string]int32{
+		"A": 0,
+		"B": 1,
+	}
+)
+
+func (x FaultCode) Enum() *FaultCode {
+	p := new(FaultCode)
+	*p = x
+	return p
+}
+
+func (x FaultCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FaultCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_slims_pb_payloads_proto_enumTypes[0].Descriptor()
+}
+
+func (FaultCode) Type() protoreflect.EnumType {
+	return &file_slims_pb_payloads_proto_enumTypes[0]
+}
+
+func (x FaultCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FaultCode.Descriptor instead.
+func (FaultCode) EnumDescriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0}
+}
+
+type MessageType int32
+
+const (
+	MessageType_mt_UNKNOWN MessageType = 0
+	MessageType_mt_FAULT   MessageType = 1
+	MessageType_mt_HELLO   MessageType = 2
+)
+
+// Enum value maps for MessageType.
+var (
+	MessageType_name = map[int32]string{
+		0: "mt_UNKNOWN",
+		1: "mt_FAULT",
+		2: "mt_HELLO",
+	}
+	MessageType_value = map[string]int32{
+		"mt_UNKNOWN": 0,
+		"mt_FAULT":   1,
+		"mt_HELLO":   2,
+	}
+)
+
+func (x MessageType) Enum() *MessageType {
+	p := new(MessageType)
+	*p = x
+	return p
+}
+
+func (x MessageType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MessageType) Descriptor() protoreflect.EnumDescriptor {
+	return file_slims_pb_payloads_proto_enumTypes[1].Descriptor()
+}
+
+func (MessageType) Type() protoreflect.EnumType {
+	return &file_slims_pb_payloads_proto_enumTypes[1]
+}
+
+func (x MessageType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MessageType.Descriptor instead.
+func (MessageType) EnumDescriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{1}
+}
+
+// Type #1
+// Negative response to any packet.
 type Fault struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
+	PacketType    MessageType            `protobuf:"varint,1,opt,name=packet_type,json=packetType,proto3,enum=orv.MessageType" json:"packet_type,omitempty"` // uint16 | echos the type number of the original packet
+	Errno         FaultCode              `protobuf:"varint,2,opt,name=errno,proto3,enum=orv.FaultCode" json:"errno,omitempty"`                               // uint16 | the type of error, for automated testing
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                                 // human-readable reason for rejecting this request
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -56,6 +155,20 @@ func (x *Fault) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Fault.ProtoReflect.Descriptor instead.
 func (*Fault) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Fault) GetPacketType() MessageType {
+	if x != nil {
+		return x.PacketType
+	}
+	return MessageType_mt_UNKNOWN
+}
+
+func (x *Fault) GetErrno() FaultCode {
+	if x != nil {
+		return x.Errno
+	}
+	return FaultCode_A
 }
 
 func (x *Fault) GetReason() string {
@@ -703,9 +816,12 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\"\x1f\n" +
-	"\x05Fault\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\"\"\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\"z\n" +
+	"\x05Fault\x122\n" +
+	"\vpacket_type\x18\x01 \x01(\x0e2\x11.orv.message_typeR\n" +
+	"packetType\x12%\n" +
+	"\x05errno\x18\x02 \x01(\x0e2\x0f.orv.fault_codeR\x05errno\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"\"\n" +
 	"\bHelloAck\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\rR\x06height\"J\n" +
 	"\x04Join\x12\x12\n" +
@@ -742,7 +858,16 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x06hostID\x18\x01 \x01(\x04R\x06hostID\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
-	"\x06uint64\x18\x04 \x01(\x04R\x06uint64B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\x06uint64\x18\x04 \x01(\x04R\x06uint64*\x1a\n" +
+	"\n" +
+	"fault_code\x12\x05\n" +
+	"\x01A\x10\x00\x12\x05\n" +
+	"\x01B\x10\x01*:\n" +
+	"\fmessage_type\x12\x0e\n" +
+	"\n" +
+	"mt_UNKNOWN\x10\x00\x12\f\n" +
+	"\bmt_FAULT\x10\x01\x12\f\n" +
+	"\bmt_HELLO\x10\x02B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
@@ -756,28 +881,33 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 	return file_slims_pb_payloads_proto_rawDescData
 }
 
+var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_slims_pb_payloads_proto_goTypes = []any{
-	(*Fault)(nil),               // 0: orv.Fault
-	(*HelloAck)(nil),            // 1: orv.HelloAck
-	(*Join)(nil),                // 2: orv.Join
-	(*JoinAccept)(nil),          // 3: orv.JoinAccept
-	(*Register)(nil),            // 4: orv.Register
-	(*RegisterAccept)(nil),      // 5: orv.RegisterAccept
-	(*ServiceHeartbeat)(nil),    // 6: orv.ServiceHeartbeat
-	(*ServiceHeartbeatAck)(nil), // 7: orv.ServiceHeartbeatAck
-	(*StatusResp)(nil),          // 8: orv.StatusResp
-	(*List)(nil),                // 9: orv.List
-	(*ListResp)(nil),            // 10: orv.ListResp
-	(*Get)(nil),                 // 11: orv.Get
-	(*GetResp)(nil),             // 12: orv.GetResp
+	(FaultCode)(0),              // 0: orv.fault_code
+	(MessageType)(0),            // 1: orv.message_type
+	(*Fault)(nil),               // 2: orv.Fault
+	(*HelloAck)(nil),            // 3: orv.HelloAck
+	(*Join)(nil),                // 4: orv.Join
+	(*JoinAccept)(nil),          // 5: orv.JoinAccept
+	(*Register)(nil),            // 6: orv.Register
+	(*RegisterAccept)(nil),      // 7: orv.RegisterAccept
+	(*ServiceHeartbeat)(nil),    // 8: orv.ServiceHeartbeat
+	(*ServiceHeartbeatAck)(nil), // 9: orv.ServiceHeartbeatAck
+	(*StatusResp)(nil),          // 10: orv.StatusResp
+	(*List)(nil),                // 11: orv.List
+	(*ListResp)(nil),            // 12: orv.ListResp
+	(*Get)(nil),                 // 13: orv.Get
+	(*GetResp)(nil),             // 14: orv.GetResp
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: orv.Fault.packet_type:type_name -> orv.message_type
+	0, // 1: orv.Fault.errno:type_name -> orv.fault_code
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_slims_pb_payloads_proto_init() }
@@ -790,13 +920,14 @@ func file_slims_pb_payloads_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      2,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_slims_pb_payloads_proto_goTypes,
 		DependencyIndexes: file_slims_pb_payloads_proto_depIdxs,
+		EnumInfos:         file_slims_pb_payloads_proto_enumTypes,
 		MessageInfos:      file_slims_pb_payloads_proto_msgTypes,
 	}.Build()
 	File_slims_pb_payloads_proto = out.File

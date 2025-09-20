@@ -1,0 +1,32 @@
+syntax = "proto3";
+package msg;
+
+option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
+
+
+// TODO replace builtin message type with pb.MessageType
+enum type {
+  UNKNOWN = 0;
+  FAULT = 1;
+  HELLO = 2;
+  HELLO_ACK = 3;
+  JOIN = 4;
+  JOIN_ACCEPT = 5;
+  REGISTER = 6;
+  REGISTER_ACCEPT = 7;
+  MERGE = 8;
+  MERGE_ACCEPT = 9;
+  INCREMENT = 10;
+  INCREMENT_ACK = 11;
+  SERVICE_HEARTBEAT = 12;
+  SERVICE_HEARTBEAT_ACK = 13;
+  VK_HEARTBEAT = 14;
+  VK_HEARTBEAT_ACK = 15;
+  // client
+  STATUS = 16;
+  STATUS_RESP = 17;
+  LIST = 18;
+  LIST_RESP = 19;
+  GET = 20;
+  GET_RESP = 21;
+}
