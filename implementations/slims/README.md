@@ -1,18 +1,12 @@
-Slims is a an Orv implementation using a custom layer 5 protocol.
-
-# TODO
-
-- protobuf -> flatbuf
-- rename implementation packages to avoid confusion
-- install magefile (automated testing with -race; protobuf compilation)
+Slims is a an Orv variant using a custom layer 5 protocol. This Go implementation was created as part of an independent study during the last semester of my masters at Carnegie Mellon University.
 
 # Message Types
 
 Message types are similar to those detailed in the interaction model in the [main README](../../README.md) and are detailed in [PACKETS.md](PACKETS.md).
 
-# Payloads
+# Payload Serialization
 
-Orv payloads are serialized as flatbuffers and encapsulated in the header detailed above.
+Orv payloads are serialized as protocol buffers (version 3) and encapsulated in the header detailed above.
 
 # Version Negotiation
 
