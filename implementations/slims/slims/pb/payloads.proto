@@ -1,14 +1,15 @@
 syntax = "proto3";
 package orv;
 
-import "google/protobuf/go_features.proto";
+// TODO
+//import "google/protobuf/go_features.proto";
 import "slims/pb/message_types.proto";
 
 // generate with:
 // protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
 
 option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
-option features.(pb.go).strip_enum_prefix = STRIP_ENUM_PREFIX_STRIP;
+//option features.(pb.go).strip_enum_prefix = STRIP_ENUM_PREFIX_STRIP;
 
 // Type #1
 // Negative response to any packet.
@@ -16,15 +17,24 @@ message Fault{
   // uint16 | echos the type number of the original packet
   msg.MessageType original = 1;
 
-  // NOTE(rlandau): at the time of writing, Go treats all enums as open.
-  // We'd much prefer they be closed. Alas.
-  // https://protobuf.dev/programming-guides/enum/
-  enum FaultCode {
-    UNKNOWN_TYPE = 0;
-    B = 1; // TODO
+  enum General {
+    UNKNOWN_TYPE = 0; // sent when an unknown message type number is declared.
+    BODY_NOT_ACCEPTED = 1; // sent when a payload is included in a packet that does not have one.
+    BODY_REQUIRED = 2; // sent when a payload is not included with a message type that requires one.
   }
-  FaultCode errno = 2; // uint16 | the type of error, for automated testing
-  string reason = 3; // human-readable reason for rejecting this request
+
+  enum Join {
+    HELLO_REQUIRED = 0; // sent when a JOIN is received but there is no outstanding HELLO for the given ID.
+  }
+
+  uint32 errno = 2; // uint16 | the type of error, for automated testing
+  optional string additional_info = 3; // (OPTIONAL) 
+}
+
+// Type #2
+// Initial greeting.
+// Requiring prior to other, non-client-request packet chains. 
+message Hello {
 }
 
 // Type #3
