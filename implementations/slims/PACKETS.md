@@ -53,11 +53,13 @@ FAULT may be sent in response to any number of request packets.
 
 ### Payload
 
-1. *packet type*: the type of the original packet (in uint form).
+1. *packet type*: type number of the original packet
     - example (in response to a HELLO): 2 
-1. *reason*: (OPTIONAL) reason for rejecting this JOIN request.
+2. *error number*: machine-friendly, enumerated reason for rejecting this requested
+1. *reason string*: (OPTIONAL) human-readable reason for rejecting this request
     - example (for REGISTER): "bad stale time"
     - example (for VK_HEARTBEAT): "not my child"
+
 ## HELLO
 
 **Type Number:** 2
