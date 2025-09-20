@@ -21,108 +21,63 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type FaultCode int32
+// NOTE(rlandau): at the time of writing, Go treats all enums as open.
+// We'd much prefer they be closed. Alas.
+// https://protobuf.dev/programming-guides/enum/
+type Fault_FaultCode int32
 
 const (
-	FaultCode_A FaultCode = 0
-	FaultCode_B FaultCode = 1
+	Fault_UNKNOWN_TYPE Fault_FaultCode = 0
+	Fault_B            Fault_FaultCode = 1 // TODO
 )
 
-// Enum value maps for FaultCode.
+// Enum value maps for Fault_FaultCode.
 var (
-	FaultCode_name = map[int32]string{
-		0: "A",
+	Fault_FaultCode_name = map[int32]string{
+		0: "UNKNOWN_TYPE",
 		1: "B",
 	}
-	FaultCode_value = map[string]int32{
-		"A": 0,
-		"B": 1,
+	Fault_FaultCode_value = map[string]int32{
+		"UNKNOWN_TYPE": 0,
+		"B":            1,
 	}
 )
 
-func (x FaultCode) Enum() *FaultCode {
-	p := new(FaultCode)
+func (x Fault_FaultCode) Enum() *Fault_FaultCode {
+	p := new(Fault_FaultCode)
 	*p = x
 	return p
 }
 
-func (x FaultCode) String() string {
+func (x Fault_FaultCode) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (FaultCode) Descriptor() protoreflect.EnumDescriptor {
+func (Fault_FaultCode) Descriptor() protoreflect.EnumDescriptor {
 	return file_slims_pb_payloads_proto_enumTypes[0].Descriptor()
 }
 
-func (FaultCode) Type() protoreflect.EnumType {
+func (Fault_FaultCode) Type() protoreflect.EnumType {
 	return &file_slims_pb_payloads_proto_enumTypes[0]
 }
 
-func (x FaultCode) Number() protoreflect.EnumNumber {
+func (x Fault_FaultCode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use FaultCode.Descriptor instead.
-func (FaultCode) EnumDescriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0}
-}
-
-type MessageType int32
-
-const (
-	MessageType_mt_UNKNOWN MessageType = 0
-	MessageType_mt_FAULT   MessageType = 1
-	MessageType_mt_HELLO   MessageType = 2
-)
-
-// Enum value maps for MessageType.
-var (
-	MessageType_name = map[int32]string{
-		0: "mt_UNKNOWN",
-		1: "mt_FAULT",
-		2: "mt_HELLO",
-	}
-	MessageType_value = map[string]int32{
-		"mt_UNKNOWN": 0,
-		"mt_FAULT":   1,
-		"mt_HELLO":   2,
-	}
-)
-
-func (x MessageType) Enum() *MessageType {
-	p := new(MessageType)
-	*p = x
-	return p
-}
-
-func (x MessageType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (MessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_slims_pb_payloads_proto_enumTypes[1].Descriptor()
-}
-
-func (MessageType) Type() protoreflect.EnumType {
-	return &file_slims_pb_payloads_proto_enumTypes[1]
-}
-
-func (x MessageType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use MessageType.Descriptor instead.
-func (MessageType) EnumDescriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use Fault_FaultCode.Descriptor instead.
+func (Fault_FaultCode) EnumDescriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0, 0}
 }
 
 // Type #1
 // Negative response to any packet.
 type Fault struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PacketType    MessageType            `protobuf:"varint,1,opt,name=packet_type,json=packetType,proto3,enum=orv.MessageType" json:"packet_type,omitempty"` // uint16 | echos the type number of the original packet
-	Errno         FaultCode              `protobuf:"varint,2,opt,name=errno,proto3,enum=orv.FaultCode" json:"errno,omitempty"`                               // uint16 | the type of error, for automated testing
-	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                                 // human-readable reason for rejecting this request
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// uint16 | echos the type number of the original packet
+	Original      MessageType     `protobuf:"varint,1,opt,name=original,proto3,enum=msg.MessageType" json:"original,omitempty"`
+	Errno         Fault_FaultCode `protobuf:"varint,2,opt,name=errno,proto3,enum=orv.Fault_FaultCode" json:"errno,omitempty"` // uint16 | the type of error, for automated testing
+	Reason        string          `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                         // human-readable reason for rejecting this request
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -157,18 +112,18 @@ func (*Fault) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Fault) GetPacketType() MessageType {
+func (x *Fault) GetOriginal() MessageType {
 	if x != nil {
-		return x.PacketType
+		return x.Original
 	}
-	return MessageType_mt_UNKNOWN
+	return MessageType_UNKNOWN
 }
 
-func (x *Fault) GetErrno() FaultCode {
+func (x *Fault) GetErrno() Fault_FaultCode {
 	if x != nil {
 		return x.Errno
 	}
-	return FaultCode_A
+	return Fault_UNKNOWN_TYPE
 }
 
 func (x *Fault) GetReason() string {
@@ -227,10 +182,13 @@ func (x *HelloAck) GetHeight() uint32 {
 // Type #4
 // Requesting to join a vault.
 type Join struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	IsVK          bool                   `protobuf:"varint,1,opt,name=isVK,proto3" json:"isVK,omitempty"`     // is the node requesting to join the vault a VK?
-	VkAddr        string                 `protobuf:"bytes,2,opt,name=vkAddr,proto3" json:"vkAddr,omitempty"`  // required iff isVK | address at which the VK can receive requests/INCREMENTs
-	Height        uint32                 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"` // uint16 | required iff isVK | height of the requestor node
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// is the node requesting to join the vault a VK?
+	IsVk bool `protobuf:"varint,1,opt,name=is_vk,json=isVk,proto3" json:"is_vk,omitempty"`
+	// required iff isVK | address at which the VK can receive requests/INCREMENTs
+	VkAddr string `protobuf:"bytes,2,opt,name=vk_addr,json=vkAddr,proto3" json:"vk_addr,omitempty"`
+	// uint16 | required iff isVK | height of the requestor node
+	Height        uint32 `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -265,9 +223,9 @@ func (*Join) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Join) GetIsVK() bool {
+func (x *Join) GetIsVk() bool {
 	if x != nil {
-		return x.IsVK
+		return x.IsVk
 	}
 	return false
 }
@@ -290,8 +248,9 @@ func (x *Join) GetHeight() uint32 {
 // VK accepting the requestor to join underneath it.
 // Once received, requestor can safely mark the VK as its parent.
 type JoinAccept struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16 | height of the accepting vk
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// uint16 | height of the accepting vk
+	Height        uint32 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -336,10 +295,12 @@ func (x *JoinAccept) GetHeight() uint32 {
 // Type #6
 // Sent by children to register a service to their parent.
 type Register struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"` // name of the service to be registered
-	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"` // the address at which the service can be accessed
-	Stale         string                 `protobuf:"bytes,3,opt,name=stale,proto3" json:"stale,omitempty"`     // a Go time string declaring how long w/o a heartbeat until this service is considered prune-able
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Service string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"` // name of the service to be registered
+	Address string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"` // the address at which the service can be accessed
+	// Go time string declaring how long
+	// (w/o a heartbeat) until this service is considered prune-able
+	Stale         string `protobuf:"bytes,3,opt,name=stale,proto3" json:"stale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -397,8 +358,9 @@ func (x *Register) GetStale() string {
 
 // Type #7
 type RegisterAccept struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"` // name of the service that was registered
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name of the service that was registered
+	Service       string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -442,8 +404,9 @@ func (x *RegisterAccept) GetService() string {
 
 // Type #12
 type ServiceHeartbeat struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Services      []string               `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"` // name of the services to be refreshed
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name of the service that was registered
+	Services      []string `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -487,9 +450,11 @@ func (x *ServiceHeartbeat) GetServices() []string {
 
 // Type #13
 type ServiceHeartbeatAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Refreshed     []string               `protobuf:"bytes,1,rep,name=refreshed,proto3" json:"refreshed,omitempty"` // name of the services that were refreshed
-	Unknown       []string               `protobuf:"bytes,2,rep,name=unknown,proto3" json:"unknown,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name of the services that were refreshed
+	Refresheds []string `protobuf:"bytes,1,rep,name=refresheds,proto3" json:"refresheds,omitempty"`
+	// name of services that were requested to be refreshed, but are unknown
+	Unknowns      []string `protobuf:"bytes,2,rep,name=unknowns,proto3" json:"unknowns,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -524,24 +489,25 @@ func (*ServiceHeartbeatAck) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ServiceHeartbeatAck) GetRefreshed() []string {
+func (x *ServiceHeartbeatAck) GetRefresheds() []string {
 	if x != nil {
-		return x.Refreshed
+		return x.Refresheds
 	}
 	return nil
 }
 
-func (x *ServiceHeartbeatAck) GetUnknown() []string {
+func (x *ServiceHeartbeatAck) GetUnknowns() []string {
 	if x != nil {
-		return x.Unknown
+		return x.Unknowns
 	}
 	return nil
 }
 
 // Response to a STATUS request
 type StatusResp struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Height uint32                 `protobuf:"varint,1,opt,name=Height,proto3" json:"Height,omitempty"` //uint16
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// uint16
+	Height uint32 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"`
 	// packed bytes; MSN is major, LSN is minor
 	VersionsSupported []byte `protobuf:"bytes,2,opt,name=versions_supported,json=versionsSupported,proto3" json:"versions_supported,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -594,8 +560,9 @@ func (x *StatusResp) GetVersionsSupported() []byte {
 
 // Type #18
 type List struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HopLimit      uint32                 `protobuf:"varint,1,opt,name=hopLimit,proto3" json:"hopLimit,omitempty"` // uint16 | number of nodes to traverse (limited by root height)
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// uint16 | number of nodes to traverse (limited by root height)
+	HopLimit      uint32 `protobuf:"varint,1,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -639,8 +606,9 @@ func (x *List) GetHopLimit() uint32 {
 
 // Type #19
 type ListResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Services      []string               `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"` // list of services known to the responding vk
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// list of services known to the responding vk
+	Services      []string `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -684,10 +652,11 @@ func (x *ListResp) GetServices() []string {
 
 // Type #20
 type Get struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`    //  the name of the desired service
-	HopLimit      uint32                 `protobuf:"varint,2,opt,name=hopLimit,proto3" json:"hopLimit,omitempty"` // uint16
-	Token         uint64                 `protobuf:"varint,3,opt,name=token,proto3" json:"token,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Service  string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                    //  the name of the desired service
+	HopLimit uint32                 `protobuf:"varint,2,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"` // uint16
+	// identifier created by the requestor so it can correlate a valid response
+	Token         uint64 `protobuf:"varint,3,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -745,11 +714,12 @@ func (x *Get) GetToken() uint64 {
 
 // Type #21
 type GetResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HostID        uint64                 `protobuf:"varint,1,opt,name=hostID,proto3" json:"hostID,omitempty"`
-	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
-	Address       string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
-	Uint64        uint64                 `protobuf:"varint,4,opt,name=uint64,proto3" json:"uint64,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	HostId  uint64                 `protobuf:"varint,1,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	Service string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	Address string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	// echo of the token created by the requestor
+	Token         uint64 `protobuf:"varint,4,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -784,9 +754,9 @@ func (*GetResp) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *GetResp) GetHostID() uint64 {
+func (x *GetResp) GetHostId() uint64 {
 	if x != nil {
-		return x.HostID
+		return x.HostId
 	}
 	return 0
 }
@@ -805,9 +775,9 @@ func (x *GetResp) GetAddress() string {
 	return ""
 }
 
-func (x *GetResp) GetUint64() uint64 {
+func (x *GetResp) GetToken() uint64 {
 	if x != nil {
-		return x.Uint64
+		return x.Token
 	}
 	return 0
 }
@@ -816,17 +786,19 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\"z\n" +
-	"\x05Fault\x122\n" +
-	"\vpacket_type\x18\x01 \x01(\x0e2\x11.orv.message_typeR\n" +
-	"packetType\x12%\n" +
-	"\x05errno\x18\x02 \x01(\x0e2\x0f.orv.fault_codeR\x05errno\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"\"\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x9f\x01\n" +
+	"\x05Fault\x12,\n" +
+	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12*\n" +
+	"\x05errno\x18\x02 \x01(\x0e2\x14.orv.Fault.FaultCodeR\x05errno\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"$\n" +
+	"\tFaultCode\x12\x10\n" +
+	"\fUNKNOWN_TYPE\x10\x00\x12\x05\n" +
+	"\x01B\x10\x01\"\"\n" +
 	"\bHelloAck\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\rR\x06height\"J\n" +
-	"\x04Join\x12\x12\n" +
-	"\x04isVK\x18\x01 \x01(\bR\x04isVK\x12\x16\n" +
-	"\x06vkAddr\x18\x02 \x01(\tR\x06vkAddr\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\"L\n" +
+	"\x04Join\x12\x13\n" +
+	"\x05is_vk\x18\x01 \x01(\bR\x04isVk\x12\x17\n" +
+	"\avk_addr\x18\x02 \x01(\tR\x06vkAddr\x12\x16\n" +
 	"\x06height\x18\x03 \x01(\rR\x06height\"$\n" +
 	"\n" +
 	"JoinAccept\x12\x16\n" +
@@ -838,36 +810,29 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x0eRegisterAccept\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\".\n" +
 	"\x10ServiceHeartbeat\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\"M\n" +
-	"\x13ServiceHeartbeatAck\x12\x1c\n" +
-	"\trefreshed\x18\x01 \x03(\tR\trefreshed\x12\x18\n" +
-	"\aunknown\x18\x02 \x03(\tR\aunknown\"S\n" +
+	"\bservices\x18\x01 \x03(\tR\bservices\"Q\n" +
+	"\x13ServiceHeartbeatAck\x12\x1e\n" +
+	"\n" +
+	"refresheds\x18\x01 \x03(\tR\n" +
+	"refresheds\x12\x1a\n" +
+	"\bunknowns\x18\x02 \x03(\tR\bunknowns\"S\n" +
 	"\n" +
 	"StatusResp\x12\x16\n" +
-	"\x06Height\x18\x01 \x01(\rR\x06Height\x12-\n" +
-	"\x12versions_supported\x18\x02 \x01(\fR\x11versionsSupported\"\"\n" +
-	"\x04List\x12\x1a\n" +
-	"\bhopLimit\x18\x01 \x01(\rR\bhopLimit\"&\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\x12-\n" +
+	"\x12versions_supported\x18\x02 \x01(\fR\x11versionsSupported\"#\n" +
+	"\x04List\x12\x1b\n" +
+	"\thop_limit\x18\x01 \x01(\rR\bhopLimit\"&\n" +
 	"\bListResp\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\"Q\n" +
+	"\bservices\x18\x01 \x03(\tR\bservices\"R\n" +
 	"\x03Get\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1a\n" +
-	"\bhopLimit\x18\x02 \x01(\rR\bhopLimit\x12\x14\n" +
-	"\x05token\x18\x03 \x01(\x04R\x05token\"m\n" +
-	"\aGetResp\x12\x16\n" +
-	"\x06hostID\x18\x01 \x01(\x04R\x06hostID\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1b\n" +
+	"\thop_limit\x18\x02 \x01(\rR\bhopLimit\x12\x14\n" +
+	"\x05token\x18\x03 \x01(\x04R\x05token\"l\n" +
+	"\aGetResp\x12\x17\n" +
+	"\ahost_id\x18\x01 \x01(\x04R\x06hostId\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
-	"\x06uint64\x18\x04 \x01(\x04R\x06uint64*\x1a\n" +
-	"\n" +
-	"fault_code\x12\x05\n" +
-	"\x01A\x10\x00\x12\x05\n" +
-	"\x01B\x10\x01*:\n" +
-	"\fmessage_type\x12\x0e\n" +
-	"\n" +
-	"mt_UNKNOWN\x10\x00\x12\f\n" +
-	"\bmt_FAULT\x10\x01\x12\f\n" +
-	"\bmt_HELLO\x10\x02B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x14\n" +
+	"\x05token\x18\x04 \x01(\x04R\x05tokenB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
@@ -881,33 +846,33 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 	return file_slims_pb_payloads_proto_rawDescData
 }
 
-var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_slims_pb_payloads_proto_goTypes = []any{
-	(FaultCode)(0),              // 0: orv.fault_code
-	(MessageType)(0),            // 1: orv.message_type
-	(*Fault)(nil),               // 2: orv.Fault
-	(*HelloAck)(nil),            // 3: orv.HelloAck
-	(*Join)(nil),                // 4: orv.Join
-	(*JoinAccept)(nil),          // 5: orv.JoinAccept
-	(*Register)(nil),            // 6: orv.Register
-	(*RegisterAccept)(nil),      // 7: orv.RegisterAccept
-	(*ServiceHeartbeat)(nil),    // 8: orv.ServiceHeartbeat
-	(*ServiceHeartbeatAck)(nil), // 9: orv.ServiceHeartbeatAck
-	(*StatusResp)(nil),          // 10: orv.StatusResp
-	(*List)(nil),                // 11: orv.List
-	(*ListResp)(nil),            // 12: orv.ListResp
-	(*Get)(nil),                 // 13: orv.Get
-	(*GetResp)(nil),             // 14: orv.GetResp
+	(Fault_FaultCode)(0),        // 0: orv.Fault.FaultCode
+	(*Fault)(nil),               // 1: orv.Fault
+	(*HelloAck)(nil),            // 2: orv.HelloAck
+	(*Join)(nil),                // 3: orv.Join
+	(*JoinAccept)(nil),          // 4: orv.JoinAccept
+	(*Register)(nil),            // 5: orv.Register
+	(*RegisterAccept)(nil),      // 6: orv.RegisterAccept
+	(*ServiceHeartbeat)(nil),    // 7: orv.ServiceHeartbeat
+	(*ServiceHeartbeatAck)(nil), // 8: orv.ServiceHeartbeatAck
+	(*StatusResp)(nil),          // 9: orv.StatusResp
+	(*List)(nil),                // 10: orv.List
+	(*ListResp)(nil),            // 11: orv.ListResp
+	(*Get)(nil),                 // 12: orv.Get
+	(*GetResp)(nil),             // 13: orv.GetResp
+	(MessageType)(0),            // 14: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	1, // 0: orv.Fault.packet_type:type_name -> orv.message_type
-	0, // 1: orv.Fault.errno:type_name -> orv.fault_code
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	14, // 0: orv.Fault.original:type_name -> msg.MessageType
+	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.FaultCode
+	2,  // [2:2] is the sub-list for method output_type
+	2,  // [2:2] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_slims_pb_payloads_proto_init() }
@@ -915,12 +880,13 @@ func file_slims_pb_payloads_proto_init() {
 	if File_slims_pb_payloads_proto != nil {
 		return
 	}
+	file_slims_pb_message_types_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      1,
 			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,

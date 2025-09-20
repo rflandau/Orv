@@ -1,18 +1,20 @@
 syntax = "proto3";
 package orv;
 
-import "implementations/slims/slims/protocol/mt/message_types.proto";
+import "google/protobuf/go_features.proto";
+import "slims/pb/message_types.proto";
 
 // generate with:
 // protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
 
 option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
+option features.(pb.go).strip_enum_prefix = STRIP_ENUM_PREFIX_STRIP;
 
 // Type #1
 // Negative response to any packet.
 message Fault{
   // uint16 | echos the type number of the original packet
-  msg.type original = 1;
+  msg.MessageType original = 1;
 
   // NOTE(rlandau): at the time of writing, Go treats all enums as open.
   // We'd much prefer they be closed. Alas.
