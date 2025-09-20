@@ -4,25 +4,27 @@
 
 Orv is an algorithm for building self-organizing, decentralized service discovery networks. The general idea is to allow machines to assemble themselves into resilient, fault-tolerant networks so they can request services from one another (and find new providers when an existing one disappears). 
 
-Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
+Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource, from DNS, NAT, or tunnel endpoints to files available for download to sensor values like temperature or barometer.
 
-Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does neither) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
+Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does neither) and both offer and request services to/from the tree (referred to as the *vault*). If a provider for the requested service is found, the tree returns the address it can be accessed at.
 
 Here is one example of a vault:
 
 ![a diagram of an Orv vault](img/Orv.drawio.svg)
 
-Orv is highly flexible with the above example being just one of a myriad of implementation paradigms.
+Orv is highly flexible with the above example being just one of a myriad of paradigms.
 
 ## Authorship
 
-Designed by Shrivyas (shrivyas@andrew.cmu.edu) & R Landau (rlandau@andrew.cmu.edu/rflandau@pm.me). We originated, designed, and prototyped Orv in two, very long weeks for Professor Patrick Tague's Distributed Systems course at Carnegie Mellon University as part of our masters program. The original version is tagged [1.0.1 @ commit 74c4d4f5c94b14d803c39590982b778e57ae7a96](https://github.com/rflandau/Orv/releases/tag/v1.0.1), if you are interested in the form we turned in for the course.
+Designed by Shrivyas (shrivyas@andrew.cmu.edu) & R Landau (rlandau@andrew.cmu.edu/rflandau@pm.me).
 
-R (the guy writing this README) is the current maintainer.
+We originated, designed, and prototyped Orv (through the [proof variant](implementations/proof)) in two, very long weeks for Professor Patrick Tague's Distributed Systems course at Carnegie Mellon University as part of our masters program. The original version is tagged [1.0.1 @ commit 74c4d4f5c94b14d803c39590982b778e57ae7a96](https://github.com/rflandau/Orv/releases/tag/v1.0.1), if you are interested in the form we turned in for the course.
+
+R (the guy writing this README and the designer of the [slims variant](implementations/slims)) is the current maintainer.
 
 # Terminology
 
-*Leaf* (better name pending): A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
+*Leaf*: A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
 
 *Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This could be a Raft group or a similar, replicated collection of machines. It could be a single server. It could be a whole data center. As long as it can service Orv requests atomically, it can be a vk.
 
@@ -30,28 +32,28 @@ R (the guy writing this README) is the current maintainer.
 
 *Sub-Vault*: Any vault that is a child to another vault. When two vaults join and one ascends to root vault keeper, the other becomes a sub-vault. The sub-vault moniker can be used recursively down a branch.
 
-# Implementations
+# Variants and Implementations
 
-If you just want to run Orv yourself (or play with it using pre-constructed libraries), there are currently two implementations: Proof and Slims. Each implementation contains a README describing the actual implementation and design trade-offs, a prototype client, a prototype Vault Keeper, and a library that can be imported by other Go applications.
+If you just want to run Orv yourself (or play with it using pre-constructed libraries), there are currently two variants and their implementations: Proof and Slims. Each variant contains a README describing its design, trade-offs, and the prototype implementation included. Each prototype implementation contains a prototype client, a prototype Vault Keeper, and a library that can be imported by other Go applications.
 
 > [!NOTE]
-> The implementations follow different design paradigms and are NOT cross compatible.
+> The variants follow different design paradigms and are NOT cross compatible. However, different implementations of the same variant (and version) *ought* to be compatible (with the caveat that they use the same serialization technique for payloads). 
 
 ## Proof
 
-[Proof](implementations/proof) is the first prototype. It is implemented as a REST API and serves as a proof of concept more than anything else.
+[Proof](implementations/proof) is the first prototype. It is implemented as a REST API and serves as a proof of concept more than anything else. No further work is planned for it.
 
 ## Slims
 
-[Slims](implementations/slims) is the second prototype. It is implemented as a layer 5/application layer protocol. This version explores different design decisions and the library contains tools to interface directly with its L5 headers.
+[Slims](implementations/slims) is the second prototype. It is implemented as an L5 (application layer) protocol. This version explores different design decisions and the library contains tools to interface directly with its L5 headers. It is under active development.
 
 # Core Design
 
-Orv is first-and-foremost an algorithm. It can be tweaked, altered, and played with so that it better suits a particular problem space. This both a bane and a boon:
+Orv is first-and-foremost an algorithm. It can be tweaked, altered, and played with so that it better suits a particular problem space. This is both a bane and a boon:
 
-1) Two machines speaking two Orv variants may not be able to interoperate, depending on the design variations.
+1) Two machines speaking two Orv variants likely cannot interoperate due to design differences (let along implementation differences).
 
-2) As long as a machine or language can speak a specific Orv implementation, that specific Orv implementation will work with it. It has no requirements or allegiances to hardware, software, environment, etc.
+2) As long as a machine or language can speak a specific Orv variant and version, implementations of the variant *should*be able to interoperate. Orv has no requirements or allegiances to hardware, software, environment, etc.
 
 That being said, there are some key design principles that permeate all variants (even if certain designs stick to them better than others).
 
