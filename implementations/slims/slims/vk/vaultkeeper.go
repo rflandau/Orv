@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,7 +35,17 @@ const (
 
 var (
 	defaultVersionsSupported = version.NewSet(version.Version{Major: 1, Minor: 0})
+	// unmarshaller used by VKs to handle incoming message bodies
+	pbun = proto.UnmarshalOptions{
+		DiscardUnknown: false,
+	}
 )
+
+// PBUnmarshaller returns the unmarshal options used by VKs to decode incoming bodies.
+// The unmarshaller is not settable; this is
+func PBUnmarshaller() proto.UnmarshalOptions {
+	return pbun
+}
 
 //#endregion defaults
 
@@ -266,10 +276,20 @@ func (vk *VaultKeeper) Address() netip.AddrPort {
 //#endregion getters
 
 // respondError is a helper function to generate a FAULT response and write it across the wire to the given address.
-func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
+// origMT is the type of the message that triggered the fault.
+// errno is the enumerated fault number that, when combined with origMT, points to a specific error.
+// extraInfo is an optional list of lines (that will be imploded with '\n' to form a single line) to stuff in additional_info.
+func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno uint32, extraInfo ...string) {
+	fault := &pb.Fault{
+		Original: origMT,
+		Errno:    errno,
+	}
+	if len(extraInfo) > 0 {
+		ai := strings.Join(extraInfo, "\n")
+		fault.AdditionalInfo = &ai
+	}
 	// compose the response
-	b, err := protocol.Serialize(vk.versionSet.HighestSupported(), false, mt.Fault, vk.id,
-		&pb.Fault{Reason: reason})
+	b, err := protocol.Serialize(vk.versionSet.HighestSupported(), false, mt.Fault, vk.id, fault)
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize response header")
 		return
@@ -282,8 +302,7 @@ func (vk *VaultKeeper) respondError(addr net.Addr, reason string) {
 	} else if n != len(b) {
 		vk.log.Warn().
 			Int("total bytes written", n).
-			Int("header length (Bytes)", len(b)).
-			Int("body length (Bytes)", len([]byte(reason))).
+			Int("packet length (bytes)", len(b)).
 			Msg("bytes written does not equal sum of header and body")
 	}
 
@@ -379,7 +398,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 				case mt.Status:
 					vk.serveStatus(hdr, body, senderAddr)
 				default: // non-enumerated type or UNKNOWN
-					vk.respondError(senderAddr, "unknown message type "+strconv.FormatUint(uint64(hdr.Type), 10))
+					vk.respondError(senderAddr, hdr.Type, uint32(pb.Fault_BODY_NOT_ACCEPTED), "")
 					return
 				}
 			}()

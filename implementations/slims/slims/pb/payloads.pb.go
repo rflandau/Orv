@@ -118,9 +118,11 @@ func (Fault_Join) EnumDescriptor() ([]byte, []int) {
 type Fault struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// uint16 | echos the type number of the original packet
-	Original       MessageType `protobuf:"varint,1,opt,name=original,proto3,enum=msg.MessageType" json:"original,omitempty"`
-	Errno          uint32      `protobuf:"varint,2,opt,name=errno,proto3" json:"errno,omitempty"`                                              // uint16 | the type of error, for automated testing
-	AdditionalInfo *string     `protobuf:"bytes,3,opt,name=additional_info,json=additionalInfo,proto3,oneof" json:"additional_info,omitempty"` // (OPTIONAL)
+	Original MessageType `protobuf:"varint,1,opt,name=original,proto3,enum=msg.MessageType" json:"original,omitempty"`
+	// uint16 | the type of error, for automated testing.
+	// should be one of the above enums
+	Errno          uint32  `protobuf:"varint,2,opt,name=errno,proto3" json:"errno,omitempty"`
+	AdditionalInfo *string `protobuf:"bytes,3,opt,name=additional_info,json=additionalInfo,proto3,oneof" json:"additional_info,omitempty"` // (OPTIONAL)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
