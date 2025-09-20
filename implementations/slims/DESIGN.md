@@ -61,14 +61,12 @@ Protocol Buffers and Flatbuffers are smaller than JSON, but implementations with
 
 # FAULT Packet
 
-_DENY and _FAULT packets (used in Proof to replace negatively to their paired response (ex: JOIN_ACCEPT and JOIN_DENY)) no longer exist, replaced instead by a single FAULT packet that is sent in response to any request packet. This change draws inspiration on the use of ICMP packets to indicate failure when another L4 packet was used in the request.
+_DENY and _FAULT packets (used in Proof to respond negatively to their paired success message (ex: JOIN_ACCEPT and JOIN_DENY)) no longer exist, replaced instead by a single FAULT packet that is sent in response to any request packet. This change draws inspiration on the use of ICMP packets to indicate failure when another L4 packet was used in the request.
 
 ## FAULTs Do Not Reset Interaction
 
 In the original vision, a JOIN_DENY packet would remove the requestor from the HELLO table of the vk. This was a side effect of the time-constraints Proof was developed under; nodes were removed from the HELLO table whenever a JOIN was received, no matter the outcome. There is no good reason to maintain this behavior and removing it should decrease the total number of messages required in exchanges that do not take solely the happy path.
 
-## FAULTs have opaque errors
+## FAULTs have error numbers
 
-For better or for worse, FAULT packets do not provide an easy mechanism for an automated system to determine if the fault is due to a bad request, internal server error, or something all together different.
-
-A future version should probably follow the HTTP and CoAP path of using errno-like constants (403, 404, 500, etc) to categorize errors.
+Once again following in ICMP's footsteps (and that of so many other network protocols), Faults have an error number tied to them to ease automated error checking and response.
