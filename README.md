@@ -24,6 +24,10 @@ R (the guy writing this README and the designer of the [slims variant](implement
 
 # Terminology
 
+*Orv Variant*: An Orv variant is defined by the set of design decisions. While any design that follows Orv's algorithm can be considered "Orv", there are many tweaks that can be made to better suit Orv to a scenario; these tweaks/decision define a variant. Variants are assumed to **not** be cross-compatible. 
+
+*Orv Implementation*: To further narrow the scope of a variant, an Orv Implementation is a specific library or program built to the spec of an Orv variant. Unlike variants, implementations of the same variant are typically expected to be cross-compatible.
+
 *Leaf*: A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
 
 *Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This could be a Raft group or a similar, replicated collection of machines. It could be a single server. It could be a whole data center. As long as it can service Orv requests atomically, it can be a vk.
@@ -32,20 +36,17 @@ R (the guy writing this README and the designer of the [slims variant](implement
 
 *Sub-Vault*: Any vault that is a child to another vault. When two vaults join and one ascends to root vault keeper, the other becomes a sub-vault. The sub-vault moniker can be used recursively down a branch.
 
-# Variants and Implementations
+# Using this Repo
 
-If you just want to run Orv yourself (or play with it using pre-constructed libraries), there are currently two variants and their implementations: Proof and Slims. Each variant contains a README describing its design, trade-offs, and the prototype implementation included. Each prototype implementation contains a prototype client, a prototype Vault Keeper, and a library that can be imported by other Go applications.
-
-> [!NOTE]
-> The variants follow different design paradigms and are NOT cross compatible. However, different implementations of the same variant (and version) *ought* to be compatible (with the caveat that they use the same serialization technique for payloads). 
+This repo contains two variants (Proof and Slims), each with an implementation. Each variant contains a README describing its goal, trade-offs, and how to use its implementation. Each implementation also includes a prototype client, prototype vault keeper, and a Go library that can be imported by other application looking to leverage the variant.
 
 ## Proof
 
-[Proof](implementations/proof) is the first prototype. It is implemented as a REST API and serves as a proof of concept more than anything else. No further work is planned for it.
+[Proof](implementations/proof) is the very first prototype of Orv. It is implemented as a REST API and serves as a proof of concept more than anything else. No further work is planned for it.
 
 ## Slims
 
-[Slims](implementations/slims) is the second prototype. It is implemented as an L5 (application layer) protocol. This version explores different design decisions and the library contains tools to interface directly with its L5 headers. It is under active development.
+[Slims](implementations/slims) is the second prototype. It is designed as an L5 (application layer) protocol. This variant explores compressing Orv for use in highly constrained environments, going so far as to design its own L5 header. The implementation contains a library for interfacing directly with these headers. Slims is under active development.
 
 # Core Design
 
