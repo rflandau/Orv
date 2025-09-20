@@ -11,7 +11,7 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// Recompiles protobuf contracts.
+// Recompiles all protobuf contracts.
 func CompilePB() error {
 	// ensure protoc-gen-go and protoc are available
 	if _, err := exec.LookPath("protoc-gen-go"); err != nil {
@@ -20,6 +20,7 @@ func CompilePB() error {
 		return errors.Join(errors.New("protoc not available in $PATH"), err)
 	}
 	sh.Exec(nil, os.Stdout, os.Stderr, "protoc", "--go_out=.", "--go_opt=paths=source_relative", "slims/pb/payloads.proto")
+	sh.Exec(nil, os.Stdout, os.Stderr, "protoc", "--go_out=.", "--go_opt=paths=source_relative", "slims/pb/message_types.proto")
 	return nil
 }
 
