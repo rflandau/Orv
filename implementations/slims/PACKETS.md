@@ -1,6 +1,8 @@
 Packet specification for Orv [Slims](implementations/slims) Version 1.0
 
-Orv Slims packets are application (L5) packets and the current implementation uses CoAP for the transport layer.
+Orv Slims packets are application (L5) layer and the current implementation uses UDP for the transport layer.
+
+Addresses are assumed to be IPv4/v6 in this implementation (and thus typically represented as netip.AddrPort{}s) for ease-of-use. However, Slims can you any layer 3.
 
 # Header [2 or 10 Bytes]
 
@@ -35,7 +37,7 @@ Undefined type numbers are reserved for future use.
 
 ## ID [0 or 10 Bytes]
 
-ID is the unique identifier of the sender, used to correlate a packet to its origin for handling (such as from a known child, a pending join, etc). It may only be omitted when sending client requests, as client requests may originate from outside the vault. If it is omitted, S must be set.
+ID is the unique identifier of the sender as a uint64, used to correlate a packet to its origin for handling (such as from a known child, a pending join, etc). It may only be omitted when sending client requests, as client requests may originate from outside the vault. If it is omitted, S must be set.
 
 ### NOTE
 
@@ -53,12 +55,26 @@ FAULT may be sent in response to any number of request packets.
 
 ### Payload
 
-1. *packet type*: type number of the original packet
-    - example (in response to a HELLO): 2 
-2. *error number*: machine-friendly, enumerated reason for rejecting this requested
-1. *reason string*: (OPTIONAL) human-readable reason for rejecting this request
-    - example (for REGISTER): "bad stale time"
-    - example (for VK_HEARTBEAT): "not my child"
+1. *message type* (**uint8**): type number of the original message (the message that caused the FAULT).
+    - each packet type has its own set of error numbers, typically written as <packet_type>.<errno>
+        - example: 1.0 is the UNKNOWN_TYPE error
+        - example 4.0 is the HELLO_REQUIRED error
+    - example (in response to a HELLO): 2
+2. *errno* (**uint16**): packet type-specific error number. Errnos are not independent; specific errors can only be identified in conjunction with their packet type. The following codes are written in <packet_type>.<errno> syntax.
+    - See the note and examples in the *packet type* field.
+    - (General) Codes:
+    
+        1.0: UNKNOWN_TYPE: sent when an unknown message type number is declared.
+    
+        1.1: BODY_NOT_ACCEPTED: sent when a payload is included in a packet that does not have one.
+        
+        1.2: BODY_REQUIRED: sent when a payload is not included with a message type that requires one.
+
+    - JOIN Codes:
+
+        4.0: HELLO_REQUIRED: sent when a JOIN is received but there is no outstanding HELLO for the given ID.
+
+3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
 ## HELLO
 
@@ -92,7 +108,7 @@ If a client wants to see all versions a vk supports, try the [STATUS](#status) p
 
 ### Payload
 
-1. *height*: the height of the node answering the greeting
+1. *height* (**uint16**): the height of the node answering the greeting
     - example: 3
 
 ## JOIN
@@ -105,10 +121,10 @@ Repeated or duplicate joins for a node already registered as a child of the VK a
 
 ### Payload
 
-1. *isVK*: is this node a VaultKeeper or a leaf?
-2. *vkAddr*: address of the listening VK service that can receive INCRs
-    - required if isVK. 
-3. *height*: height of the vk attempting to join the vault
+1. *isVK* (**bool**): is this node a VaultKeeper or a leaf?
+2. *vkAddr* (**any**): address of the listening VK service that can receive INCRs
+    - required if isVK.
+3. *height* (**uint16**): height of the vk attempting to join the vault
     - required if isVK. 
 
 ## JOIN_ACCEPT
@@ -121,7 +137,7 @@ Once received by a node, that node can safely mark the VK as its parent.
 
 ### Payload
 
-1. *height*: the height of the requester's new parent
+1. *height* (**uint16**): the height of the requester's new parent
 
 ## REGISTER
 
@@ -137,13 +153,13 @@ Valid REGISTERs from child vaultkeepers refresh the child's prune time on their 
 
 ### Payload
 
-1. *service*:  name of the service to be registered
+1. *service* (**string**):  name of the service to be registered
     - example: "SSH" 
-2. *address* address the service is bound to. Only populated from leaf to parent
+2. *address* (**any**): address the service is bound to. Only populated from leaf to parent
     - example: "172.1.1.54:22" 
     - example: "20"
     - example: "rorylandau.com"
-3. *stale*: after how much time without a heartbeat is this service eligible for pruning. Services may be pruned lazily and thus may survive longer than their stale time. Actual implementation is left up to the VK. Services are only guaranteed to *not* be pruned while within their stale time.
+3. *stale* (**Go time**): after how much time without a heartbeat is this service eligible for pruning. Services may be pruned lazily and thus may survive longer than their stale time. Actual implementation is left up to the VK. Services are only guaranteed to *not* be pruned while within their stale time.
     - example:"1m5s45ms"
 
 ## REGISTER_ACCEPT
@@ -154,7 +170,7 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 
 ### Payload
 
-1. *service*: name of the service that was registered.
+1. *service* (**string**): name of the service that was registered.
     - example: "SSH"
 
 ## MERGE
@@ -165,8 +181,8 @@ Sent by a vk to indicate that the target vk should become one of its children (l
 
 ### Payload
 
-1. *height*: the current height of the requestor node
-2. *vkAddr* address the requestor vk will be listening for heartbeats on
+1. *height* (**uint16**): the current height of the requestor node
+2. *vkAddr* (**any**): address the requestor vk will be listening for heartbeats on
 
 ## MERGE_ACCEPT
 
@@ -190,7 +206,7 @@ If a vk receives an INCREMENT with an unexpected height from its parent, handlin
 
 ### Payload
 
-1. *newHeight*: the new height the receiver should adjust themselves to. It should be their current height + 1.
+1. *newHeight* (**uint16**): the new height the receiver should adjust themselves to. It should be their current height + 1.
 
 ## INCREMENT_ACK
 
@@ -200,7 +216,7 @@ If a vk receives an INCREMENT with an unexpected height from its parent, handlin
 
 ### Payload
 
-1. *newHeight*: the height the child vk just set itself and its branch to.
+1. *newHeight* (**uint16**): the height the child vk just set itself and its branch to.
 
 ## SERVICE_HEARTBEAT
 
@@ -210,7 +226,7 @@ Sent by a leaf to refresh the lifetimes of all services named therein.
 
 ### Payload
 
-1. *services*: names of the services to refresh
+1. *services* (**string**): names of the services to refresh
     - array
     - example: ["serviceX", "serviceY"]
 
@@ -224,10 +240,10 @@ If no services were refreshed, a FAULT is sent instead.
 
 ### Payload
 
-1. *refreshed*: names of the services that were refreshed
+1. *refreshed* (**array of strings**): names of the services that were refreshed
     - array
     - example: ["serviceX", "serviceY"]
-2. *unknown*: names of services that a refresh was requested for, but could not be identified
+2. *unknown* (**array of strings**): names of services that a refresh was requested for, but could not be identified
     - array
 
 ## VK_HEARTBEAT
@@ -269,12 +285,12 @@ All fields (other than id) are optional and may be omitted at the VK's discretio
 
 ### Payload
 
-1. *height*: (OPTIONAL) height of the queried VK
+1. *height* (**uint16**): (OPTIONAL) height of the queried VK
     - example: 8
-2. *children*: (OPTIONAL) children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation
-3. *parentID*: (OPTIONAL) unique identifier for the VK's parent. 0 if VK is root.
-4. *parentAddress*: (OPTIONAL) address and port of the VK parent's process
-5. *pruneTimes*: (OPTIONAL) this VK's timings for considering associated data to be stale
+2. *children*(**any**): (OPTIONAL) children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation
+3. *parentID*(**uint64**): (OPTIONAL) unique identifier for the VK's parent. 0 if VK is root.
+4. *parentAddress* (**any**): (OPTIONAL) address and port of the VK parent's process
+5. *pruneTimes*(**struct of Go times**): (OPTIONAL) this VK's timings for considering associated data to be stale
     - *pendingHello*
 	- *servicelessChild*
 	- *cVK*
@@ -289,8 +305,8 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *token*: a requestor-generated token used to identify this request. To consider a response valid, it must echo back this token.
-2. *hop limit*: (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
+1. *token* (**any**): a requestor-generated token used to identify this request. To consider a response valid, it must echo back this token.
+2. *hop limit* (**uint16**): (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
 
 ## LIST_RESPONSE
 
@@ -298,7 +314,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *services*: list of services known to the responding vk
+1. *services* (**array of strings**): list of services known to the responding vk
 
 ## GET
 
@@ -306,9 +322,9 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *service*: the name of the desired service
-2. *hop limit*: (OPTIONAL) number of hops to walk up the tree if closer vks do not know of the requested service. 0, 1, and omitted all cause the request to be halted at the first VK. 
-3. *token*: token is a locally generated identifier that can be used to positively identify the response to this request. The response should only be considered valid if it has this token.
+1. *service* (**string**): the name of the desired service
+2. *hop limit* (**uint16**): (OPTIONAL) number of hops to walk up the tree if closer vks do not know of the requested service. 0, 1, and omitted all cause the request to be halted at the first VK. 
+3. *token* (**any**): token is a locally generated identifier that can be used to positively identify the response to this request. The response should only be considered valid if it has this token.
 
 ## GET_RESPONSE
 
@@ -316,7 +332,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *hostID*: ID of the node that is responding to this request.
-2. *service*: name of the requested service.
-3. *addr*: the address the requested service can be accessed at.
-4. *token*: echo of the original request's token
+1. *hostID* (**uint16**): ID of the node that is responding to this request.
+2. *service* (**string**): name of the requested service.
+3. *addr* (**any**): the address the requested service can be accessed at.
+4. *token* (**any**): echo of the original request's token
