@@ -33,7 +33,8 @@ type leaf struct {
 	services map[string]netip.AddrPort // service -> service addr
 }
 
-// TestMultiServiceMultiLeaf spins up a single vk and joins multiple leaves under it. Each leaf offers at least one service and at least one service is offered by multiple leaves.
+// TestMultiServiceMultiLeaf spins up a single vk and joins multiple leaves under it.
+// Each leaf offers at least one service and at least one service is offered by multiple leaves.
 func TestMultiServiceMultiLeaf(t *testing.T) {
 	const (
 		maxLeaves          uint32 = 25
@@ -56,12 +57,10 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	// spawn a bunch of (at least 2) leaves and channels to catch heartbeat errors from them.
 	var (
 		leaves = make([]leaf, rand.Uint32N(maxLeaves)+2)
-		hbErrs = make([]chan error, len(leaves)) // initialized with each leaf
 		hb     = make(chan error, 10)
 	)
 
 	for i := range leaves {
-		hbErrs[i] = make(chan error, 10)
 		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
 		leaves[i] = leaf{
 			id:       rand.Uint64(),
@@ -115,25 +114,62 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	}
 	t.Logf("%d leaves established", len(leaves))
 	// wait for a brief period to see if leaf heartbeats fail
-	select {
-	case e := <-hb:
-		t.Error(e)
-		// drain a handful of errors and die
-		eCount := len(hb)
-		for range eCount {
-			t.Error(<-hb)
-		}
-		//atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
-	case <-time.After(leafHBFreq * 4):
-	}
+	checkAutoHBErrs(t, hb, leafHBFreq*4)
 
 	// now that our leaves are running and heartbeating, add "ssh" to a couple leaves to ensure we have multiple providers
-	/*sshOwner1 := rand.UintN(uint(len(leaves)))
+	sharedService := "ssh"
+	sshOwner1 := rand.UintN(uint(len(leaves)))
 	sshOwner2 := rand.UintN(uint(len(leaves)))
 	for sshOwner1 == sshOwner2 {
 		sshOwner2 = rand.UintN(uint(len(leaves)))
-	}*/
+	}
+	leaves[sshOwner1].services["ssh"] = RandomLocalhostAddrPort()
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].id, vk.Address(), sharedService, leaves[sshOwner1].services[sharedService], 3*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner1].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner1].services)), hb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cancel1()
+	}()
+	leaves[sshOwner2].services["ssh"] = RandomLocalhostAddrPort()
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].id, vk.Address(), sharedService, leaves[sshOwner2].services[sharedService], 3*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner2].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner2].services)), hb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cancel2()
+	}()
+	checkAutoHBErrs(t, hb, leafHBFreq*4)
 
+	// make a status request to check that the vk recognizes all its children and services
+	// TODO
+
+	// make a list request
+	// TODO
+
+	// make a get request
+	// TODO
+}
+
+func checkAutoHBErrs(t *testing.T, ch chan error, wait time.Duration) {
+	select {
+	case e := <-ch:
+		t.Error(e)
+		// drain a handful of errors and die
+		eCount := len(ch)
+		for range eCount {
+			t.Error(<-ch)
+		}
+		//atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
+	case <-time.After(wait):
+		t.Log("no initial heartbeat errors found. Continuing...")
+	}
 }
 
 // TestTwoLayerVault spins up a root vk and joins several children under it, then ensures only the ones with no auto-beater get pruned.
