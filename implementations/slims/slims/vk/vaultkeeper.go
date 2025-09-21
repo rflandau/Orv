@@ -355,10 +355,27 @@ func (vk *VaultKeeper) Start() error {
 	return nil
 }
 
+// A MessageHandler is a function that handles responding to an incoming Orv message.
+// MessageHandlers return error information if one occurred, but are expected to craft their own success responses (iff !errored).
+// dispatch() is responsible for calling the handlers and sending an error response if applicable.
+type MessageHandler func(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string)
+
 // dispatch handles incoming UDP packets and dispatches a goroutine to handle each.
 // Dies when the given context is Done.
 // Spun up by .Start(), shuttered by .Stop().
 func (vk *VaultKeeper) dispatch(ctx context.Context) {
+	// generate the list of handlers
+	var handlers map[pb.MessageType]MessageHandler = map[pb.MessageType]MessageHandler{
+		pb.MessageType_HELLO:             vk.serveHello,
+		pb.MessageType_JOIN:              vk.serveJoin,
+		pb.MessageType_REGISTER:          vk.serveRegister,
+		pb.MessageType_SERVICE_HEARTBEAT: vk.serveServiceHeartbeat,
+		pb.MessageType_VK_HEARTBEAT:      vk.serveVKHeartbeat,
+
+		// client requests
+		pb.MessageType_STATUS: vk.serveStatus,
+	}
+
 	// slurp the packet and pass it to the handler func
 	for {
 		select {
@@ -380,26 +397,11 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 			go func() {
 				// TODO increment waitgroup
 
-				// switch on request type.
-				// Each sub-handler is expected to respond on its own.
-				switch hdr.Type {
-				case mt.Hello:
-					vk.serveHello(hdr, body, senderAddr)
-				case mt.Join:
-					vk.serveJoin(hdr, body, senderAddr)
-				case mt.Register:
-					vk.serveRegister(hdr, body, senderAddr)
-				// heartbeats
-				case mt.VKHeartbeat:
-					vk.serveVKHeartbeat(hdr, body, senderAddr)
-				case mt.ServiceHeartbeat:
-					vk.serveServiceHeartbeat(hdr, body, senderAddr)
-				// client requests that do not require a handshake
-				case mt.Status:
-					vk.serveStatus(hdr, body, senderAddr)
-				default: // non-enumerated type or UNKNOWN
-					vk.respondError(senderAddr, hdr.Type, uint32(pb.Fault_BODY_NOT_ACCEPTED), "")
-					return
+				mh, found := handlers[hdr.Type]
+				if !found {
+					vk.respondError(senderAddr, hdr.Type, uint32(pb.Fault_UNKNOWN_TYPE))
+				} else if erred, errno, ei := mh(hdr, body, senderAddr); erred {
+					vk.respondError(senderAddr, hdr.Type, uint32(errno), ei...)
 				}
 			}()
 		}
