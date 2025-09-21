@@ -110,7 +110,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() {
-			cancel <- true
+			cancel()
 		}()
 	}
 	t.Logf("%d leaves established", len(leaves))
