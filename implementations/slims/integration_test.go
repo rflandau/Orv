@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -53,14 +54,14 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	} else if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
-	// spawn a bunch of leaves and channels to catch heartbeat errors from them.
+	// spawn a bunch of (at least 2) leaves and channels to catch heartbeat errors from them.
 	var (
-		leaves = make([]leaf, rand.Uint32N(maxLeaves+1))
+		leaves = make([]leaf, rand.Uint32N(maxLeaves)+2)
 		hbErrs = make([]chan error, len(leaves)) // initialized with each leaf
 	)
 
 	for i := range leaves {
-		hbErrs = make([]chan error, 10)
+		hbErrs[i] = make(chan error, 10)
 		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
 		leaves[i] = leaf{
 			id:       rand.Uint64(),
@@ -88,6 +89,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		if accept.Height != uint32(vk.Height()) {
 			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
 		}
+		// attach services to the leaf and register them with the VK
 		for range serviceCount {
 			serviceName := randomdata.SillyName()
 			leaves[i].services[serviceName] = RandomLocalhostAddrPort()
@@ -111,8 +113,40 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			cancel <- true
 		}()
 	}
-	// assign each leaf a random service and then randomly add "ssh" to two different leaves (to ensure we have an overlapping service)
-	// TODO
+	t.Logf("%d leaves established", len(leaves))
+	// wait for a brief period to see if leaf heartbeats fail
+	// we cannot cleanly wait on a slice of channels (without reflection) so wait on them in a goroutine
+	var (
+		atErr atomic.Value
+		wg    sync.WaitGroup
+	)
+	for _, hbe := range hbErrs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case e := <-hbe:
+				atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
+			case <-time.After(leafHBFreq * 4):
+			}
+		}()
+	}
+	t.Log("waiting....")
+	wg.Wait()
+	t.Log("heartbeat errors")
+
+	// check for an error
+	if err := atErr.Load(); err != nil {
+		t.Fatal("heartbeat error: ", err)
+	}
+
+	// now that our leaves are running and heartbeating, add "ssh" to a couple leaves to ensure we have multiple providers
+	/*sshOwner1 := rand.UintN(uint(len(leaves)))
+	sshOwner2 := rand.UintN(uint(len(leaves)))
+	for sshOwner1 == sshOwner2 {
+		sshOwner2 = rand.UintN(uint(len(leaves)))
+	}*/
+
 }
 
 // TestTwoLayerVault spins up a root vk and joins several children under it, then ensures only the ones with no auto-beater get pruned.
