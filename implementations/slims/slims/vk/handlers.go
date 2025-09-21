@@ -46,7 +46,7 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		hbLimit           = uint32(snap.AutoHeartbeater.Limit)
 		cvks              = make(map[uint64]string)
 		leaves            = slices.Collect(maps.Keys(snap.Children.Leaves))
-		services          = make(map[string]uint) // service name -> provider count
+		services          = make(map[string]uint32) // service name -> provider count
 	)
 	for cvkID, info := range snap.Children.CVKs {
 		cvks[cvkID] = info.Addr.String()
@@ -72,6 +72,7 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		PruneTimesChildVk:         &ptChildVK,
 		ChildVks:                  cvks,
 		ChildLeaves:               leaves,
+		Services:                  services,
 		AutoHbEnabled:             &snap.AutoHeartbeater.Enabled,
 		AutoHbFrequency:           &hbFreq,
 		AutoHbBadLimit:            &hbLimit,
