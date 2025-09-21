@@ -322,7 +322,7 @@ Returns the status of the current node.
 9. *prune_times_child_vk* (**Go time**)
 10. *child_vks* (**map<uint64, string>**): nodeID -> address
 11. *child_leaves* (**array of uint64)
-12. *services* (**map<string, string>**): service -> provider count
+12. *services* (**map<string, uint>**): service -> provider count
 13. *auto_hb_enabled* (**bool**): does this vk have an autoheartbeater running?
 14. *auto_hb_frequency*(**Go time**)
 15. *auto_hb_bad_limit*(**uint16**)

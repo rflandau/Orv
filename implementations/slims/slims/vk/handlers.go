@@ -46,9 +46,18 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		hbLimit           = uint32(snap.AutoHeartbeater.Limit)
 		cvks              = make(map[uint64]string)
 		leaves            = slices.Collect(maps.Keys(snap.Children.Leaves))
+		services          = make(map[string]uint) // service name -> provider count
 	)
 	for cvkID, info := range snap.Children.CVKs {
 		cvks[cvkID] = info.Addr.String()
+		for service := range info.Services {
+			services[service] += 1
+		}
+	}
+	for _, leafServices := range snap.Children.Leaves {
+		for service := range leafServices {
+			services[service] += 1
+		}
 	}
 
 	var st = pb.StatusResp{
