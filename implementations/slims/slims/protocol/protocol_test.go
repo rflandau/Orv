@@ -18,7 +18,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"google.golang.org/protobuf/proto"
 )
@@ -65,7 +64,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{protocol.ErrInvalidMessageType},
 		},
 		{name: "JOIN",
-			hdr: protocol.Header{Type: mt.Join},
+			hdr: protocol.Header{Type: pb.MessageType_JOIN},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -74,7 +73,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{},
 		},
 		{name: "15.15 MERGE_ACCEPT",
-			hdr: protocol.Header{Version: version.Version{Major: 15, Minor: 15}, Type: mt.MergeAccept},
+			hdr: protocol.Header{Version: version.Version{Major: 15, Minor: 15}, Type: pb.MessageType_MERGE_ACCEPT},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -83,7 +82,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{},
 		},
 		{name: "0.7 Get ID=15",
-			hdr: protocol.Header{Version: version.Version{Major: 0, Minor: 7}, Type: mt.Get, ID: 15},
+			hdr: protocol.Header{Version: version.Version{Major: 0, Minor: 7}, Type: pb.MessageType_GET, ID: 15},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -92,7 +91,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{},
 		},
 		{name: "0.7 Get ID=MaxUint64",
-			hdr: protocol.Header{Version: version.Version{Major: 0, Minor: 7}, Type: mt.Get, ID: math.MaxUint64},
+			hdr: protocol.Header{Version: version.Version{Major: 0, Minor: 7}, Type: pb.MessageType_GET, ID: math.MaxUint64},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -132,7 +131,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrInvalidVersionMajor},
 		},
 		{name: "invalid major version with type",
-			hdr: protocol.Header{Version: version.Version{Major: 32, Minor: 0}, Type: mt.Fault},
+			hdr: protocol.Header{Version: version.Version{Major: 32, Minor: 0}, Type: pb.MessageType_FAULT},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -168,7 +167,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 			invalids: []error{protocol.ErrInvalidMessageType, protocol.ErrShorthandID},
 		},
 		{name: "shorthand ID with type",
-			hdr: protocol.Header{Shorthand: true, Type: mt.Increment, ID: 1},
+			hdr: protocol.Header{Shorthand: true, Type: pb.MessageType_INCREMENT, ID: 1},
 			want: struct {
 				version       byte
 				shorthandType byte
@@ -247,7 +246,7 @@ func TestDeserialize(t *testing.T) {
 		want := protocol.Header{
 			Version:   version.FromByte(byt),
 			Shorthand: true,
-			Type:      mt.Hello,
+			Type:      pb.MessageType_HELLO,
 		}
 		if hdr != want {
 			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, hdr))
@@ -260,7 +259,7 @@ func TestDeserialize(t *testing.T) {
 			t.Error("expected a short read error, found none")
 		}
 		// ensure that hdr is empty
-		want := protocol.Header{Version: version.FromByte(byt), Type: mt.HelloAck}
+		want := protocol.Header{Version: version.FromByte(byt), Type: pb.MessageType_HELLO_ACK}
 		if hdr != want {
 			t.Error("incorrect header values after faulty deserialize", ExpectedActual(want, hdr))
 		}
@@ -309,8 +308,8 @@ func TestFullSend(t *testing.T) {
 				} else if err != nil {
 					// respond with a FAULT
 					pkt, serializeErr := protocol.Serialize(
-						curVer, false, mt.Fault, echoServerID,
-						&pb.Fault{Reason: err.Error()},
+						curVer, false, pb.MessageType_FAULT, echoServerID,
+						&pb.Fault{Original: pb.MessageType_UNKNOWN, Errno: pb.Fault_UNSPECIFIED},
 					)
 					if serializeErr != nil {
 						t.Error(serializeErr)
@@ -330,9 +329,10 @@ func TestFullSend(t *testing.T) {
 				for _, err := range errs {
 					errStr.WriteString(err.Error() + "\n")
 				}
+				ai := errStr.String()[:errStr.Len()-1]
 				pkt, serializeErr := protocol.Serialize(
-					reqHdr.Version, false, mt.Fault, echoServerID,
-					&pb.Fault{Reason: errStr.String()[:errStr.Len()-1]},
+					reqHdr.Version, false, pb.MessageType_FAULT, echoServerID,
+					&pb.Fault{Original: reqHdr.Type, Errno: pb.Fault_UNSPECIFIED, AdditionalInfo: &ai},
 				)
 				if serializeErr != nil {
 					t.Error(serializeErr)
@@ -348,10 +348,12 @@ func TestFullSend(t *testing.T) {
 			reqHdr.ID = echoServerID
 			respHdrB, err := reqHdr.Serialize()
 			if err != nil {
+				ai := err.Error()
 				// respond with a FAULT
 				b, serializeErr := protocol.Serialize(
-					reqHdr.Version, false, mt.Fault, echoServerID,
-					&pb.Fault{Reason: err.Error()})
+					reqHdr.Version, false, pb.MessageType_FAULT, echoServerID,
+					&pb.Fault{Original: reqHdr.Type, Errno: pb.Fault_UNSPECIFIED, AdditionalInfo: &ai},
+				)
 				if serializeErr != nil {
 					t.Error(serializeErr)
 				}
@@ -375,12 +377,12 @@ func TestFullSend(t *testing.T) {
 		name         string
 		header       *protocol.Header
 		body         []byte
-		wantRespType mt.MessageType
+		wantRespType pb.MessageType
 	}{
-		{"1.1, long, HELLO, ID0", &protocol.Header{Version: version.Version{Major: 1, Minor: 1}, Type: mt.Hello}, nil, mt.Hello},
-		{"1.1, long, [unknown message type], ID0", &protocol.Header{Version: version.Version{Major: 1, Minor: 1}, Type: 50}, nil, mt.Fault},
-		{"0.0, long, MERGE, ID22", &protocol.Header{Type: mt.Merge, ID: 22}, nil, mt.Merge},
-		{"15.2, short, MERGE, ID22", &protocol.Header{Version: version.Version{Major: 15, Minor: 2}, Shorthand: true, Type: mt.Merge}, nil, mt.Merge},
+		{"1.1, long, HELLO, ID0", &protocol.Header{Version: version.Version{Major: 1, Minor: 1}, Type: pb.MessageType_HELLO}, nil, pb.MessageType_HELLO},
+		{"1.1, long, [unknown message type], ID0", &protocol.Header{Version: version.Version{Major: 1, Minor: 1}, Type: 50}, nil, 50},
+		{"0.0, long, MERGE, ID22", &protocol.Header{Type: pb.MessageType_MERGE, ID: 22}, nil, pb.MessageType_MERGE},
+		{"15.2, short, MERGE, ID22", &protocol.Header{Version: version.Version{Major: 15, Minor: 2}, Shorthand: true, Type: pb.MessageType_MERGE}, nil, pb.MessageType_MERGE},
 	}
 
 	for _, tt := range tests {
@@ -517,9 +519,9 @@ func TestReceivePacket(t *testing.T) {
 	tests := []struct {
 		hdr protocol.Header
 	}{
-		{protocol.Header{Version: curVer, Shorthand: false, Type: mt.Hello, ID: rand.Uint64()}},
-		{protocol.Header{Version: version.FromByte(0b01100001), Shorthand: false, Type: mt.Hello, ID: rand.Uint64()}},
-		{protocol.Header{Version: version.FromByte(0b01100011), Shorthand: true, Type: mt.Get}},
+		{protocol.Header{Version: curVer, Shorthand: false, Type: pb.MessageType_HELLO, ID: rand.Uint64()}},
+		{protocol.Header{Version: version.FromByte(0b01100001), Shorthand: false, Type: pb.MessageType_HELLO, ID: rand.Uint64()}},
+		{protocol.Header{Version: version.FromByte(0b01100011), Shorthand: true, Type: pb.MessageType_GET}},
 	}
 
 	// start listening for packets equal to the number of tests; forward them
@@ -656,7 +658,7 @@ func TestReceivePacket(t *testing.T) {
 
 		sentVersion := version.FromByte(0b00001000)
 		sentShorthand := false
-		sentType := mt.HelloAck
+		sentType := pb.MessageType_HELLO_ACK
 		sentID := rand.Uint64()
 		payload := &pb.HelloAck{Height: 5}
 		hdrB, err := protocol.Serialize(sentVersion, sentShorthand, sentType, sentID, payload)
@@ -757,7 +759,7 @@ func TestWritePacket(t *testing.T) {
 		n, err := protocol.WritePacket(context.Background(), conn,
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.Status,
+				Type:    pb.MessageType_STATUS,
 				ID:      1,
 			},
 			nil)
@@ -786,7 +788,7 @@ func TestWritePacket(t *testing.T) {
 		n, err := protocol.WritePacket(context.Background(), conn,
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.Status,
+				Type:    pb.MessageType_STATUS,
 				ID:      1,
 			},
 			nil)
@@ -801,7 +803,7 @@ func TestWritePacket(t *testing.T) {
 		n, err := protocol.WritePacket(context.Background(), conn,
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.Status,
+				Type:    pb.MessageType_STATUS,
 				ID:      1,
 			},
 			nil)
