@@ -96,6 +96,10 @@ FAULT may be sent in response to any number of request packets.
 
         602: UNKNOWN_CHILD_ID: ID did not correspond to a current child.
 
+    - SERVICE_HEARTBEAT (12XX):
+
+        1200: ALL_UNKNOWN: all requested services are unknown
+
 3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
 ## HELLO
