@@ -157,6 +157,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	// TODO
 }
 
+// waits on the given channel for the given time, calling t.Error() if anything arrives over the channel.
 func checkAutoHBErrs(t *testing.T, ch chan error, wait time.Duration) {
 	select {
 	case e := <-ch:
