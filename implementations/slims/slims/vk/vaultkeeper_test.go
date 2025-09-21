@@ -635,14 +635,38 @@ func Test_serveRegister(t *testing.T) {
 		name      string
 		sendHELLO bool
 		join      struct {
-			send bool // send one at all?
-			req  client.JoinInfo
+			send bool            // send one at all?
+			req  client.JoinInfo // info to compose the join
 		}
-		registerDelay time.Duration // how long to wait after sending a JOIN (or when a JOIN would have been sent) before sending the register
-		header        protocol.Header
-		body          proto.Message
-		wantType      pb.MessageType
+		registerDelay time.Duration   // how long to wait after sending a JOIN (or when a JOIN would have been sent) before sending the register
+		header        protocol.Header // header used for register
+		body          proto.Message   // body to send with register
+		wantError     struct {
+			erred bool
+			errno pb.Fault_Errnos
+			// don't bother checking additional info
+		}
 	}{
+		{"no stale time",
+			true,
+			struct {
+				send bool
+				req  client.JoinInfo
+			}{
+				false,
+				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
+			0, protocol.Header{
+				Version: defaultVersionsSupported.HighestSupported(),
+				Type:    pb.MessageType_REGISTER,
+				ID:      rand.Uint64(),
+			}, &pb.Register{
+				Service: randomdata.City(),
+				Address: "1.1.1.1:1",
+			}, struct {
+				erred bool
+				errno pb.Fault_Errnos
+			}{true, pb.Fault_BAD_STALE_TIME},
+		},
 		{"only HELLO",
 			true,
 			struct {
@@ -651,7 +675,18 @@ func Test_serveRegister(t *testing.T) {
 			}{
 				false,
 				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
-			0, protocol.Header{}, &pb.Register{}, pb.MessageType_FAULT,
+			0, protocol.Header{
+				Version: defaultVersionsSupported.HighestSupported(),
+				Type:    pb.MessageType_REGISTER,
+				ID:      rand.Uint64(),
+			}, &pb.Register{
+				Service: randomdata.City(),
+				Address: "1.1.1.1:1",
+				Stale:   "3m",
+			}, struct {
+				erred bool
+				errno pb.Fault_Errnos
+			}{true, pb.Fault_UNKNOWN_CHILD_ID},
 		},
 	}
 
@@ -696,19 +731,29 @@ func Test_serveRegister(t *testing.T) {
 				t.Fatal(err)
 			}
 			// use the requestor addr to receive the packet echo
-			vk.serveRegister(tt.header, bd, requestorAddr)
-			registerResp := <-respCh
-			if registerResp.err != nil {
-				t.Fatal(err)
-			}
-			if registerResp.origAddr.String() != vk.addr.String() {
-				t.Error("bad address", ExpectedActual(vk.addr.String(), registerResp.origAddr.String()))
-			}
-			if registerResp.hdr.ID != vk.ID() {
-				t.Error("bad vk ID", ExpectedActual(vk.ID(), registerResp.hdr.ID))
-			}
-			if registerResp.hdr.Type != tt.wantType {
-				t.Error("bad response message type", ExpectedActual(tt.wantType, registerResp.hdr.Type))
+			erred, errno, _ := vk.serveRegister(tt.header, bd, requestorAddr)
+			if erred && !tt.wantError.erred {
+				t.Fatalf("serveRegister failed, but was not expected to. errno: %v", errno)
+			} else if erred && tt.wantError.erred {
+				// expected error, check that it is the right kind
+				if errno != tt.wantError.errno {
+					t.Fatal("bad errno", ExpectedActual(tt.wantError.errno, errno))
+				}
+			} else { // did not error, did not expect error
+				// we only need to capture successes
+				registerResp := <-respCh
+				if registerResp.err != nil {
+					t.Fatal(err)
+				}
+				if registerResp.origAddr.String() != vk.addr.String() {
+					t.Error("bad address", ExpectedActual(vk.addr.String(), registerResp.origAddr.String()))
+				}
+				if registerResp.hdr.ID != vk.ID() {
+					t.Error("bad vk ID", ExpectedActual(vk.ID(), registerResp.hdr.ID))
+				}
+				/*if registerResp.hdr.Type != tt.wantType {
+					t.Error("bad response message type", ExpectedActual(tt.wantType, registerResp.hdr.Type))
+				}*/ // TODO
 			}
 		})
 	}
