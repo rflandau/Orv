@@ -68,7 +68,7 @@ func (vk *VaultKeeper) HeartbeatParent() error {
 			return err
 		}
 		return slims.FormatFault(f)
-	case pb.MessageType_VK_HEARTBEAT:
+	case pb.MessageType_VK_HEARTBEAT_ACK:
 		if len(respBody) > 0 {
 			vk.log.Warn().Int("body length", len(respBody)).Bytes("body", respBody).Msg("VK_HEARTBEAT has a non-zero body")
 		}

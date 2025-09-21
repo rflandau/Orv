@@ -364,7 +364,7 @@ type MessageHandler func(reqHdr protocol.Header, reqBody []byte, senderAddr net.
 // Spun up by .Start(), shuttered by .Stop().
 func (vk *VaultKeeper) dispatch(ctx context.Context) {
 	// generate the list of handlers
-	var handlers map[pb.MessageType]MessageHandler = map[pb.MessageType]MessageHandler{
+	var handlers = map[pb.MessageType]MessageHandler{
 		pb.MessageType_HELLO:             vk.serveHello,
 		pb.MessageType_JOIN:              vk.serveJoin,
 		pb.MessageType_REGISTER:          vk.serveRegister,

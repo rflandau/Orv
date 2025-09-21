@@ -157,10 +157,10 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 	}
 	serviceAddress, err := netip.ParseAddrPort(registerReq.Address)
 	if err != nil {
-		return true, pb.Fault_MALFORMED_ADDRESS, []string{fmt.Sprintf("bad service address ('%s' @ )")}
+		return true, pb.Fault_MALFORMED_ADDRESS, []string{fmt.Sprintf("bad service address ('%s' @ %v)", registerReq.Service, registerReq.Address)}
 	}
 	// register the service
-	if erred, code, ei := vk.addService(reqHdr.ID, registerReq.Service, serviceAddress, serviceStaleTime); err != nil {
+	if erred, code, ei := vk.addService(reqHdr.ID, registerReq.Service, serviceAddress, serviceStaleTime); erred {
 		return erred, code, ei
 	}
 

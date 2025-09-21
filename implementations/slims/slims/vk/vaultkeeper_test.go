@@ -178,6 +178,7 @@ func Test_respondError(t *testing.T) {
 		// check that each line contains its index+1
 		var i int64 = 1
 		for line := range strings.Lines(*bd.AdditionalInfo) {
+			line = strings.TrimSpace(line)
 			if parsed, err := strconv.ParseInt(line, 10, 8); err != nil {
 				t.Fatal(err)
 			} else if parsed != i {
@@ -229,7 +230,7 @@ func Test_respondSuccess(t *testing.T) {
 		vkAddr  = RandomLocalhostAddrPort()
 		sentHdr = protocol.Header{
 			Version: version.Version{Major: 1, Minor: 12},
-			Type:    mt.HelloAck,
+			Type:    pb.MessageType_HELLO_ACK,
 			ID:      1,
 		}
 		sentPayload = &pb.HelloAck{Height: 10}
@@ -539,7 +540,7 @@ func Test_HeartBeatParent(t *testing.T) {
 	// ensure child is in the parent's table
 	parent.children.mu.Lock()
 	if v, found := parent.children.cvks.Load(child.ID()); !found {
-		t.Error("failed to find child in parent's table")
+		t.Errorf("failed to find child %v in parent's table", child.ID())
 	} else if len(v.services) != 0 {
 		t.Error("child has services registered to it, but should have none")
 	}
@@ -560,6 +561,7 @@ func checkParent(t *testing.T, vk *VaultKeeper, expected struct {
 	parentID   slims.NodeID
 	parentAddr netip.AddrPort
 }) {
+	t.Helper()
 	vk.structure.mu.RLock()
 	if vk.structure.height != expected.height {
 		t.Error("bad height", ExpectedActual(expected.height, vk.structure.height))
@@ -639,7 +641,7 @@ func Test_serveRegister(t *testing.T) {
 		registerDelay time.Duration // how long to wait after sending a JOIN (or when a JOIN would have been sent) before sending the register
 		header        protocol.Header
 		body          proto.Message
-		wantType      mt.MessageType
+		wantType      pb.MessageType
 	}{
 		{"only HELLO",
 			true,
@@ -649,7 +651,7 @@ func Test_serveRegister(t *testing.T) {
 			}{
 				false,
 				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
-			0, protocol.Header{}, &pb.Register{}, mt.Fault,
+			0, protocol.Header{}, &pb.Register{}, pb.MessageType_FAULT,
 		},
 	}
 
@@ -736,7 +738,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			protocol.Header{
 				Version:   protocol.SupportedVersions().HighestSupported(),
 				Shorthand: true,
-				Type:      mt.ServiceHeartbeat,
+				Type:      pb.MessageType_SERVICE_HEARTBEAT,
 				ID:        rand.Uint64(),
 			}, &pb.ServiceHeartbeat{},
 			true,
@@ -746,7 +748,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			nil,
 			protocol.Header{
 				Version: version.Version{Major: 0, Minor: 0},
-				Type:    mt.ServiceHeartbeat,
+				Type:    pb.MessageType_SERVICE_HEARTBEAT,
 				ID:      rand.Uint64(),
 			}, &pb.ServiceHeartbeat{},
 			true,
@@ -756,7 +758,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			nil,
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.ServiceHeartbeat,
+				Type:    pb.MessageType_SERVICE_HEARTBEAT,
 				ID:      rand.Uint64(),
 			}, &pb.ServiceHeartbeat{Services: []string{randomdata.Currency(), randomdata.Currency()}},
 			true,
@@ -766,18 +768,18 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			map[uint64]string{staticID: "some service"},
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.ServiceHeartbeat,
+				Type:    pb.MessageType_SERVICE_HEARTBEAT,
 				ID:      staticID,
 			},
 			&pb.ServiceHeartbeat{Services: []string{"some service"}},
 			false,
-			&pb.ServiceHeartbeatAck{Refreshed: []string{"some service"}},
+			&pb.ServiceHeartbeatAck{Refresheds: []string{"some service"}},
 		},
 		{"all unknown",
 			map[uint64]string{staticID: "some service"},
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
-				Type:    mt.ServiceHeartbeat,
+				Type:    pb.MessageType_SERVICE_HEARTBEAT,
 				ID:      staticID,
 			},
 			&pb.ServiceHeartbeat{Services: []string{"misspelled service"}},
@@ -806,8 +808,8 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 					t.Fatal("bad result from addLeaf: cvk overlap but no cvks are registered")
 				}
 				// register service
-				if err := vk.addService(leafID, service, netip.MustParseAddrPort("127.0.0.1:0"), 10*time.Second); err != nil {
-					t.Fatal("failed to add service: ", err)
+				if erred, errno, ei := vk.addService(leafID, service, netip.MustParseAddrPort("127.0.0.1:0"), 10*time.Second); erred {
+					t.Fatalf("failed to add service: #%v: (%v)", errno, ei)
 				}
 			}
 
@@ -829,17 +831,17 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				t.Fatal(ExpectedActual(vk.ID(), vkResp.hdr.ID))
 			}
 			// check for test-specific values
-			if (vkResp.hdr.Type == mt.Fault) != tt.expectedFault {
+			if (vkResp.hdr.Type == pb.MessageType_FAULT) != tt.expectedFault {
 				var msg string
 				// if this is a fault, we can pull extra information from it
-				if vkResp.hdr.Type == mt.Fault {
+				if vkResp.hdr.Type == pb.MessageType_FAULT {
 					msg = "Expected SERVICE_HEARTBEAT_ACK, got FAULT"
 					// unpack as fault
 					var f pb.Fault
 					if err := proto.Unmarshal(vkResp.body, &f); err != nil {
 						msg += "[failed to unmarshal as fault]"
 					} else {
-						msg += " (" + f.Reason + ")"
+						msg += " (" + slims.FormatFault(&f).Error() + ")"
 					}
 				} else {
 					msg = "Expected FAULT, got SERVICE_HEARTBEAT_ACK"
@@ -847,19 +849,19 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				t.Fatal(msg)
 			}
 			switch vkResp.hdr.Type {
-			case mt.Fault:
+			case pb.MessageType_FAULT:
 				// unpack as fault
 				var f pb.Fault
 				if err := proto.Unmarshal(vkResp.body, &f); err != nil {
 					t.Fatal("failed to unmarshal body as fault")
 				}
-			case mt.ServiceHeartbeatAck:
+			case pb.MessageType_SERVICE_HEARTBEAT_ACK:
 				var ack pb.ServiceHeartbeatAck
 				if err := proto.Unmarshal(vkResp.body, &ack); err != nil {
 					t.Fatal("failed to unmarshal body as service heartbeat")
 				}
-				if slices.Compare(ack.Refreshed, tt.expectedBody.Refreshed) != 0 {
-					t.Error(ExpectedActual(tt.expectedBody.Refreshed, ack.Refreshed))
+				if slices.Compare(ack.Refresheds, tt.expectedBody.Refresheds) != 0 {
+					t.Error(ExpectedActual(tt.expectedBody.Refresheds, ack.Refresheds))
 				}
 			default:
 				t.Fatal("unhandled expected type:", vkResp.hdr.Type.String())
