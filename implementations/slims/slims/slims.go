@@ -5,6 +5,7 @@ package slims
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
@@ -24,7 +25,7 @@ var ErrNilCtx = errors.New("do not pass nil contexts; use context.TODO or contex
 // FormatFault is a helper function used to format a fault message into a Go error.
 // Currently just prints errno and attaches additional_info (if supplied)
 func FormatFault(f *pb.Fault) error {
-	errMsg := "errno#%v"
+	errMsg := "errno#" + strconv.FormatUint(uint64(f.Errno), 10)
 	if f.AdditionalInfo != nil && strings.TrimSpace(*f.AdditionalInfo) != "" {
 		errMsg += *f.AdditionalInfo
 	}
