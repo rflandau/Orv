@@ -70,3 +70,7 @@ In the original vision, a JOIN_DENY packet would remove the requestor from the H
 ## FAULTs have error numbers
 
 Once again following in ICMP's footsteps (and that of so many other network protocols), Faults have an error number tied to them to ease automated error checking and response.
+
+### Design Process
+
+Errno was a relatively late addition and required a fair amount of refactoring. Originally, FAULTs were intended to be opaque, carrying only a "reason" string. This, however, made unit testing less precise and I figured that if I would get use out of error numbers, so could others.
