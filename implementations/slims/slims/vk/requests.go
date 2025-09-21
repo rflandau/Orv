@@ -2,7 +2,6 @@ package vaultkeeper
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -11,7 +10,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -55,7 +53,7 @@ func (vk *VaultKeeper) HeartbeatParent() error {
 	}
 	// send
 	if _, err := protocol.WritePacket(context.Background(), conn,
-		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.VKHeartbeat, ID: vk.ID()}, nil); err != nil {
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: pb.MessageType_VK_HEARTBEAT, ID: vk.ID()}, nil); err != nil {
 		return err
 	}
 	// receive
@@ -64,13 +62,13 @@ func (vk *VaultKeeper) HeartbeatParent() error {
 		return err
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return err
 		}
-		return errors.New(f.Reason)
-	case mt.VKHeartbeatAck:
+		return slims.FormatFault(f)
+	case pb.MessageType_VK_HEARTBEAT:
 		if len(respBody) > 0 {
 			vk.log.Warn().Int("body length", len(respBody)).Bytes("body", respBody).Msg("VK_HEARTBEAT has a non-zero body")
 		}
