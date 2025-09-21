@@ -320,7 +320,7 @@ Returns the status of the current node.
 7. *pruneTimesHello*(**Go time**)
 8. *prune_times_serviceless_leaf* (**Go time**)
 9. *prune_times_child_vk* (**Go time**)
-10. *child_cvks* (**map<uint64, string>**): nodeID -> address
+10. *child_vks* (**map<uint64, string>**): nodeID -> address
 11. *child_leaves* (**array of uint64)
 12. *services* (**map<string, string>**): service -> provider count
 13. *auto_hb_enabled* (**bool**): does this vk have an autoheartbeater running?

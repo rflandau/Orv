@@ -598,11 +598,11 @@ type StatusResp struct {
 	PruneTimesHello           *string           `protobuf:"bytes,8,opt,name=prune_times_hello,json=pruneTimesHello,proto3,oneof" json:"prune_times_hello,omitempty"`
 	PruneTimesServicelessLeaf *string           `protobuf:"bytes,9,opt,name=prune_times_serviceless_leaf,json=pruneTimesServicelessLeaf,proto3,oneof" json:"prune_times_serviceless_leaf,omitempty"`
 	PruneTimesChildVk         *string           `protobuf:"bytes,10,opt,name=prune_times_child_vk,json=pruneTimesChildVk,proto3,oneof" json:"prune_times_child_vk,omitempty"`
-	ChildCvks                 map[uint64]string `protobuf:"bytes,11,rep,name=child_cvks,json=childCvks,proto3" json:"child_cvks,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // nodeID -> address
-	ChildLeaves               []uint64          `protobuf:"varint,12,rep,packed,name=child_leaves,json=childLeaves,proto3" json:"child_leaves,omitempty"`                                                              // nodeID
-	Services                  map[string]string `protobuf:"bytes,13,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                     // service -> provider count
-	AutoHbEnabled             *bool             `protobuf:"varint,14,opt,name=auto_hb_enabled,json=autoHbEnabled,proto3,oneof" json:"auto_hb_enabled,omitempty"`                                                       // does this vk have an autoheartbeater running?
-	AutoHbFrequency           *string           `protobuf:"bytes,15,opt,name=auto_hb_frequency,json=autoHbFrequency,proto3,oneof" json:"auto_hb_frequency,omitempty"`                                                  // Go time
+	ChildVks                  map[uint64]string `protobuf:"bytes,11,rep,name=child_vks,json=childVks,proto3" json:"child_vks,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // nodeID -> address
+	ChildLeaves               []uint64          `protobuf:"varint,12,rep,packed,name=child_leaves,json=childLeaves,proto3" json:"child_leaves,omitempty"`                                                           // nodeID
+	Services                  map[string]string `protobuf:"bytes,13,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                  // service -> provider count
+	AutoHbEnabled             *bool             `protobuf:"varint,14,opt,name=auto_hb_enabled,json=autoHbEnabled,proto3,oneof" json:"auto_hb_enabled,omitempty"`                                                    // does this vk have an autoheartbeater running?
+	AutoHbFrequency           *string           `protobuf:"bytes,15,opt,name=auto_hb_frequency,json=autoHbFrequency,proto3,oneof" json:"auto_hb_frequency,omitempty"`                                               // Go time
 	AutoHbBadLimit            *uint32           `protobuf:"varint,16,opt,name=auto_hb_bad_limit,json=autoHbBadLimit,proto3,oneof" json:"auto_hb_bad_limit,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
@@ -701,9 +701,9 @@ func (x *StatusResp) GetPruneTimesChildVk() string {
 	return ""
 }
 
-func (x *StatusResp) GetChildCvks() map[uint64]string {
+func (x *StatusResp) GetChildVks() map[uint64]string {
 	if x != nil {
-		return x.ChildCvks
+		return x.ChildVks
 	}
 	return nil
 }
@@ -1016,7 +1016,7 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
 	"refresheds\x18\x01 \x03(\tR\n" +
 	"refresheds\x12\x1a\n" +
-	"\bunknowns\x18\x02 \x03(\tR\bunknowns\"\xc0\a\n" +
+	"\bunknowns\x18\x02 \x03(\tR\bunknowns\"\xbc\a\n" +
 	"\n" +
 	"StatusResp\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
@@ -1029,15 +1029,14 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x11prune_times_hello\x18\b \x01(\tH\x02R\x0fpruneTimesHello\x88\x01\x01\x12D\n" +
 	"\x1cprune_times_serviceless_leaf\x18\t \x01(\tH\x03R\x19pruneTimesServicelessLeaf\x88\x01\x01\x124\n" +
 	"\x14prune_times_child_vk\x18\n" +
-	" \x01(\tH\x04R\x11pruneTimesChildVk\x88\x01\x01\x12=\n" +
-	"\n" +
-	"child_cvks\x18\v \x03(\v2\x1e.orv.StatusResp.ChildCvksEntryR\tchildCvks\x12!\n" +
+	" \x01(\tH\x04R\x11pruneTimesChildVk\x88\x01\x01\x12:\n" +
+	"\tchild_vks\x18\v \x03(\v2\x1d.orv.StatusResp.ChildVksEntryR\bchildVks\x12!\n" +
 	"\fchild_leaves\x18\f \x03(\x04R\vchildLeaves\x129\n" +
 	"\bservices\x18\r \x03(\v2\x1d.orv.StatusResp.ServicesEntryR\bservices\x12+\n" +
 	"\x0fauto_hb_enabled\x18\x0e \x01(\bH\x05R\rautoHbEnabled\x88\x01\x01\x12/\n" +
 	"\x11auto_hb_frequency\x18\x0f \x01(\tH\x06R\x0fautoHbFrequency\x88\x01\x01\x12.\n" +
-	"\x11auto_hb_bad_limit\x18\x10 \x01(\rH\aR\x0eautoHbBadLimit\x88\x01\x01\x1a<\n" +
-	"\x0eChildCvksEntry\x12\x10\n" +
+	"\x11auto_hb_bad_limit\x18\x10 \x01(\rH\aR\x0eautoHbBadLimit\x88\x01\x01\x1a;\n" +
+	"\rChildVksEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x04R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rServicesEntry\x12\x10\n" +
@@ -1096,14 +1095,14 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*ListResp)(nil),            // 12: orv.ListResp
 	(*Get)(nil),                 // 13: orv.Get
 	(*GetResp)(nil),             // 14: orv.GetResp
-	nil,                         // 15: orv.StatusResp.ChildCvksEntry
+	nil,                         // 15: orv.StatusResp.ChildVksEntry
 	nil,                         // 16: orv.StatusResp.ServicesEntry
 	(MessageType)(0),            // 17: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
 	17, // 0: orv.Fault.original:type_name -> msg.MessageType
 	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
-	15, // 2: orv.StatusResp.child_cvks:type_name -> orv.StatusResp.ChildCvksEntry
+	15, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
 	16, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type

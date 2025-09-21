@@ -127,7 +127,7 @@ message StatusResp {
   optional string prune_times_hello = 8;
   optional string prune_times_serviceless_leaf = 9;
   optional string prune_times_child_vk = 10;
-  map<uint64, string> child_cvks = 11; // nodeID -> address
+  map<uint64, string> child_vks = 11; // nodeID -> address
   repeated uint64 child_leaves = 12; // nodeID
   map<string, string> services = 13;  // service -> provider count
   optional bool auto_hb_enabled = 14; // does this vk have an autoheartbeater running?
