@@ -3,7 +3,12 @@
 // Child packages are mostly self-contained, the Orv parent package provides the few shared utilities.
 package slims
 
-import "errors"
+import (
+	"errors"
+	"strings"
+
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
+)
 
 // NodeID is the VK or Leaf's unique identifier
 type NodeID = uint64
@@ -15,3 +20,13 @@ type NodeID = uint64
 const MaxPacketSize uint16 = 1024
 
 var ErrNilCtx = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
+
+// FormatFault is a helper function used to format a fault message into a Go error.
+// Currently just prints errno and attaches additional_info (if supplied)
+func FormatFault(f *pb.Fault) error {
+	errMsg := "errno#%v"
+	if f.AdditionalInfo != nil && strings.TrimSpace(*f.AdditionalInfo) != "" {
+		errMsg += *f.AdditionalInfo
+	}
+	return errors.New(errMsg)
+}
