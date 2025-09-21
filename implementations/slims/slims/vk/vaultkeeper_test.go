@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
@@ -123,13 +123,15 @@ func Test_respondError(t *testing.T) {
 		}()
 	}
 	const (
-		reason string = "test"
+		originalMessageType = pb.MessageType_HELLO
+		errno               = pb.Fault_BODY_REQUIRED
 	)
 	var (
+		extraInfo      = []string{"1", "2", "3"}
 		vkAddr         = RandomLocalhostAddrPort()
 		expectedHeader = protocol.Header{
 			Version: version.Version{Major: 2},
-			Type:    mt.Fault,
+			Type:    pb.MessageType_FAULT,
 			ID:      1,
 		}
 	)
@@ -142,15 +144,15 @@ func Test_respondError(t *testing.T) {
 	}
 	defer vk.Stop()
 
-	// send the fault packet
+	// send the fault packet to our dummy listener
 	parsedRcvrAddr, err := net.ResolveUDPAddr("udp", rcvrAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vk.respondError(parsedRcvrAddr, "test")
+	vk.respondError(parsedRcvrAddr, originalMessageType, errno, extraInfo...)
 
+	// receive and test
 	res := <-ch
-	// test that it looks as expected
 	if res.err != nil {
 		t.Fatal(err)
 	}
@@ -164,9 +166,27 @@ func Test_respondError(t *testing.T) {
 	if err := proto.Unmarshal(res.respBody, bd); err != nil {
 		t.Fatal(err)
 	}
-	if bd.Reason != reason {
-		t.Error(ExpectedActual(reason, bd.Reason))
+	if bd.Original != originalMessageType {
+		t.Error(ExpectedActual(originalMessageType, bd.Original))
 	}
+	if bd.Errno != errno {
+		t.Error(ExpectedActual(errno, bd.Errno))
+	}
+	if bd.AdditionalInfo == nil || strings.TrimSpace(*bd.AdditionalInfo) == "" {
+		t.Fatal("additional info is empty")
+	} else {
+		// check that each line contains its index+1
+		var i int64 = 1
+		for line := range strings.Lines(*bd.AdditionalInfo) {
+			if parsed, err := strconv.ParseInt(line, 10, 8); err != nil {
+				t.Fatal(err)
+			} else if parsed != i {
+				t.Errorf("bad value in line %v."+ExpectedActual(i, parsed), i)
+			}
+			i += 1
+		}
+	}
+
 }
 
 // Ensures that the data returned by respondSuccess looks as we expect it to.
@@ -629,7 +649,8 @@ func Test_serveRegister(t *testing.T) {
 			}{
 				false,
 				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
-			0, protocol.Header{}, &pb.Register{}, mt.Fault},
+			0, protocol.Header{}, &pb.Register{}, mt.Fault,
+		},
 	}
 
 	for _, tt := range tests {
@@ -689,8 +710,6 @@ func Test_serveRegister(t *testing.T) {
 			}
 		})
 	}
-
-	// TODO
 }
 
 // Each test spins up a VK and crafts serviceHeartbeat packets to send to it, directing the response over a dummy response listener.
