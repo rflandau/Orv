@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -264,16 +265,17 @@ type ParentInfo struct {
 //
 // hbWriteTimeout sets the timeout for each HB send.
 //
-// If hberrs is nil, errors will be thrown away.
-// If not nil, hberrs will be closed when the heartbeater dies.
+// frequency sets how often a service heartbeat (containing all valid services) will be sent.
+//
+// hbErrs, if given, will contain errors that occur as a result of the ServiceHeartbeat calls.
+// If nil, the errors will be thrown away.
+// Caller is responsible for closing hbErrs, but should only do so after calling cancel.
 //
 // If p.ID does not equal the ID returned by ServiceHeartbeat, the goroutine will send an error and die.
 //
 // If a service is returned as unknown (it expired or was otherwise removed from the parent, thus failing to heartbeat), it will be removed from the list of services to heartbeat.
 // If no services remain to be heartbeated for, the goroutine will exit.
-//
-// TODO test me
-func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.NodeID, p ParentInfo, servicesToHB []string, hbErrs chan<- error) (cancel chan<- bool, _ error) {
+func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.NodeID, p ParentInfo, servicesToHB []string, hbErrs chan<- error) (cancel func(), _ error) {
 	// validate params
 	if frequency <= 0 {
 		return nil, errors.New("frequency must be a positive duration")
@@ -281,36 +283,37 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 		return nil, ErrInvalidAddrPort
 	}
 
-	cnl := make(chan bool)
+	var (
+		done atomic.Bool // tracks if this autoheartber been cancelled or is otherwise done
+		cnl  = make(chan bool)
+	)
 	services := slices.Clone(servicesToHB) // copy so we can safely alter list
 	go func() {
 		for len(services) > 0 {
 			select {
 			case <-cnl: // die on cancel
-				if hbErrs != nil {
-					close(hbErrs)
-				}
 				return
 			case <-time.After(frequency): // send HB on freq
 				// send the request
 				ctx, c := context.WithTimeout(context.Background(), hbWriteTimeout)
 				pVKID, _, unknown, err := ServiceHeartbeat(ctx, myID, p.Addr, servicesToHB)
 				if err != nil {
-					if hbErrs != nil {
+					if hbErrs != nil && !done.Load() {
 						hbErrs <- err
 					}
 				}
 				if pVKID != p.ID {
-					if hbErrs != nil {
+					if hbErrs != nil && !done.Load() {
 						hbErrs <- fmt.Errorf("parent ID mismatch. Expected %d but ServiceHeartbeat was answered by %d. Operation complete", p.ID, pVKID)
-						close(hbErrs)
 					}
 					c()
 					return
 				}
 				// send each unknown service as an error and remove it from the services to be pinged
 				for _, unk := range unknown {
-					hbErrs <- fmt.Errorf("service %s is considered unknown by parent @ %v", unk, p.Addr)
+					if hbErrs != nil && !done.Load() {
+						hbErrs <- fmt.Errorf("service %s is considered unknown by parent @ %v", unk, p.Addr)
+					}
 					services = slices.DeleteFunc(services, func(svc string) bool {
 						return svc == unk
 					})
@@ -318,12 +321,13 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 				c()
 			}
 		}
-		// if we finished by running out of valid services, close out the channel and call it a day
-		if hbErrs != nil {
-			close(hbErrs)
-		}
 	}()
-	return cnl, nil
+	return func() {
+		// only shutdown if we have not shutdown already
+		if done.CompareAndSwap(false, true) {
+			close(cnl)
+		}
+	}, nil
 }
 
 // #region client requests
