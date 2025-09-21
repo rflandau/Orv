@@ -37,6 +37,7 @@ message Fault {
 
     BAD_SERVICE_NAME = 600;
     BAD_STALE_TIME = 601;
+    UNKNOWN_CHILD_ID = 602;
   }
 
   // uint16 | the type of error, for automated testing.

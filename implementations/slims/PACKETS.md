@@ -94,6 +94,8 @@ FAULT may be sent in response to any number of request packets.
         
         601: BAD_STALE_TIME: stale time was empty or not in Go time.
 
+        602: UNKNOWN_CHILD_ID: ID did not correspond to a current child.
+
 3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
 ## HELLO
