@@ -1,54 +1,59 @@
 syntax = "proto3";
+
 package orv;
 
-// TODO
-//import "google/protobuf/go_features.proto";
 import "slims/pb/message_types.proto";
+
+option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
 
 // generate with:
 // protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
 
-option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
-//option features.(pb.go).strip_enum_prefix = STRIP_ENUM_PREFIX_STRIP;
-
 // Type #1
 // Negative response to any packet.
-message Fault{
+message Fault {
   // uint16 | echos the type number of the original packet
   msg.MessageType original = 1;
 
   enum Errnos {
-    UNKNOWN_TYPE = 000;
-    BODY_NOT_ACCEPTED = 001;
-    BODY_REQUIRED = 002;
-    SHORTHAND_NOT_ACCEPTED = 003;
-    VERSION_NOT_SUPPORTED = 004;
-    MALFORMED_BODY = 005;
-    MALFORMED_ADDRESS = 006;
+    // implementation-specific error, the equivalent of a 500 Internal
+    // Server Error. Should be used as sparingly as possible.
+    UNSPECIFIED = 000;
+    UNKNOWN_TYPE = 001; // sent when an unknown message type number is declared.
+    BODY_NOT_ACCEPTED = 002;
+    BODY_REQUIRED = 003;
+    SHORTHAND_NOT_ACCEPTED = 004;
+    VERSION_NOT_SUPPORTED = 005;
+    MALFORMED_BODY = 006;
+    MALFORMED_ADDRESS = 007;
 
     // JOIN
 
     HELLO_REQUIRED = 400;
     BAD_HEIGHT = 401;
     ID_IN_USE = 402;
+
+    // REGISTER
+
+    BAD_SERVICE_NAME = 600;
+    BAD_STALE_TIME = 601;
   }
 
   // uint16 | the type of error, for automated testing.
   // should be one of the above enums
   Errnos errno = 2;
-  optional string additional_info = 3; // (OPTIONAL) 
+  optional string additional_info = 3; // (OPTIONAL)
 }
 
 // Type #2
 // Initial greeting.
-// Requiring prior to other, non-client-request packet chains. 
-message Hello {
-}
+// Requiring prior to other, non-client-request packet chains.
+message Hello {}
 
 // Type #3
 // Response to a HELLO request.
 message HelloAck {
-  uint32 height = 1;  // uint16
+  uint32 height = 1; // uint16
 }
 
 // Type #4
@@ -58,7 +63,7 @@ message Join {
   bool is_vk = 1;
   // required iff isVK | address at which the VK can receive requests/INCREMENTs
   string vk_addr = 2;
-  // uint16 | required iff isVK | height of the requestor node 
+  // uint16 | required iff isVK | height of the requestor node
   uint32 height = 3;
 }
 
@@ -76,7 +81,7 @@ message Register {
   string service = 1; // name of the service to be registered
   string address = 2; // the address at which the service can be accessed
   // Go time string declaring how long
-  // (w/o a heartbeat) until this service is considered prune-able 
+  // (w/o a heartbeat) until this service is considered prune-able
   string stale = 3;
 }
 
@@ -98,7 +103,6 @@ message ServiceHeartbeatAck {
   repeated string refresheds = 1;
   // name of services that were requested to be refreshed, but are unknown
   repeated string unknowns = 2;
-
 }
 
 //#region client requests
@@ -125,9 +129,9 @@ message ListResp {
 
 // Type #20
 message Get {
-  string service = 1; //  the name of the desired service
+  string service = 1;   //  the name of the desired service
   uint32 hop_limit = 2; // uint16
-  // identifier created by the requestor so it can correlate a valid response 
+  // identifier created by the requestor so it can correlate a valid response
   uint64 token = 3;
 }
 
