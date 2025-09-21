@@ -282,7 +282,7 @@ func (vk *VaultKeeper) Address() netip.AddrPort {
 func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno uint32, extraInfo ...string) {
 	fault := &pb.Fault{
 		Original: origMT,
-		Errno:    errno,
+		Errno:    pb.Fault_Errnos(errno),
 	}
 	if len(extraInfo) > 0 {
 		ai := strings.Join(extraInfo, "\n")
