@@ -103,7 +103,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].services[serviceName], leaves[i].id)
 		}
 
-		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{vk.ID(), vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hbErrs[i])
+		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hbErrs[i])
 		if err != nil {
 			t.Fatal(err)
 		}
