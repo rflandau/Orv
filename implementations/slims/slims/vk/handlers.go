@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -23,7 +25,7 @@ import (
 const registerPropagateTimeout time.Duration = 1 * time.Second
 
 // serveStatus answers STATUS packets, returning a variety of information about the vk.
-// Briefly holds a read lock on structure.
+// Functionally just calls Snapshot().
 func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	// no header validation is required
 
@@ -33,18 +35,43 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		return true, pb.Fault_BODY_NOT_ACCEPTED, nil
 	}
 
-	vk.structure.mu.RLock()
-	// gather data
-	st := &pb.StatusResp{ // TODO
-		Height:            uint32(vk.structure.height),
-		VersionsSupported: vk.versionSet.AsBytes(),
+	snap := vk.Snapshot()
+	// translate into a pb-compliant struct
+	var (
+		pAddr             = snap.ParentAddr.String()
+		ptHello           = snap.PruneTimes.Hello.String()
+		ptServicelessLeaf = snap.PruneTimes.ServicelessLeaf.String()
+		ptChildVK         = snap.PruneTimes.ChildVK.String()
+		hbFreq            = snap.AutoHeartbeater.Frequency.String()
+		hbLimit           = uint32(snap.AutoHeartbeater.Limit)
+		cvks              = make(map[uint64]string)
+		leaves            = slices.Collect(maps.Keys(snap.Children.Leaves))
+	)
+	for cvkID, info := range snap.Children.CVKs {
+		cvks[cvkID] = info.Addr.String()
 	}
-	vk.structure.mu.RUnlock()
+
+	var st = pb.StatusResp{
+		Id:                        snap.ID,
+		Addr:                      snap.Addr.String(),
+		VersionsSupported:         snap.Versions.AsBytes(),
+		Height:                    uint32(snap.Height),
+		ParentId:                  &snap.ParentID,
+		ParentAddr:                &pAddr,
+		PruneTimesHello:           &ptHello,
+		PruneTimesServicelessLeaf: &ptServicelessLeaf,
+		PruneTimesChildVk:         &ptChildVK,
+		ChildVks:                  cvks,
+		ChildLeaves:               leaves,
+		AutoHbEnabled:             &snap.AutoHeartbeater.Enabled,
+		AutoHbFrequency:           &hbFreq,
+		AutoHbBadLimit:            &hbLimit,
+	}
 
 	// send data to client
 	vk.respondSuccess(senderAddr,
 		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: pb.MessageType_STATUS_RESP, ID: vk.id},
-		st)
+		&st)
 	return
 }
 
