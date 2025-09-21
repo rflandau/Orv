@@ -56,11 +56,7 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, respHdr.Version, nil, err
 		}
-		errMsg := "errno#%v"
-		if f.AdditionalInfo != nil {
-			errMsg += *f.AdditionalInfo
-		}
-		return respHdr.ID, respHdr.Version, nil, errors.New(errMsg)
+		return respHdr.ID, respHdr.Version, nil, slims.FormatFault(f)
 	case pb.MessageType_HELLO_ACK:
 		ha := &pb.HelloAck{}
 		if err := proto.Unmarshal(respBody, ha); err != nil {
@@ -121,11 +117,7 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req Joi
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, err
 		}
-		errMsg := "errno#%v"
-		if f.AdditionalInfo != nil {
-			errMsg += *f.AdditionalInfo
-		}
-		return respHdr.ID, nil, errors.New(errMsg)
+		return respHdr.ID, nil, slims.FormatFault(f)
 	case pb.MessageType_JOIN_ACCEPT:
 		accept := &pb.JoinAccept{}
 		if err := proto.Unmarshal(respBody, accept); err != nil {
@@ -166,7 +158,7 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 			Address: serviceAddr.String(),
 			Stale:   stale.String(),
 		}); err != nil {
-
+		return 0, nil, err
 	}
 	// receive
 	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, ctx)
@@ -179,11 +171,7 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, err
 		}
-		errMsg := "errno#%v"
-		if f.AdditionalInfo != nil {
-			errMsg += *f.AdditionalInfo
-		}
-		return respHdr.ID, nil, errors.New(errMsg)
+		return respHdr.ID, nil, slims.FormatFault(f)
 	case pb.MessageType_REGISTER_ACCEPT:
 		accept := &pb.RegisterAccept{}
 		if err := proto.Unmarshal(respBody, accept); err != nil {
@@ -253,11 +241,7 @@ func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.A
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, nil, err
 		}
-		errMsg := "errno#%v"
-		if f.AdditionalInfo != nil {
-			errMsg += *f.AdditionalInfo
-		}
-		return respHdr.ID, nil, nil, errors.New(errMsg)
+		return respHdr.ID, nil, nil, slims.FormatFault(f)
 	case pb.MessageType_SERVICE_HEARTBEAT_ACK:
 		ack := &pb.ServiceHeartbeatAck{}
 		if err := proto.Unmarshal(respBody, ack); err != nil {
@@ -382,21 +366,16 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 	switch respHdr.Type {
 	case pb.MessageType_FAULT:
-		f := pb.Fault{}
-		if err := proto.Unmarshal(bd, &f); err != nil {
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(bd, f); err != nil {
 			return respHdr.ID, sr, err
 		}
-		errMsg := "errno#%v"
-		if f.AdditionalInfo != nil {
-			errMsg += *f.AdditionalInfo
-		}
-		return respHdr.ID, nil, errors.New(errMsg)
+		return respHdr.ID, nil, slims.FormatFault(f)
 	case pb.MessageType_STATUS_RESP:
 		sr := &pb.StatusResp{}
 		if err := proto.Unmarshal(bd, sr); err != nil {
 			return respHdr.ID, nil, err
 		}
-		// TODO translate struct away from a pb struct to pass by value
 		return respHdr.ID, sr, nil
 	default:
 		return respHdr.ID, sr, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
