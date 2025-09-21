@@ -111,7 +111,7 @@ func Test_addService(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := vk.addService(1234, "ssh", netip.AddrPort{}, 1); err == nil {
+		if erred, _, _ := vk.addService(1234, "ssh", netip.AddrPort{}, 1); !erred {
 			t.Fatal("expected error when given an ID for a child that DNE")
 		}
 	})
@@ -131,13 +131,13 @@ func Test_addService(t *testing.T) {
 			t.Fatal("leaf should not exist on a fresh vk")
 		}
 		// add a service to the cvk
-		if err := vk.addService(
+		if erred, errno, ei := vk.addService(
 			cvkID,
 			serviceName,
 			serviceAddr,
 			0, // stale does not apply to cvk services
-		); err != nil {
-			t.Fatal(err)
+		); erred {
+			t.Fatalf("unexpected error (#%v) (extra info: %v)", errno, ei)
 		}
 		vk.children.mu.Lock()
 		// verify the service exists on the cvk
@@ -185,8 +185,8 @@ func Test_addService(t *testing.T) {
 			t.Fatal("cvk should not exist on a fresh vk")
 		}
 		// add a service to the leaf
-		if err := vk.addService(leafID, serviceName, serviceAddr, serviceStale); err != nil {
-			t.Fatal(err)
+		if erred, errno, ei := vk.addService(leafID, serviceName, serviceAddr, serviceStale); erred {
+			t.Fatalf("unexpected error (#%v) (extra info: %v)", errno, ei)
 		}
 		vk.children.mu.Lock()
 		// verify the service exists on the leaf

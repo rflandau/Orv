@@ -14,7 +14,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"google.golang.org/protobuf/proto"
 )
@@ -43,7 +42,7 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 	}
 	// send
 	if _, err := protocol.WritePacket(ctx, conn,
-		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Hello, ID: myID}, nil); err != nil {
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: pb.MessageType_HELLO, ID: myID}, nil); err != nil {
 		return 0, version.Version{}, nil, err
 	}
 	// receive
@@ -52,13 +51,17 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 		return 0, version.Version{}, nil, err
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, respHdr.Version, nil, err
 		}
-		return respHdr.ID, respHdr.Version, nil, errors.New(f.Reason)
-	case mt.HelloAck:
+		errMsg := "errno#%v"
+		if f.AdditionalInfo != nil {
+			errMsg += *f.AdditionalInfo
+		}
+		return respHdr.ID, respHdr.Version, nil, errors.New(errMsg)
+	case pb.MessageType_HELLO_ACK:
 		ha := &pb.HelloAck{}
 		if err := proto.Unmarshal(respBody, ha); err != nil {
 			return respHdr.ID, respHdr.Version, nil, err
@@ -103,8 +106,8 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req Joi
 	}
 	// send
 	if _, err := protocol.WritePacket(ctx, conn,
-		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: mt.Join, ID: myID},
-		&pb.Join{IsVK: req.IsVK, VkAddr: req.VKAddr.String(), Height: uint32(req.Height)}); err != nil {
+		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: pb.MessageType_JOIN, ID: myID},
+		&pb.Join{IsVk: req.IsVK, VkAddr: req.VKAddr.String(), Height: uint32(req.Height)}); err != nil {
 		return 0, nil, err
 	}
 	// receive
@@ -113,13 +116,17 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req Joi
 		return 0, nil, err
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, err
 		}
-		return respHdr.ID, nil, errors.New(f.Reason)
-	case mt.JoinAccept:
+		errMsg := "errno#%v"
+		if f.AdditionalInfo != nil {
+			errMsg += *f.AdditionalInfo
+		}
+		return respHdr.ID, nil, errors.New(errMsg)
+	case pb.MessageType_JOIN_ACCEPT:
 		accept := &pb.JoinAccept{}
 		if err := proto.Unmarshal(respBody, accept); err != nil {
 			return respHdr.ID, nil, err
@@ -151,7 +158,7 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 	if _, err := protocol.WritePacket(ctx, conn,
 		protocol.Header{
 			Version: protocol.SupportedVersions().HighestSupported(),
-			Type:    mt.Register,
+			Type:    pb.MessageType_REGISTER,
 			ID:      myID,
 		},
 		&pb.Register{
@@ -167,13 +174,17 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 		return 0, nil, err
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, err
 		}
-		return respHdr.ID, nil, errors.New(f.Reason)
-	case mt.RegisterAccept:
+		errMsg := "errno#%v"
+		if f.AdditionalInfo != nil {
+			errMsg += *f.AdditionalInfo
+		}
+		return respHdr.ID, nil, errors.New(errMsg)
+	case pb.MessageType_REGISTER_ACCEPT:
 		accept := &pb.RegisterAccept{}
 		if err := proto.Unmarshal(respBody, accept); err != nil {
 			return respHdr.ID, nil, err
@@ -224,7 +235,7 @@ func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.A
 	if _, err := protocol.WritePacket(ctx, conn,
 		protocol.Header{
 			Version: protocol.SupportedVersions().HighestSupported(),
-			Type:    mt.Register,
+			Type:    pb.MessageType_SERVICE_HEARTBEAT,
 			ID:      myID,
 		}, sh); err != nil {
 		rerr = err
@@ -237,18 +248,22 @@ func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.A
 		return
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return respHdr.ID, nil, nil, err
 		}
-		return respHdr.ID, nil, nil, errors.New(f.Reason)
-	case mt.JoinAccept:
+		errMsg := "errno#%v"
+		if f.AdditionalInfo != nil {
+			errMsg += *f.AdditionalInfo
+		}
+		return respHdr.ID, nil, nil, errors.New(errMsg)
+	case pb.MessageType_SERVICE_HEARTBEAT_ACK:
 		ack := &pb.ServiceHeartbeatAck{}
 		if err := proto.Unmarshal(respBody, ack); err != nil {
 			return respHdr.ID, nil, nil, err
 		}
-		return respHdr.ID, ack.Refreshed, ack.Unknown, nil
+		return respHdr.ID, ack.Refresheds, ack.Unknowns, nil
 	default:
 		return respHdr.ID, nil, nil, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
@@ -345,7 +360,7 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	// generate a header
-	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: mt.Status}
+	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: pb.MessageType_STATUS}
 	if len(senderID) > 0 {
 		reqHdr.Shorthand = false
 		reqHdr.ID = senderID[0]
@@ -366,13 +381,17 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 		return 0, sr, err
 	}
 	switch respHdr.Type {
-	case mt.Fault:
+	case pb.MessageType_FAULT:
 		f := pb.Fault{}
 		if err := proto.Unmarshal(bd, &f); err != nil {
 			return respHdr.ID, sr, err
 		}
-		return respHdr.ID, nil, errors.New(f.Reason)
-	case mt.StatusResp:
+		errMsg := "errno#%v"
+		if f.AdditionalInfo != nil {
+			errMsg += *f.AdditionalInfo
+		}
+		return respHdr.ID, nil, errors.New(errMsg)
+	case pb.MessageType_STATUS_RESP:
 		sr := &pb.StatusResp{}
 		if err := proto.Unmarshal(bd, sr); err != nil {
 			return respHdr.ID, nil, err
