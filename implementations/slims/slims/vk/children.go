@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 )
 
 // addCVK installs the given information into the cvk table, failing if the ID is already registered to a leave and refreshing the timer if it is for a previously-known cvk.
@@ -105,7 +106,7 @@ func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
 // Acquires the children lock.
 //
 // ! Assumes that parameters, other than childID, have already been validated.
-func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr netip.AddrPort, stale time.Duration) error {
+func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr netip.AddrPort, stale time.Duration) (erred bool, code pb.Fault_Errnos, extraInfo []string) {
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
@@ -138,7 +139,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
 		// refresh the cvk's prune timer
 		if !vk.children.cvks.Refresh(childID, vk.pruneTime.ChildVK) {
-			return fmt.Errorf("failed to register service %s to child vk %d: child vk was pruned during look up", service, childID)
+			return true, pb.Fault_UNSPECIFIED, []string{fmt.Sprintf("failed to register service %s to child vk %d: child vk was pruned during look up", service, childID)}
 		}
 		cvk.services[service] = addr // update or set our info
 		vk.log.Debug().
@@ -147,7 +148,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 			Str("service address", addr.String()).
 			Msgf("registered/updated service %s on child vk %d", service, childID)
 	} else {
-		return fmt.Errorf("id %d does not correspond to any known child", childID)
+		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
 	}
 
 	// add this child as a provider of the service
@@ -164,7 +165,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 		}
 	}
 
-	return nil
+	return false, 0, nil
 }
 
 // pruneServiceFromLeaf is called whenever a service's stale timer is triggered (which can only occurs on leaves as cvk's services do not have stale timers).
