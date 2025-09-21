@@ -307,19 +307,25 @@ STATUS does not have a payload.
 **Type Number:** 17
 
 Returns the status of the current node.
-All fields (other than id) are optional and may be omitted at the VK's discretion.
+*All fields (other than id and height) are optional* and may be omitted at the VK's discretion. Other fields may also be included; those listed below are just suggested.
 
 ### Payload
 
-1. *height* (**uint16**): (OPTIONAL) height of the queried VK
-    - example: 8
-2. *children*(**any**): (OPTIONAL) children of this VK and their services. Represents a point-in-time snapshot. No representations are guaranteed and format is left up to the discretion of the VK implementation
-3. *parentID*(**uint64**): (OPTIONAL) unique identifier for the VK's parent. 0 if VK is root.
-4. *parentAddress* (**any**): (OPTIONAL) address and port of the VK parent's process
-5. *pruneTimes*(**struct of Go times**): (OPTIONAL) this VK's timings for considering associated data to be stale
-    - *pendingHello*
-	- *servicelessChild*
-	- *cVK*
+1. *id* (**uint64**)
+2. *addr* (**string**)
+3. *versionsSupported* (**array of bytes**): packed bytes; MSN is major, LSN is minor
+4. *height* (**uint16**):
+5. *parentID* (**uint64**)
+6. *parentAddr* (**string**)
+7. *pruneTimesHello*(**Go time**)
+8. *prune_times_serviceless_leaf* (**Go time**)
+9. *prune_times_child_vk* (**Go time**)
+10. *child_cvks* (**map<uint64, string>**): nodeID -> address
+11. *child_leaves* (**array of uint64)
+12. *services* (**map<string, string>**): service -> provider count
+13. *auto_hb_enabled* (**bool**): does this vk have an autoheartbeater running?
+14. *auto_hb_frequency*(**Go time**)
+15. *auto_hb_bad_limit*(**uint16**)
 
 ## LIST
 

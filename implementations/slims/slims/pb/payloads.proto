@@ -112,12 +112,27 @@ message ServiceHeartbeatAck {
 
 //#region client requests
 
-// Response to a STATUS request
+// Type #17.
+// Response to a STATUS request.
+// Closely resembles a VKSnapshot.
 message StatusResp {
-  // uint16
-  uint32 height = 1;
+  uint64 id = 1;
+  string addr = 2;
   // packed bytes; MSN is major, LSN is minor
-  bytes versions_supported = 2;
+  bytes versions_supported = 4;
+  uint32 height = 5; // uint16
+  optional uint64 parent_id = 6;
+  optional string parent_addr = 7;
+  // Go time for pruning hellos that are not followed up on
+  optional string prune_times_hello = 8;
+  optional string prune_times_serviceless_leaf = 9;
+  optional string prune_times_child_vk = 10;
+  map<uint64, string> child_cvks = 11; // nodeID -> address
+  repeated uint64 child_leaves = 12; // nodeID
+  map<string, string> services = 13;  // service -> provider count
+  optional bool auto_hb_enabled = 14; // does this vk have an autoheartbeater running?
+  optional string auto_hb_frequency = 15; // Go time
+  optional uint32 auto_hb_bad_limit = 16;
 }
 
 // Type #18
