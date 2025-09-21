@@ -78,6 +78,8 @@ FAULT may be sent in response to any number of request packets.
         007: MALFORMED_ADDRESS: address does not fit the expected address syntax.
             - This error is subject to implementation choices and may not be sent (if addresses are not validated).
             - This error is may be used for a number of different addresses, as necessitated by the message type.
+        008: UNKNOWN_CHILD_ID: ID did not correspond to a current child.
+
 
     - JOIN Codes (4XX):
 
@@ -93,8 +95,6 @@ FAULT may be sent in response to any number of request packets.
         600: BAD_SERVICE_NAME: service name was left empty.
         
         601: BAD_STALE_TIME: stale time was empty or not in Go time.
-
-        602: UNKNOWN_CHILD_ID: ID did not correspond to a current child.
 
     - SERVICE_HEARTBEAT (12XX):
 

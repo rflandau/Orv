@@ -18,14 +18,15 @@ message Fault {
   enum Errnos {
     // implementation-specific error, the equivalent of a 500 Internal
     // Server Error. Should be used as sparingly as possible.
-    UNSPECIFIED = 000;
-    UNKNOWN_TYPE = 001; // sent when an unknown message type number is declared.
-    BODY_NOT_ACCEPTED = 002;
-    BODY_REQUIRED = 003;
-    SHORTHAND_NOT_ACCEPTED = 004;
-    VERSION_NOT_SUPPORTED = 005;
-    MALFORMED_BODY = 006;
-    MALFORMED_ADDRESS = 007;
+    UNSPECIFIED = 0;
+    UNKNOWN_TYPE = 1; // sent when an unknown message type number is declared.
+    BODY_NOT_ACCEPTED = 2;
+    BODY_REQUIRED = 3;
+    SHORTHAND_NOT_ACCEPTED = 4;
+    VERSION_NOT_SUPPORTED = 5;
+    MALFORMED_BODY = 6;
+    MALFORMED_ADDRESS = 7;
+    UNKNOWN_CHILD_ID = 8;
 
     // JOIN
 
@@ -37,7 +38,6 @@ message Fault {
 
     BAD_SERVICE_NAME = 600;
     BAD_STALE_TIME = 601;
-    UNKNOWN_CHILD_ID = 602;
 
     // SERVICE_HEARTBEAT
 
