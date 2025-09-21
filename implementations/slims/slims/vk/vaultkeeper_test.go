@@ -629,7 +629,6 @@ func Test_serveRegister(t *testing.T) {
 
 	// test expired join (no services registered in time) // TODO
 	// test out of order (only JOIN)
-	// test normal // TODO
 
 	tests := []struct {
 		name      string
@@ -688,6 +687,27 @@ func Test_serveRegister(t *testing.T) {
 				errno pb.Fault_Errnos
 			}{true, pb.Fault_UNKNOWN_CHILD_ID},
 		},
+		{"simple",
+			true,
+			struct {
+				send bool
+				req  client.JoinInfo
+			}{
+				true,
+				client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0}},
+			0, protocol.Header{
+				Version: defaultVersionsSupported.HighestSupported(),
+				Type:    pb.MessageType_REGISTER,
+				ID:      rand.Uint64(),
+			}, &pb.Register{
+				Service: randomdata.City(),
+				Address: "1.1.1.1:1",
+				Stale:   "3m",
+			}, struct {
+				erred bool
+				errno pb.Fault_Errnos
+			}{false, 0},
+		},
 	}
 
 	for _, tt := range tests {
@@ -705,19 +725,16 @@ func Test_serveRegister(t *testing.T) {
 			defer vk.Stop()
 			t.Logf("vk address: %v", vk.Address())
 
-			// generate a child ID to use
-			childID := rand.Uint64()
-
 			// send a HELLO (if applicable)
 			if tt.sendHELLO {
 				// only bother to check err; the other tests check hello for us quite a bit
-				if _, _, _, err := client.Hello(t.Context(), childID, vk.Address()); err != nil {
+				if _, _, _, err := client.Hello(t.Context(), tt.header.ID, vk.Address()); err != nil {
 					t.Fatal("failed to HELLO:", err)
 				}
 			}
 			if tt.join.send {
 				// only bother to check err; the other tests check join for us quite a bit
-				if _, _, err := client.Join(t.Context(), childID, vk.Address(), tt.join.req); err != nil {
+				if _, _, err := client.Join(t.Context(), tt.header.ID, vk.Address(), tt.join.req); err != nil {
 					t.Fatal("failed to JOIN:", err)
 				}
 			}
@@ -751,9 +768,22 @@ func Test_serveRegister(t *testing.T) {
 				if registerResp.hdr.ID != vk.ID() {
 					t.Error("bad vk ID", ExpectedActual(vk.ID(), registerResp.hdr.ID))
 				}
-				/*if registerResp.hdr.Type != tt.wantType {
-					t.Error("bad response message type", ExpectedActual(tt.wantType, registerResp.hdr.Type))
-				}*/ // TODO
+				if registerResp.hdr.Type != pb.MessageType_REGISTER_ACCEPT {
+					t.Error("bad response message type", ExpectedActual(pb.MessageType_REGISTER_ACCEPT, registerResp.hdr.Type))
+				}
+				// unpack the body
+				var accept pb.RegisterAccept
+				if err := pbun.Unmarshal(registerResp.body, &accept); err != nil {
+					t.Fatal("failed to unmarshal: ", err)
+				}
+
+				coerced, ok := tt.body.(*pb.Register)
+				if !ok {
+					t.Fatal("failed to coerce body sent with test as a Register pointer")
+				}
+				if accept.Service != coerced.Service {
+					t.Error("bad service echo", ExpectedActual(coerced.Service, accept.Service))
+				}
 			}
 		})
 	}
