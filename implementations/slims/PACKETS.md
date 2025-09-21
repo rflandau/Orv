@@ -56,23 +56,34 @@ FAULT may be sent in response to any number of request packets.
 ### Payload
 
 1. *message type* (**uint8**): type number of the original message (the message that caused the FAULT).
-    - each packet type has its own set of error numbers, typically written as <packet_type>.<errno>
-        - example: 1.0 is the UNKNOWN_TYPE error
-        - example 4.0 is the HELLO_REQUIRED error
     - example (in response to a HELLO): 2
-2. *errno* (**uint16**): packet type-specific error number. Errnos are not independent; specific errors can only be identified in conjunction with their packet type. The following codes are written in <packet_type>.<errno> syntax.
-    - See the note and examples in the *packet type* field.
-    - (General) Codes:
+2. *errno* (**uint16**): error number indicated the specific error that occurred. Errnos are divided into categories, like HTTP, CoAP, etc. General Codes can be sent in response to any message type, while type-specific codes (like JOIN Codes) can only be sent in response to that message type.
+
+    - General Codes (0XX):
     
-        1.0: UNKNOWN_TYPE: sent when an unknown message type number is declared.
+        000: UNKNOWN_TYPE: sent when an unknown message type number is declared.
     
-        1.1: BODY_NOT_ACCEPTED: sent when a payload is included in a packet that does not have one.
+        001: BODY_NOT_ACCEPTED: payload was included in a packet that does not have one.
         
-        1.2: BODY_REQUIRED: sent when a payload is not included with a message type that requires one.
+        002: BODY_REQUIRED: payload was not included with a message type that requires one.
 
-    - JOIN Codes:
+        003: SHORTHAND_NOT_ACCEPTED: message indicated shorthand, but shorthand is not supported for the given message type.
 
-        4.0: HELLO_REQUIRED: sent when a JOIN is received but there is no outstanding HELLO for the given ID.
+        004: VERSION_NOT_SUPPORTED: given version is not supported by the receiver vk.
+
+        005: MALFORMED_BODY: failed to unpack the body of the message.
+
+        006: MALFORMED_ADDRESS: given address does not fit the expected address syntax.
+            - This error is subject to implementation choices and may not be sent (if addresses are not validated).
+
+    - JOIN Codes (4XX):
+
+        400: HELLO_REQUIRED: sent when a JOIN is received but there is no outstanding HELLO for the given ID.
+
+        401: BAD_HEIGHT: the height of the requesting child was not equal to VK's height-1.
+
+        402: ID_IN_USE: the given ID is already in use by a child of a different kind
+            - if a VK sent the JOIN request, then its ID is already in use here by a leaf and vice versa.
 
 3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
