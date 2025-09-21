@@ -600,7 +600,7 @@ type StatusResp struct {
 	PruneTimesChildVk         *string           `protobuf:"bytes,10,opt,name=prune_times_child_vk,json=pruneTimesChildVk,proto3,oneof" json:"prune_times_child_vk,omitempty"`
 	ChildVks                  map[uint64]string `protobuf:"bytes,11,rep,name=child_vks,json=childVks,proto3" json:"child_vks,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // nodeID -> address
 	ChildLeaves               []uint64          `protobuf:"varint,12,rep,packed,name=child_leaves,json=childLeaves,proto3" json:"child_leaves,omitempty"`                                                           // nodeID
-	Services                  map[string]string `protobuf:"bytes,13,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`                  // service -> provider count
+	Services                  map[string]uint32 `protobuf:"bytes,13,rep,name=services,proto3" json:"services,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`                 // service -> provider count
 	AutoHbEnabled             *bool             `protobuf:"varint,14,opt,name=auto_hb_enabled,json=autoHbEnabled,proto3,oneof" json:"auto_hb_enabled,omitempty"`                                                    // does this vk have an autoheartbeater running?
 	AutoHbFrequency           *string           `protobuf:"bytes,15,opt,name=auto_hb_frequency,json=autoHbFrequency,proto3,oneof" json:"auto_hb_frequency,omitempty"`                                               // Go time
 	AutoHbBadLimit            *uint32           `protobuf:"varint,16,opt,name=auto_hb_bad_limit,json=autoHbBadLimit,proto3,oneof" json:"auto_hb_bad_limit,omitempty"`
@@ -715,7 +715,7 @@ func (x *StatusResp) GetChildLeaves() []uint64 {
 	return nil
 }
 
-func (x *StatusResp) GetServices() map[string]string {
+func (x *StatusResp) GetServices() map[string]uint32 {
 	if x != nil {
 		return x.Services
 	}
@@ -1041,7 +1041,7 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a;\n" +
 	"\rServicesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\f\n" +
+	"\x05value\x18\x02 \x01(\rR\x05value:\x028\x01B\f\n" +
 	"\n" +
 	"_parent_idB\x0e\n" +
 	"\f_parent_addrB\x14\n" +
