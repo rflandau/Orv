@@ -17,5 +17,11 @@
         "vaultkeeper",
         "vkid",
         "zerolog"
-    ]
+    ],
+    "protoc": {
+        "options": [
+            "--proto_path=slims/pb/",
+        ],
+        "clang-format.style": "{ IndentWidth: 4, BasedOnStyle: google, AlignConsecutiveAssignments: true }"
+    },
 }
