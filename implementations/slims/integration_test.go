@@ -148,7 +148,26 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	checkAutoHBErrs(t, hb, leafHBFreq*4)
 
 	// make a status request to check that the vk recognizes all its children and services
-	// TODO
+	if parentID, s, err := client.Status(vk.Address(), t.Context()); err != nil {
+		t.Fatal(err)
+	} else if parentID != vk.ID() {
+		t.Fatal(ExpectedActual(vk.ID(), parentID))
+	} else if s == nil {
+		t.Fatal("nil status")
+	} else { // test the values in status
+		// collect all the services each leaf owns
+		leafServices := map[string]uint32{} // service name -> provider count
+		for _, l := range leaves {
+			for service := range l.services {
+				leafServices[service] += 1
+			}
+		}
+		if !maps.Equal(s.Services, leafServices) {
+			t.Fatal("status reported different services and provider counts",
+				ExpectedActual(leafServices, s.Services))
+		}
+
+	}
 
 	// make a list request
 	// TODO
