@@ -628,7 +628,7 @@ func Test_serveRegister(t *testing.T) {
 	t.Logf("requestor address: %v", requestorAddr)
 
 	// test expired join (no services registered in time) // TODO
-	// test out of order (only JOIN)
+	// test out of order (only JOIN) // TODO
 
 	tests := []struct {
 		name      string
@@ -805,7 +805,8 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 		registeredServices map[uint64]string // leaf ID the service is registered to -> the name of the service
 		reqHdr             protocol.Header
 		reqBody            *pb.ServiceHeartbeat
-		expectedFault      bool
+		expectedError      bool
+		expectedErrno      pb.Fault_Errnos
 		expectedBody       *pb.ServiceHeartbeatAck // only checked if expectedType is mt.ServiceHeartbeatAck
 	}{
 		{"shorthand",
@@ -817,6 +818,18 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				ID:        rand.Uint64(),
 			}, &pb.ServiceHeartbeat{},
 			true,
+			pb.Fault_SHORTHAND_NOT_ACCEPTED,
+			nil,
+		},
+		{"no body",
+			nil,
+			protocol.Header{
+				Version: version.Version{Major: 0, Minor: 0},
+				Type:    pb.MessageType_SERVICE_HEARTBEAT,
+				ID:      rand.Uint64(),
+			}, &pb.ServiceHeartbeat{},
+			true,
+			pb.Fault_BODY_REQUIRED,
 			nil,
 		},
 		{"bad version",
@@ -825,8 +838,9 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				Version: version.Version{Major: 0, Minor: 0},
 				Type:    pb.MessageType_SERVICE_HEARTBEAT,
 				ID:      rand.Uint64(),
-			}, &pb.ServiceHeartbeat{},
+			}, &pb.ServiceHeartbeat{Services: []string{"dummy value"}},
 			true,
+			pb.Fault_VERSION_NOT_SUPPORTED,
 			nil,
 		},
 		{"no services registered (equivalent to no services registered to requesting parent)",
@@ -837,6 +851,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				ID:      rand.Uint64(),
 			}, &pb.ServiceHeartbeat{Services: []string{randomdata.Currency(), randomdata.Currency()}},
 			true,
+			pb.Fault_UNKNOWN_CHILD_ID,
 			nil,
 		},
 		{"simple success",
@@ -848,6 +863,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 			&pb.ServiceHeartbeat{Services: []string{"some service"}},
 			false,
+			0,
 			&pb.ServiceHeartbeatAck{Refresheds: []string{"some service"}},
 		},
 		{"all unknown",
@@ -859,6 +875,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 			&pb.ServiceHeartbeat{Services: []string{"misspelled service"}},
 			true,
+			pb.Fault_ALL_UNKNOWN,
 			nil,
 		},
 	}
@@ -893,7 +910,17 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			vk.serveServiceHeartbeat(tt.reqHdr, bd, requestorAddr)
+			erred, errno, _ := vk.serveServiceHeartbeat(tt.reqHdr, bd, requestorAddr)
+			if erred {
+				if !tt.expectedError {
+					t.Fatalf("serveServiceHeartbeat failed, but was not expected to. errno: %v", errno)
+				}
+				if tt.expectedErrno != errno {
+					t.Error("bad errno", ExpectedActual(tt.expectedErrno, errno))
+				}
+
+				return
+			}
 			vkResp := <-respCh
 			// check for values set across all tests
 			if vkResp.err != nil {
@@ -905,41 +932,15 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			} else if vkResp.hdr.ID != vk.ID() {
 				t.Fatal(ExpectedActual(vk.ID(), vkResp.hdr.ID))
 			}
-			// check for test-specific values
-			if (vkResp.hdr.Type == pb.MessageType_FAULT) != tt.expectedFault {
-				var msg string
-				// if this is a fault, we can pull extra information from it
-				if vkResp.hdr.Type == pb.MessageType_FAULT {
-					msg = "Expected SERVICE_HEARTBEAT_ACK, got FAULT"
-					// unpack as fault
-					var f pb.Fault
-					if err := proto.Unmarshal(vkResp.body, &f); err != nil {
-						msg += "[failed to unmarshal as fault]"
-					} else {
-						msg += " (" + slims.FormatFault(&f).Error() + ")"
-					}
-				} else {
-					msg = "Expected FAULT, got SERVICE_HEARTBEAT_ACK"
-				}
-				t.Fatal(msg)
+			if vkResp.hdr.Type != pb.MessageType_SERVICE_HEARTBEAT_ACK {
+				t.Fatal("unhandled message type")
 			}
-			switch vkResp.hdr.Type {
-			case pb.MessageType_FAULT:
-				// unpack as fault
-				var f pb.Fault
-				if err := proto.Unmarshal(vkResp.body, &f); err != nil {
-					t.Fatal("failed to unmarshal body as fault")
-				}
-			case pb.MessageType_SERVICE_HEARTBEAT_ACK:
-				var ack pb.ServiceHeartbeatAck
-				if err := proto.Unmarshal(vkResp.body, &ack); err != nil {
-					t.Fatal("failed to unmarshal body as service heartbeat")
-				}
-				if slices.Compare(ack.Refresheds, tt.expectedBody.Refresheds) != 0 {
-					t.Error(ExpectedActual(tt.expectedBody.Refresheds, ack.Refresheds))
-				}
-			default:
-				t.Fatal("unhandled expected type:", vkResp.hdr.Type.String())
+			var ack pb.ServiceHeartbeatAck
+			if err := proto.Unmarshal(vkResp.body, &ack); err != nil {
+				t.Fatal("failed to unmarshal body as service heartbeat")
+			}
+			if slices.Compare(ack.Refresheds, tt.expectedBody.Refresheds) != 0 {
+				t.Error(ExpectedActual(tt.expectedBody.Refresheds, ack.Refresheds))
 			}
 		})
 	}
