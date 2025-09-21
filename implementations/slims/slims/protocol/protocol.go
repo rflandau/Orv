@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
+	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
@@ -48,7 +48,7 @@ type Header struct {
 	Shorthand bool
 	// Type of message.
 	// See PACKETS.md for the available message types.
-	Type mt.MessageType
+	Type pb.MessageType
 	// Unique identifier of the sender. May be anything that fits into 8B, but is treated as an unsigned int in this implementation.
 	// Ignored if Shorthand is set.
 	ID slims.NodeID
@@ -155,7 +155,7 @@ func (hdr *Header) Zerolog(ev *zerolog.Event) {
 // Does not validate the header, the payload, or that the combination is valid.
 //
 // If you just want a header, use header.Serialize().
-func Serialize(v version.Version, shorthand bool, typ mt.MessageType, id slims.NodeID, payload proto.Message) ([]byte, error) {
+func Serialize(v version.Version, shorthand bool, typ pb.MessageType, id slims.NodeID, payload proto.Message) ([]byte, error) {
 	// generate header
 	hdrB, err := Header{Version: v, Shorthand: shorthand, Type: typ, ID: id}.Serialize()
 	if err != nil {
@@ -208,7 +208,7 @@ func Deserialize(rd io.Reader) (hdr Header, err error) {
 		return hdr, errors.New("short read on byte 2 (composite of Shorthand and Type)")
 	} else {
 		hdr.Shorthand = (b & 0b10000000) != 0
-		hdr.Type = mt.MessageType(b & 0b01111111)
+		hdr.Type = pb.MessageType(b & 0b01111111)
 	}
 
 	// ID (only if !shorthand)
