@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -194,71 +193,65 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 }
 
 // serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.
-func (vk *VaultKeeper) serveServiceHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+func (vk *VaultKeeper) serveServiceHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	//validate parameters
 	if reqHdr.Shorthand {
-		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.ServiceHeartbeat).Error())
-		return
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
 	} else if len(reqBody) == 0 {
-		vk.respondError(senderAddr, ErrBodyRequired(mt.ServiceHeartbeat).Error())
-		return
+		return true, pb.Fault_BODY_REQUIRED, nil
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
-		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
-		return
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
 	}
 	//unpack the body
 	msg := pb.ServiceHeartbeat{}
 	if err := proto.Unmarshal(reqBody, &msg); err != nil {
-		vk.respondError(senderAddr, ErrFailedToUnmarshal(mt.ServiceHeartbeat, err).Error())
+		return true, pb.Fault_MALFORMED_BODY, nil
 	}
 	// check that this is a known leaf ID
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 	s, found := vk.children.leaves[reqHdr.ID]
 	if !found {
-		vk.respondError(senderAddr, fmt.Sprintf("no child leaf with ID %d is registered to this parent", reqHdr.ID))
-		return
+		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
 	}
 	response := &pb.ServiceHeartbeatAck{
-		Refreshed: make([]string, 0),
-		Unknown:   make([]string, 0),
+		Refresheds: make([]string, 0),
+		Unknowns:   make([]string, 0),
 	}
 	// refresh each service given
 	for _, svc := range msg.GetServices() {
 		leafService, found := s.services[svc]
 		if !found ||
 			!leafService.pruner.Stop() { // had expired, but was not yet pruned; allow pruner to do its job
-			response.Unknown = append(response.Unknown, svc)
+			response.Unknowns = append(response.Unknowns, svc)
 			continue
 		}
 		leafService.pruner.Reset(leafService.stale)
 		vk.log.Debug().Uint64("leaf ID", reqHdr.ID).Str("service", svc).Msg("refreshed service")
-		response.Refreshed = append(response.Refreshed, svc)
+		response.Refresheds = append(response.Refresheds, svc)
 	}
 	// if no services were refreshed successfully, send back a fault
-	if len(response.Refreshed) == 0 {
-		vk.respondError(senderAddr, "all listed services are unknown. Services: "+strings.Join(response.Unknown, ","))
-		return
+	if len(response.Refresheds) == 0 {
+		return true, pb.Fault_ALL_UNKNOWN, append([]string{"Services:"}, response.Unknowns...)
 	}
 	vk.respondSuccess(senderAddr, protocol.Header{
 		Version: vk.versionSet.HighestSupported(),
-		Type:    mt.ServiceHeartbeatAck,
+		Type:    pb.MessageType_SERVICE_HEARTBEAT_ACK,
 		ID:      vk.ID(),
 	}, response)
+
+	return
 }
 
 // serveVKHeartbeat answers VK_HEARTBEATs, refreshing the associated child VK (if found).
-func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) {
+func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	// validate parameters
 	if reqHdr.Shorthand {
-		vk.respondError(senderAddr, ErrShorthandNotAccepted(mt.VKHeartbeat).Error())
-		return
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
 	} else if len(reqBody) != 0 {
-		vk.respondError(senderAddr, ErrBodyNotAccepted(mt.VKHeartbeat).Error())
-		return
+		return true, pb.Fault_BODY_NOT_ACCEPTED, nil
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
-		vk.respondError(senderAddr, ErrVersionNotSupported(reqHdr.Version).Error())
-		return
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
 	}
 	// check that this is a known cvk ID
 	vk.children.mu.Lock()
@@ -267,14 +260,14 @@ func (vk *VaultKeeper) serveVKHeartbeat(reqHdr protocol.Header, reqBody []byte, 
 
 	vk.children.mu.Unlock()
 	if !found {
-		vk.respondError(senderAddr, fmt.Sprintf("no child vk with ID %d is registered to this parent", reqHdr.ID))
-		return
+		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
 	}
 	vk.log.Debug().Uint64("child ID", reqHdr.ID).Msg("refreshed child vk")
 	vk.respondSuccess(senderAddr, protocol.Header{
 		Version:   vk.versionSet.HighestSupported(),
 		Shorthand: false,
-		Type:      mt.VKHeartbeatAck,
+		Type:      pb.MessageType_VK_HEARTBEAT_ACK,
 		ID:        vk.id,
 	}, nil)
+	return
 }
