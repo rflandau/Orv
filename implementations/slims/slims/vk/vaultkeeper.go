@@ -15,7 +15,6 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol/mt"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 	"github.com/rs/zerolog"
@@ -289,7 +288,7 @@ func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno 
 		fault.AdditionalInfo = &ai
 	}
 	// compose the response
-	b, err := protocol.Serialize(vk.versionSet.HighestSupported(), false, mt.Fault, vk.id, fault)
+	b, err := protocol.Serialize(vk.versionSet.HighestSupported(), false, pb.MessageType_FAULT, vk.id, fault)
 	if err != nil {
 		vk.log.Error().Err(err).Msg("failed to serialize response header")
 		return
