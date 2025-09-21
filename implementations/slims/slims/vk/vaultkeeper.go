@@ -501,7 +501,7 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 		Height:               vk.structure.height,
 		ParentID:             vk.structure.parentID,
 		ParentAddr:           vk.structure.parentAddr,
-		// TODO prunetimes
+		PruneTimes:           vk.pruneTime,
 		Children: struct {
 			CVKs map[slims.NodeID]struct {
 				Services map[string]netip.AddrPort
