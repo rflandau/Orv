@@ -61,20 +61,23 @@ FAULT may be sent in response to any number of request packets.
 
     - General Codes (0XX):
     
-        000: UNKNOWN_TYPE: sent when an unknown message type number is declared.
+        000: UNSPECIFIED: implementation-specific error, the equivalent of a 500 Internal Server Error. Should be used as sparingly as possible.
+
+        001: UNKNOWN_TYPE: sent when an unknown message type number is declared.
     
-        001: BODY_NOT_ACCEPTED: payload was included in a packet that does not have one.
+        002: BODY_NOT_ACCEPTED: payload was included in a packet that does not have one.
         
-        002: BODY_REQUIRED: payload was not included with a message type that requires one.
+        003: BODY_REQUIRED: payload was not included with a message type that requires one.
 
-        003: SHORTHAND_NOT_ACCEPTED: message indicated shorthand, but shorthand is not supported for the given message type.
+        004: SHORTHAND_NOT_ACCEPTED: message indicated shorthand, but shorthand is not supported for the given message type.
 
-        004: VERSION_NOT_SUPPORTED: given version is not supported by the receiver vk.
+        005: VERSION_NOT_SUPPORTED: given version is not supported by the receiver vk.
 
-        005: MALFORMED_BODY: failed to unpack the body of the message.
+        006: MALFORMED_BODY: failed to unpack the body of the message.
 
-        006: MALFORMED_ADDRESS: given address does not fit the expected address syntax.
+        007: MALFORMED_ADDRESS: address does not fit the expected address syntax.
             - This error is subject to implementation choices and may not be sent (if addresses are not validated).
+            - This error is may be used for a number of different addresses, as necessitated by the message type.
 
     - JOIN Codes (4XX):
 
@@ -84,6 +87,12 @@ FAULT may be sent in response to any number of request packets.
 
         402: ID_IN_USE: the given ID is already in use by a child of a different kind
             - if a VK sent the JOIN request, then its ID is already in use here by a leaf and vice versa.
+
+    - REGISTER Codes (6XX):
+
+        600: BAD_SERVICE_NAME: service name was left empty.
+        
+        601: BAD_STALE_TIME: stale time was empty or not in Go time.
 
 3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
