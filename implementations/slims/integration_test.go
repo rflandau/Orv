@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,6 +57,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	var (
 		leaves = make([]leaf, rand.Uint32N(maxLeaves)+2)
 		hbErrs = make([]chan error, len(leaves)) // initialized with each leaf
+		hb     = make(chan error, 10)
 	)
 
 	for i := range leaves {
@@ -105,7 +105,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].services[serviceName], leaves[i].id)
 		}
 
-		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hbErrs[i])
+		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hb)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,29 +115,16 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	}
 	t.Logf("%d leaves established", len(leaves))
 	// wait for a brief period to see if leaf heartbeats fail
-	// we cannot cleanly wait on a slice of channels (without reflection) so wait on them in a goroutine
-	var (
-		atErr atomic.Value
-		wg    sync.WaitGroup
-	)
-	for _, hbe := range hbErrs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case e := <-hbe:
-				atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
-			case <-time.After(leafHBFreq * 4):
-			}
-		}()
-	}
-	t.Log("waiting....")
-	wg.Wait()
-	t.Log("heartbeat errors")
-
-	// check for an error
-	if err := atErr.Load(); err != nil {
-		t.Fatal("heartbeat error: ", err)
+	select {
+	case e := <-hb:
+		t.Error(e)
+		// drain a handful of errors and die
+		eCount := len(hb)
+		for range eCount {
+			t.Error(<-hb)
+		}
+		//atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
+	case <-time.After(leafHBFreq * 4):
 	}
 
 	// now that our leaves are running and heartbeating, add "ssh" to a couple leaves to ensure we have multiple providers
