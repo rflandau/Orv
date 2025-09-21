@@ -21,96 +21,74 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Fault_General int32
+type Fault_Errnos int32
 
 const (
-	Fault_UNKNOWN_TYPE      Fault_General = 0 // sent when an unknown message type number is declared.
-	Fault_BODY_NOT_ACCEPTED Fault_General = 1 // sent when a payload is included in a packet that does not have one.
-	Fault_BODY_REQUIRED     Fault_General = 2 // sent when a payload is not included with a message type that requires one.
+	Fault_UNKNOWN_TYPE           Fault_Errnos = 0
+	Fault_BODY_NOT_ACCEPTED      Fault_Errnos = 1
+	Fault_BODY_REQUIRED          Fault_Errnos = 2
+	Fault_SHORTHAND_NOT_ACCEPTED Fault_Errnos = 3
+	Fault_VERSION_NOT_SUPPORTED  Fault_Errnos = 4
+	Fault_MALFORMED_BODY         Fault_Errnos = 5
+	Fault_MALFORMED_ADDRESS      Fault_Errnos = 6
+	Fault_HELLO_REQUIRED         Fault_Errnos = 400
+	Fault_BAD_HEIGHT             Fault_Errnos = 401
+	Fault_ID_IN_USE              Fault_Errnos = 402
 )
 
-// Enum value maps for Fault_General.
+// Enum value maps for Fault_Errnos.
 var (
-	Fault_General_name = map[int32]string{
-		0: "UNKNOWN_TYPE",
-		1: "BODY_NOT_ACCEPTED",
-		2: "BODY_REQUIRED",
+	Fault_Errnos_name = map[int32]string{
+		0:   "UNKNOWN_TYPE",
+		1:   "BODY_NOT_ACCEPTED",
+		2:   "BODY_REQUIRED",
+		3:   "SHORTHAND_NOT_ACCEPTED",
+		4:   "VERSION_NOT_SUPPORTED",
+		5:   "MALFORMED_BODY",
+		6:   "MALFORMED_ADDRESS",
+		400: "HELLO_REQUIRED",
+		401: "BAD_HEIGHT",
+		402: "ID_IN_USE",
 	}
-	Fault_General_value = map[string]int32{
-		"UNKNOWN_TYPE":      0,
-		"BODY_NOT_ACCEPTED": 1,
-		"BODY_REQUIRED":     2,
+	Fault_Errnos_value = map[string]int32{
+		"UNKNOWN_TYPE":           0,
+		"BODY_NOT_ACCEPTED":      1,
+		"BODY_REQUIRED":          2,
+		"SHORTHAND_NOT_ACCEPTED": 3,
+		"VERSION_NOT_SUPPORTED":  4,
+		"MALFORMED_BODY":         5,
+		"MALFORMED_ADDRESS":      6,
+		"HELLO_REQUIRED":         400,
+		"BAD_HEIGHT":             401,
+		"ID_IN_USE":              402,
 	}
 )
 
-func (x Fault_General) Enum() *Fault_General {
-	p := new(Fault_General)
+func (x Fault_Errnos) Enum() *Fault_Errnos {
+	p := new(Fault_Errnos)
 	*p = x
 	return p
 }
 
-func (x Fault_General) String() string {
+func (x Fault_Errnos) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (Fault_General) Descriptor() protoreflect.EnumDescriptor {
+func (Fault_Errnos) Descriptor() protoreflect.EnumDescriptor {
 	return file_slims_pb_payloads_proto_enumTypes[0].Descriptor()
 }
 
-func (Fault_General) Type() protoreflect.EnumType {
+func (Fault_Errnos) Type() protoreflect.EnumType {
 	return &file_slims_pb_payloads_proto_enumTypes[0]
 }
 
-func (x Fault_General) Number() protoreflect.EnumNumber {
+func (x Fault_Errnos) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Fault_General.Descriptor instead.
-func (Fault_General) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use Fault_Errnos.Descriptor instead.
+func (Fault_Errnos) EnumDescriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0, 0}
-}
-
-type Fault_Join int32
-
-const (
-	Fault_HELLO_REQUIRED Fault_Join = 0 // sent when a JOIN is received but there is no outstanding HELLO for the given ID.
-)
-
-// Enum value maps for Fault_Join.
-var (
-	Fault_Join_name = map[int32]string{
-		0: "HELLO_REQUIRED",
-	}
-	Fault_Join_value = map[string]int32{
-		"HELLO_REQUIRED": 0,
-	}
-)
-
-func (x Fault_Join) Enum() *Fault_Join {
-	p := new(Fault_Join)
-	*p = x
-	return p
-}
-
-func (x Fault_Join) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Fault_Join) Descriptor() protoreflect.EnumDescriptor {
-	return file_slims_pb_payloads_proto_enumTypes[1].Descriptor()
-}
-
-func (Fault_Join) Type() protoreflect.EnumType {
-	return &file_slims_pb_payloads_proto_enumTypes[1]
-}
-
-func (x Fault_Join) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Fault_Join.Descriptor instead.
-func (Fault_Join) EnumDescriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{0, 1}
 }
 
 // Type #1
@@ -121,8 +99,8 @@ type Fault struct {
 	Original MessageType `protobuf:"varint,1,opt,name=original,proto3,enum=msg.MessageType" json:"original,omitempty"`
 	// uint16 | the type of error, for automated testing.
 	// should be one of the above enums
-	Errno          uint32  `protobuf:"varint,2,opt,name=errno,proto3" json:"errno,omitempty"`
-	AdditionalInfo *string `protobuf:"bytes,3,opt,name=additional_info,json=additionalInfo,proto3,oneof" json:"additional_info,omitempty"` // (OPTIONAL)
+	Errno          Fault_Errnos `protobuf:"varint,2,opt,name=errno,proto3,enum=orv.Fault_Errnos" json:"errno,omitempty"`
+	AdditionalInfo *string      `protobuf:"bytes,3,opt,name=additional_info,json=additionalInfo,proto3,oneof" json:"additional_info,omitempty"` // (OPTIONAL)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -164,11 +142,11 @@ func (x *Fault) GetOriginal() MessageType {
 	return MessageType_UNKNOWN
 }
 
-func (x *Fault) GetErrno() uint32 {
+func (x *Fault) GetErrno() Fault_Errnos {
 	if x != nil {
 		return x.Errno
 	}
-	return 0
+	return Fault_UNKNOWN_TYPE
 }
 
 func (x *Fault) GetAdditionalInfo() string {
@@ -870,17 +848,23 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xf0\x01\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xff\x02\n" +
 	"\x05Fault\x12,\n" +
-	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12\x14\n" +
-	"\x05errno\x18\x02 \x01(\rR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"E\n" +
-	"\aGeneral\x12\x10\n" +
+	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
+	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xdc\x01\n" +
+	"\x06Errnos\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x00\x12\x15\n" +
 	"\x11BODY_NOT_ACCEPTED\x10\x01\x12\x11\n" +
-	"\rBODY_REQUIRED\x10\x02\"\x1a\n" +
-	"\x04Join\x12\x12\n" +
-	"\x0eHELLO_REQUIRED\x10\x00B\x12\n" +
+	"\rBODY_REQUIRED\x10\x02\x12\x1a\n" +
+	"\x16SHORTHAND_NOT_ACCEPTED\x10\x03\x12\x19\n" +
+	"\x15VERSION_NOT_SUPPORTED\x10\x04\x12\x12\n" +
+	"\x0eMALFORMED_BODY\x10\x05\x12\x15\n" +
+	"\x11MALFORMED_ADDRESS\x10\x06\x12\x13\n" +
+	"\x0eHELLO_REQUIRED\x10\x90\x03\x12\x0f\n" +
+	"\n" +
+	"BAD_HEIGHT\x10\x91\x03\x12\x0e\n" +
+	"\tID_IN_USE\x10\x92\x03B\x12\n" +
 	"\x10_additional_info\"\a\n" +
 	"\x05Hello\"\"\n" +
 	"\bHelloAck\x12\x16\n" +
@@ -935,34 +919,34 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 	return file_slims_pb_payloads_proto_rawDescData
 }
 
-var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_slims_pb_payloads_proto_goTypes = []any{
-	(Fault_General)(0),          // 0: orv.Fault.General
-	(Fault_Join)(0),             // 1: orv.Fault.Join
-	(*Fault)(nil),               // 2: orv.Fault
-	(*Hello)(nil),               // 3: orv.Hello
-	(*HelloAck)(nil),            // 4: orv.HelloAck
-	(*Join)(nil),                // 5: orv.Join
-	(*JoinAccept)(nil),          // 6: orv.JoinAccept
-	(*Register)(nil),            // 7: orv.Register
-	(*RegisterAccept)(nil),      // 8: orv.RegisterAccept
-	(*ServiceHeartbeat)(nil),    // 9: orv.ServiceHeartbeat
-	(*ServiceHeartbeatAck)(nil), // 10: orv.ServiceHeartbeatAck
-	(*StatusResp)(nil),          // 11: orv.StatusResp
-	(*List)(nil),                // 12: orv.List
-	(*ListResp)(nil),            // 13: orv.ListResp
-	(*Get)(nil),                 // 14: orv.Get
-	(*GetResp)(nil),             // 15: orv.GetResp
-	(MessageType)(0),            // 16: msg.MessageType
+	(Fault_Errnos)(0),           // 0: orv.Fault.Errnos
+	(*Fault)(nil),               // 1: orv.Fault
+	(*Hello)(nil),               // 2: orv.Hello
+	(*HelloAck)(nil),            // 3: orv.HelloAck
+	(*Join)(nil),                // 4: orv.Join
+	(*JoinAccept)(nil),          // 5: orv.JoinAccept
+	(*Register)(nil),            // 6: orv.Register
+	(*RegisterAccept)(nil),      // 7: orv.RegisterAccept
+	(*ServiceHeartbeat)(nil),    // 8: orv.ServiceHeartbeat
+	(*ServiceHeartbeatAck)(nil), // 9: orv.ServiceHeartbeatAck
+	(*StatusResp)(nil),          // 10: orv.StatusResp
+	(*List)(nil),                // 11: orv.List
+	(*ListResp)(nil),            // 12: orv.ListResp
+	(*Get)(nil),                 // 13: orv.Get
+	(*GetResp)(nil),             // 14: orv.GetResp
+	(MessageType)(0),            // 15: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	16, // 0: orv.Fault.original:type_name -> msg.MessageType
-	1,  // [1:1] is the sub-list for method output_type
-	1,  // [1:1] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	15, // 0: orv.Fault.original:type_name -> msg.MessageType
+	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
+	2,  // [2:2] is the sub-list for method output_type
+	2,  // [2:2] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_slims_pb_payloads_proto_init() }
@@ -977,7 +961,7 @@ func file_slims_pb_payloads_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      1,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,

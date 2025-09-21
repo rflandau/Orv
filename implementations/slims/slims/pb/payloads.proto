@@ -17,19 +17,25 @@ message Fault{
   // uint16 | echos the type number of the original packet
   msg.MessageType original = 1;
 
-  enum General {
-    UNKNOWN_TYPE = 0; // sent when an unknown message type number is declared.
-    BODY_NOT_ACCEPTED = 1; // sent when a payload is included in a packet that does not have one.
-    BODY_REQUIRED = 2; // sent when a payload is not included with a message type that requires one.
-  }
+  enum Errnos {
+    UNKNOWN_TYPE = 000;
+    BODY_NOT_ACCEPTED = 001;
+    BODY_REQUIRED = 002;
+    SHORTHAND_NOT_ACCEPTED = 003;
+    VERSION_NOT_SUPPORTED = 004;
+    MALFORMED_BODY = 005;
+    MALFORMED_ADDRESS = 006;
 
-  enum Join {
-    HELLO_REQUIRED = 0; // sent when a JOIN is received but there is no outstanding HELLO for the given ID.
+    // JOIN
+
+    HELLO_REQUIRED = 400;
+    BAD_HEIGHT = 401;
+    ID_IN_USE = 402;
   }
 
   // uint16 | the type of error, for automated testing.
   // should be one of the above enums
-  uint32 errno = 2;
+  Errnos errno = 2;
   optional string additional_info = 3; // (OPTIONAL) 
 }
 
@@ -130,7 +136,7 @@ message GetResp {
   uint64 host_id = 1;
   string service = 2;
   string address = 3;
- // echo of the token created by the requestor
+  // echo of the token created by the requestor
   uint64 token = 4;
 }
 //#endregion client requests
