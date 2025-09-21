@@ -278,7 +278,7 @@ func (vk *VaultKeeper) Address() netip.AddrPort {
 // origMT is the type of the message that triggered the fault.
 // errno is the enumerated fault number that, when combined with origMT, points to a specific error.
 // extraInfo is an optional list of lines (that will be imploded with '\n' to form a single line) to stuff in additional_info.
-func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno uint32, extraInfo ...string) {
+func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno pb.Fault_Errnos, extraInfo ...string) {
 	fault := &pb.Fault{
 		Original: origMT,
 		Errno:    pb.Fault_Errnos(errno),
@@ -398,9 +398,9 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 
 				mh, found := handlers[hdr.Type]
 				if !found {
-					vk.respondError(senderAddr, hdr.Type, uint32(pb.Fault_UNKNOWN_TYPE))
+					vk.respondError(senderAddr, hdr.Type, pb.Fault_UNKNOWN_TYPE)
 				} else if erred, errno, ei := mh(hdr, body, senderAddr); erred {
-					vk.respondError(senderAddr, hdr.Type, uint32(errno), ei...)
+					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
 			}()
 		}
