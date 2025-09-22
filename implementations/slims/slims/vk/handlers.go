@@ -22,7 +22,13 @@ import (
 // When a request arrives, it is logged and the Orv header is deserialized from it.
 // Version is validated, then the request is passed to the appropriate subhandler.
 
-const registerPropagateTimeout time.Duration = 1 * time.Second
+const (
+	registerPropagateTimeout time.Duration = 1 * time.Second
+	// amount of time to consider the same token to be a duplicate (and thus dropped instead of handled).
+	tokenCooldown time.Duration = 500 * time.Millisecond
+)
+
+//#region client request handling
 
 // serveStatus answers STATUS packets, returning a variety of information about the vk.
 // Functionally just calls Snapshot().
@@ -84,6 +90,80 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		&st)
 	return
 }
+
+// serveList answers LIST packets. Responds to any node (shorthand acceptable).
+func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+
+	// check that we were given a body
+	if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, nil
+	}
+
+	var req pb.List
+	if err := pbun.Unmarshal(reqBody, &req); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, nil
+	}
+	// send back an ACK
+	vk.sendListAck(senderAddr, req.Token)
+	// mark this token as handled
+	if swapped := vk.closedListTokens.CompareAndSwap(req.Token, false, true); !swapped {
+		// duplicate of a request we have already handled
+		// assume they just didn't get the ACK and do nothing
+		return
+	}
+	if req.HopCount > 0 {
+		req.HopCount -= 1
+	}
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	if req.HopCount <= 0 || !vk.structure.parentAddr.IsValid() { // answer if we are root or no more hops are allowed
+		vk.children.mu.Lock()
+		var resp = pb.ListResponse{
+			Token:    req.Token,
+			Services: slices.Collect(maps.Keys(vk.children.allServices)),
+		}
+		vk.children.mu.Unlock()
+		vk.respondSuccess(senderAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
+		vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("answered LIST request")
+	}
+	defer vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("forwarded LIST request to parent")
+	// generate a dialer
+	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
+	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
+	if err != nil {
+		// TODO we do NOT actually want to send an error. We want to log this and increment our bad heartbeat count
+		return true, pb.Fault_UNSPECIFIED, []string{err.Error()}
+	}
+
+	// forward the request up the chain
+	if _, err := protocol.WritePacket(context.Background(), conn, protocol.Header{
+		Version: reqHdr.Version,
+		Type:    pb.MessageType_LIST,
+		ID:      vk.id,
+	}, &req); err != nil {
+		// TODO we do NOT actually want to send an error. We want to log this and increment our bad heartbeat count
+	}
+	// because we don't care about repeating, we don't actually care if we get an ACK.
+	return
+}
+
+// helper function for serveList.
+// Sends a LIST_ACK to the given address.
+func (vk *VaultKeeper) sendListAck(senderAddr net.Addr, token string) {
+	var la = pb.ListAck{Token: token}
+
+	vk.respondSuccess(senderAddr,
+		protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_LIST_ACK,
+			ID:      vk.ID(),
+		}, &la)
+}
+
+//#endregion client request handling
 
 // serveHello answers HELLO packets with HELLO_ACK or FAULT.
 // Selects a version based on the request version (the version in the header) and what versions we support.

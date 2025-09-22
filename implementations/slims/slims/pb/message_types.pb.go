@@ -45,9 +45,10 @@ const (
 	MessageType_STATUS      MessageType = 16
 	MessageType_STATUS_RESP MessageType = 17
 	MessageType_LIST        MessageType = 18
-	MessageType_LIST_RESP   MessageType = 19
-	MessageType_GET         MessageType = 20
-	MessageType_GET_RESP    MessageType = 21
+	MessageType_LIST_ACK    MessageType = 19
+	MessageType_LIST_RESP   MessageType = 20
+	MessageType_GET         MessageType = 21
+	MessageType_GET_RESP    MessageType = 22
 )
 
 // Enum value maps for MessageType.
@@ -72,9 +73,10 @@ var (
 		16: "STATUS",
 		17: "STATUS_RESP",
 		18: "LIST",
-		19: "LIST_RESP",
-		20: "GET",
-		21: "GET_RESP",
+		19: "LIST_ACK",
+		20: "LIST_RESP",
+		21: "GET",
+		22: "GET_RESP",
 	}
 	MessageType_value = map[string]int32{
 		"UNKNOWN":               0,
@@ -96,9 +98,10 @@ var (
 		"STATUS":                16,
 		"STATUS_RESP":           17,
 		"LIST":                  18,
-		"LIST_RESP":             19,
-		"GET":                   20,
-		"GET_RESP":              21,
+		"LIST_ACK":              19,
+		"LIST_RESP":             20,
+		"GET":                   21,
+		"GET_RESP":              22,
 	}
 )
 
@@ -133,7 +136,7 @@ var File_slims_pb_message_types_proto protoreflect.FileDescriptor
 
 const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1cslims/pb/message_types.proto\x12\x03msg*\xe3\x02\n" +
+	"\x1cslims/pb/message_types.proto\x12\x03msg*\xf1\x02\n" +
 	"\vMessageType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\t\n" +
 	"\x05FAULT\x10\x01\x12\t\n" +
@@ -155,10 +158,11 @@ const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\n" +
 	"\x06STATUS\x10\x10\x12\x0f\n" +
 	"\vSTATUS_RESP\x10\x11\x12\b\n" +
-	"\x04LIST\x10\x12\x12\r\n" +
-	"\tLIST_RESP\x10\x13\x12\a\n" +
-	"\x03GET\x10\x14\x12\f\n" +
-	"\bGET_RESP\x10\x15B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\x04LIST\x10\x12\x12\f\n" +
+	"\bLIST_ACK\x10\x13\x12\r\n" +
+	"\tLIST_RESP\x10\x14\x12\a\n" +
+	"\x03GET\x10\x15\x12\f\n" +
+	"\bGET_RESP\x10\x16B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_message_types_proto_rawDescOnce sync.Once

@@ -746,8 +746,10 @@ func (x *StatusResp) GetAutoHbBadLimit() uint32 {
 // Type #18
 type List struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// uint16 | number of nodes to traverse (limited by root height)
-	HopLimit      uint32 `protobuf:"varint,1,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"`
+	HopCount      uint32 `protobuf:"varint,2,opt,name=hop_count,json=hopCount,proto3" json:"hop_count,omitempty"`
+	ResponseAddr  string `protobuf:"bytes,3,opt,name=response_addr,json=responseAddr,proto3" json:"response_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -782,36 +784,49 @@ func (*List) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *List) GetHopLimit() uint32 {
+func (x *List) GetToken() string {
 	if x != nil {
-		return x.HopLimit
+		return x.Token
+	}
+	return ""
+}
+
+func (x *List) GetHopCount() uint32 {
+	if x != nil {
+		return x.HopCount
 	}
 	return 0
 }
 
+func (x *List) GetResponseAddr() string {
+	if x != nil {
+		return x.ResponseAddr
+	}
+	return ""
+}
+
 // Type #19
-type ListResp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// list of services known to the responding vk
-	Services      []string `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+type ListAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListResp) Reset() {
-	*x = ListResp{}
+func (x *ListAck) Reset() {
+	*x = ListAck{}
 	mi := &file_slims_pb_payloads_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListResp) String() string {
+func (x *ListAck) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListResp) ProtoMessage() {}
+func (*ListAck) ProtoMessage() {}
 
-func (x *ListResp) ProtoReflect() protoreflect.Message {
+func (x *ListAck) ProtoReflect() protoreflect.Message {
 	mi := &file_slims_pb_payloads_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -823,19 +838,74 @@ func (x *ListResp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListResp.ProtoReflect.Descriptor instead.
-func (*ListResp) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListAck.ProtoReflect.Descriptor instead.
+func (*ListAck) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *ListResp) GetServices() []string {
+func (x *ListAck) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+// Type #20
+// Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+type ListResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// list of services known to the responding vk
+	Services      []string `protobuf:"bytes,2,rep,name=services,proto3" json:"services,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListResponse) Reset() {
+	*x = ListResponse{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListResponse) ProtoMessage() {}
+
+func (x *ListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
+func (*ListResponse) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListResponse) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *ListResponse) GetServices() []string {
 	if x != nil {
 		return x.Services
 	}
 	return nil
 }
 
-// Type #20
+// Type #21
 type Get struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Service  string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                    //  the name of the desired service
@@ -848,7 +918,7 @@ type Get struct {
 
 func (x *Get) Reset() {
 	*x = Get{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	mi := &file_slims_pb_payloads_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -860,7 +930,7 @@ func (x *Get) String() string {
 func (*Get) ProtoMessage() {}
 
 func (x *Get) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	mi := &file_slims_pb_payloads_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -873,7 +943,7 @@ func (x *Get) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Get.ProtoReflect.Descriptor instead.
 func (*Get) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Get) GetService() string {
@@ -897,7 +967,7 @@ func (x *Get) GetToken() uint64 {
 	return 0
 }
 
-// Type #21
+// Type #22
 type GetResp struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	HostId  uint64                 `protobuf:"varint,1,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
@@ -911,7 +981,7 @@ type GetResp struct {
 
 func (x *GetResp) Reset() {
 	*x = GetResp{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[13]
+	mi := &file_slims_pb_payloads_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -923,7 +993,7 @@ func (x *GetResp) String() string {
 func (*GetResp) ProtoMessage() {}
 
 func (x *GetResp) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[13]
+	mi := &file_slims_pb_payloads_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -936,7 +1006,7 @@ func (x *GetResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResp.ProtoReflect.Descriptor instead.
 func (*GetResp) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{13}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetResp) GetHostId() uint64 {
@@ -1050,11 +1120,16 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x15_prune_times_child_vkB\x12\n" +
 	"\x10_auto_hb_enabledB\x14\n" +
 	"\x12_auto_hb_frequencyB\x14\n" +
-	"\x12_auto_hb_bad_limit\"#\n" +
-	"\x04List\x12\x1b\n" +
-	"\thop_limit\x18\x01 \x01(\rR\bhopLimit\"&\n" +
-	"\bListResp\x12\x1a\n" +
-	"\bservices\x18\x01 \x03(\tR\bservices\"R\n" +
+	"\x12_auto_hb_bad_limit\"^\n" +
+	"\x04List\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1b\n" +
+	"\thop_count\x18\x02 \x01(\rR\bhopCount\x12#\n" +
+	"\rresponse_addr\x18\x03 \x01(\tR\fresponseAddr\"\x1f\n" +
+	"\aListAck\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"@\n" +
+	"\fListResponse\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
+	"\bservices\x18\x02 \x03(\tR\bservices\"R\n" +
 	"\x03Get\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1b\n" +
 	"\thop_limit\x18\x02 \x01(\rR\bhopLimit\x12\x14\n" +
@@ -1078,7 +1153,7 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 }
 
 var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_slims_pb_payloads_proto_goTypes = []any{
 	(Fault_Errnos)(0),           // 0: orv.Fault.Errnos
 	(*Fault)(nil),               // 1: orv.Fault
@@ -1092,18 +1167,19 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*ServiceHeartbeatAck)(nil), // 9: orv.ServiceHeartbeatAck
 	(*StatusResp)(nil),          // 10: orv.StatusResp
 	(*List)(nil),                // 11: orv.List
-	(*ListResp)(nil),            // 12: orv.ListResp
-	(*Get)(nil),                 // 13: orv.Get
-	(*GetResp)(nil),             // 14: orv.GetResp
-	nil,                         // 15: orv.StatusResp.ChildVksEntry
-	nil,                         // 16: orv.StatusResp.ServicesEntry
-	(MessageType)(0),            // 17: msg.MessageType
+	(*ListAck)(nil),             // 12: orv.ListAck
+	(*ListResponse)(nil),        // 13: orv.ListResponse
+	(*Get)(nil),                 // 14: orv.Get
+	(*GetResp)(nil),             // 15: orv.GetResp
+	nil,                         // 16: orv.StatusResp.ChildVksEntry
+	nil,                         // 17: orv.StatusResp.ServicesEntry
+	(MessageType)(0),            // 18: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	17, // 0: orv.Fault.original:type_name -> msg.MessageType
+	18, // 0: orv.Fault.original:type_name -> msg.MessageType
 	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
-	15, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
-	16, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
+	16, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
+	17, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
@@ -1125,7 +1201,7 @@ func file_slims_pb_payloads_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

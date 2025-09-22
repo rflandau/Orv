@@ -337,20 +337,64 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ### Payload
 
-1. *token* (**any**): a requestor-generated token used to identify this request. To consider a response valid, it must echo back this token.
-2. *hop limit* (**uint16**): (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. 
+1. *token* (**any**): a requestor-generated token used to identify this request. To consider an ack or response valid, it must echo back this token.
+2. *hop count* (**uint16**): (OPTIONAL) number of hops to walk up the tree. 0, 1, and omitted all cause the request to be halted at the first VK. Hop count is decrement at each vk and answered by the node that it reaches zero on (or root, whichever is sooner).
+3. *response addr* (**any**): address to send the response (in the form of a UDP packet) to.
 
-## LIST_RESPONSE
+## LIST_ACK
 
 **Type Number:** 19
 
+Sent by each node that receives a LIST request to signal that the request has been received and will be processed.
+
+**NOTE:** The implication is that a client should always expect to receive 2 packets after sending a LIST: a LIST_ACK from the vk they sent the request to and a LIST_RESPONSE from the vk actually answering this request. These two vks may be the same.
+
+Both of the following diagrams are valid sequences.
+
+```mermaid
+sequenceDiagram
+  actor Requestor
+  actor VK1
+  actor VK2
+  actor Root
+
+  Requestor ->> VK1: LIST
+  VK1 ->> Requestor: LIST_ACK
+  VK1 ->> VK2: LIST
+  VK2 ->> VK1: LIST_ACK
+  VK2 ->> Root: LIST
+  Root ->> VK2: LIST_ACK
+  Root ->> Requestor: LIST_RESPONSE
+```
+
+```mermaid
+sequenceDiagram
+  actor Requestor
+  actor VK1
+
+  Requestor ->> VK1: LIST
+  VK1 ->> Requestor: LIST_ACK
+  VK1 ->> Requestor: LIST_RESPONSE
+```
+
 ### Payload
 
-1. *services* (**array of strings**): list of services known to the responding vk
+1. *token* (**any**): echoed token
+
+## LIST_RESPONSE
+
+**Type Number:** 20
+
+Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+
+### Payload
+
+1. *token* (**any**): echoed token
+2. *services* (**array of strings**): list of services known to the responding vk. Should be a superset of the services of its children.
 
 ## GET
 
-**Type Number:** 20
+**Type Number:** 21
 
 ### Payload
 
@@ -360,7 +404,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ## GET_RESPONSE
 
-**Type Number:** 21
+**Type Number:** 22
 
 ### Payload
 

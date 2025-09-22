@@ -26,7 +26,8 @@ enum MessageType {
   STATUS = 16;
   STATUS_RESP = 17;
   LIST = 18;
-  LIST_RESP = 19;
-  GET = 20;
-  GET_RESP = 21;
+  LIST_ACK = 19;
+  LIST_RESP = 20;
+  GET = 21;
+  GET_RESP = 22;
 }

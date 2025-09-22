@@ -137,17 +137,26 @@ message StatusResp {
 
 // Type #18
 message List {
+  string token = 1;
   // uint16 | number of nodes to traverse (limited by root height)
-  uint32 hop_limit = 1;
+  uint32 hop_count = 2;
+  string response_addr = 3;
 }
 
 // Type #19
-message ListResp {
-  // list of services known to the responding vk
-  repeated string services = 1;
+message ListAck {
+  string token = 1;
 }
 
 // Type #20
+// Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+message ListResponse {
+  string token = 1;
+  // list of services known to the responding vk
+  repeated string services = 2;
+}
+
+// Type #21
 message Get {
   string service = 1;   //  the name of the desired service
   uint32 hop_limit = 2; // uint16
@@ -155,7 +164,7 @@ message Get {
   uint64 token = 3;
 }
 
-// Type #21
+// Type #22
 message GetResp {
   uint64 host_id = 1;
   string service = 2;

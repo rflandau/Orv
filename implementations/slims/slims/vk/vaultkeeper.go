@@ -104,6 +104,10 @@ type VaultKeeper struct {
 		// when we fail to heartbeat our parent this many times consecutively, the parent will be dropped
 		badHeartbeatLimit uint
 	}
+
+	// expiring hashset of tokens that we have seen and handled a LIST request for.
+	// Requests that come in for these tokens are considered to be duplicated.
+	closedListTokens *expiring.Table[string, bool]
 }
 
 // New generates a new VK instance, optionally modified with opts.
@@ -159,6 +163,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			freq              time.Duration
 			badHeartbeatLimit uint
 		}{true, DefaultParentHBFreq, DefaultBadHeartbeatLimit},
+		closedListTokens: &expiring.Table[string, bool]{},
 	}
 	vk.net.accepting.Store(false)
 
@@ -373,6 +378,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 
 		// client requests
 		pb.MessageType_STATUS: vk.serveStatus,
+		pb.MessageType_LIST:   vk.serveList,
 	}
 
 	// slurp the packet and pass it to the handler func
