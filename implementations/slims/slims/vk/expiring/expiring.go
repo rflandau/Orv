@@ -18,13 +18,16 @@ type timedV[value_t any] struct {
 //
 // NOTE(rlandau): Tables should only be passed by reference due to underlying mutex use.
 //
+// NOTE(rlandau): the underlying mutex table does not get automatically pruned.
+// Mutexes will be reused for the same key. // TODO add tbl.Prune()
+//
 // NOTE(rlandau): accessing elements AT their expiration time is, by its very nature, a race.
 // If a timer has not expired, then its associated data is guaranteed to not have been pruned. The inverse is not guaranteed.
-//
-// NOTE(rlandau): using a syncmap under the hood makes development really easy, but means that Tables do not retain the atomic nature of syncmaps.
-// This implementation is vulnerable to interleaved commands from multiple .Store()s; a more robust implementation would use a normal map to hold data and a second table to associate keys to mutexes.
 type Table[key_t comparable, value_t any] struct {
-	m sync.Map // k -> timedV
+	wholeMu sync.RWMutex // table-wide mutex. Must be held to interact with elementMus.
+	// element-wise mutexes that must be held to interact with that element in m.
+	elementMus map[key_t]*sync.Mutex
+	elements   map[key_t]timedV[value_t]
 }
 
 // Store saves the given k/v and sets them to expire after the given time.
@@ -32,15 +35,23 @@ type Table[key_t comparable, value_t any] struct {
 // cleanup functions will be called in given order after the key is deleted from the table.
 // Each is given the key and value associated to the record that expired (these values will be the same for each clean up function).
 func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func(k, v)) {
-	// stop existing timer and delete prior value (if applicable)
-	if tmp, found := tbl.m.LoadAndDelete(key); found {
-		tVal, ok := tmp.(timedV[v])
-		if !ok {
-			panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
-		}
-		tVal.exp.Stop()
-
+	tbl.wholeMu.Lock()
+	var mu *sync.Mutex
+	// attempt to fetch the element-wise mutex
+	mu, found := tbl.elementMus[key]
+	if !found || mu == nil {
+		// new element, create the associated mutex
+		mu = &sync.Mutex{}
+		tbl.elementMus[key] = mu
 	}
+	// step the mutex down to element-wise
+	tbl.wholeMu.Unlock()
+	mu.Lock()
+	// stop existing timer and delete prior value (if applicable)
+	if val, found := tbl.elements[key]; found {
+		val.exp.Stop()
+	}
+
 	// insert the new k/v
 	tVal := timedV[v]{
 		val: value,
@@ -53,36 +64,56 @@ func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...f
 			}
 		})}
 
-	tbl.m.Store(key, tVal)
+	tbl.elements[key] = tVal
 }
 
 // Load fetches the value associated to the given key if available.
 func (tbl *Table[key_t, value_t]) Load(key key_t) (value value_t, found bool) {
-	tmp, found := tbl.m.Load(key)
+	var mu *sync.Mutex
+	// acquire the item's mutex
+	{
+		tbl.wholeMu.RLock()
+		var found bool
+		mu, found = tbl.elementMus[key]
+		tbl.wholeMu.RUnlock()
+		if !found { // if no mutex exists, neither does the item
+			return value, false
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	tVal, found := tbl.elements[key]
 	if !found {
 		return value, false
 	}
-	tVal, ok := tmp.(timedV[value_t])
-	if !ok {
-		panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
-	}
-
 	return tVal.val, true
 }
 
 // Delete destroys a key in the map and stops its timer (if found).
 // Ineffectual if key is not found.
 func (tbl *Table[key_t, value_t]) Delete(key key_t) (found bool) {
-	tmp, found := tbl.m.LoadAndDelete(key)
+	var mu *sync.Mutex
+	// acquire the item's mutex
+	{
+		tbl.wholeMu.RLock()
+		var found bool
+		mu, found = tbl.elementMus[key]
+		tbl.wholeMu.RUnlock()
+		if !found { // if no mutex exists, neither does the item
+			return false
+		}
+	}
+	// delete the element
+	mu.Lock()
+	defer mu.Unlock()
+	tVal, found := tbl.elements[key]
 	if !found {
 		return false
 	}
-	tVal, ok := tmp.(timedV[value_t])
-	if !ok {
-		panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
-	}
 	tVal.exp.Stop()
-
+	delete(tbl.elements, key)
+	// delete the mutex for the element
+	// TODO but probably not in this version
 	return true
 }
 
