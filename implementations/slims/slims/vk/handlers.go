@@ -109,7 +109,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 	// send back an ACK
 	vk.sendListAck(senderAddr, req.Token)
 	// mark this token as handled
-	if swapped := vk.closedListTokens.CompareAndSwap(req.Token, false, true); !swapped {
+	if swapped := vk.closedListTokens.CompareAndSwap(req.Token, false, true, tokenCooldown); !swapped {
 		// duplicate of a request we have already handled
 		// assume they just didn't get the ACK and do nothing
 		return

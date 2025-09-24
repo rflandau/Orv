@@ -533,7 +533,7 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 			Services map[string]netip.AddrPort
 			Addr     netip.AddrPort
 		})
-		vk.children.cvks.Range(func(ni slims.NodeID, s struct {
+		vk.children.cvks.RangeLocked(func(ni slims.NodeID, s struct {
 			services map[string]netip.AddrPort
 			addr     netip.AddrPort
 		}) bool {
