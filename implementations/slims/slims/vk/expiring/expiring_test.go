@@ -2,12 +2,15 @@ package expiring_test
 
 import (
 	"maps"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
 )
@@ -220,4 +223,63 @@ func checkLoad[key_t comparable, val_t comparable](t *testing.T, tbl *expiring.T
 	if found && (v != expectedVal) { // only check value if one was actually found
 		t.Error("incorrect value retrieved", ExpectedActual(expectedVal, v))
 	}
+}
+
+func TestTable_CompareAndSwap(t *testing.T) {
+	t.Run("sequential swaps", func(t *testing.T) {
+		// TODO
+	})
+
+	// Checks that, when multiple goroutines hit CompareAndSwap simultaneous, the ending value is consistent to the key-pair.
+	t.Run("parallel swaps", func(t *testing.T) {
+		tbl := expiring.New[string, string]()
+		pairCount := rand.UintN(50) + 2
+		key := randomdata.SillyName()              // the key every goro is trying to swap in
+		values := make(map[uint]string, pairCount) // goro index -> random value
+
+		for i := range pairCount { // map each goroutine index to a random value
+			values[i] = randomdata.SillyName()
+		}
+
+		// try empty swaps
+		var (
+			zero         string
+			swapperIndex atomic.Uint64
+			wg           sync.WaitGroup
+		)
+		// spin out a goroutine to try and swap in each value concurrently
+		for idx, v := range values {
+			wg.Add(1)
+			go func(index uint, value string) {
+				defer wg.Done()
+				// attempt to swap in our value
+				swapped := tbl.CompareAndSwap(key, zero, value, 10*time.Second)
+				// if we succeeded, set our index to the swapper index
+				if swapped {
+					if !swapperIndex.CompareAndSwap(0, uint64(index)) {
+						// someone beat us here, which means two goros successfully swapped with CompareAndSwap
+						panic("failed to save off swapper index because another goroutine had already swapped, but we managed to swap the table.")
+					}
+				}
+			}(idx, v)
+		}
+
+		wg.Wait()
+		// if we got here, no goroutines panic, so we just need to check that a value was actually set
+		swappedIn, found := tbl.Load(key)
+		if !found {
+			t.Fatalf("failed to find key '%v', which means no swaps succeeded", key)
+		}
+		swapperIdx := uint(swapperIndex.Load())
+		swappersValue, found := values[swapperIdx]
+		if !found {
+			t.Fatalf("no swapper value associated to index %d", swapperIdx)
+		}
+		if swappedIn != swappersValue {
+			t.Fatalf("value swapped into the table (%v) does not equal the value associated to the swapper index (%v: %v)", swappedIn, swapperIdx, swappersValue)
+		}
+
+		// try existing swaps
+		// TODO
+	})
 }
