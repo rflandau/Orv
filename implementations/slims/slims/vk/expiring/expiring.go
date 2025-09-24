@@ -2,7 +2,7 @@
 package expiring
 
 import (
-	"fmt"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -14,12 +14,9 @@ type timedV[value_t any] struct {
 }
 
 // A Table is basically a syncmap, but elements prune themselves after their duration elapses.
-// The zero value is ready for immediate use.
+// The zero value is NOT ready for use; use expiring.New().
 //
 // NOTE(rlandau): Tables should only be passed by reference due to underlying mutex use.
-//
-// NOTE(rlandau): the underlying mutex table does not get automatically pruned.
-// Mutexes will be reused for the same key. // TODO add tbl.Prune()
 //
 // NOTE(rlandau): accessing elements AT their expiration time is, by its very nature, a race.
 // If a timer has not expired, then its associated data is guaranteed to not have been pruned. The inverse is not guaranteed.
@@ -30,23 +27,54 @@ type Table[key_t comparable, value_t any] struct {
 	elements   map[key_t]timedV[value_t]
 }
 
-// Store saves the given k/v and sets them to expire after the given time.
-// If a value was previously associated to this key, it will be overwritten and its timer reset.
-// cleanup functions will be called in given order after the key is deleted from the table.
-// Each is given the key and value associated to the record that expired (these values will be the same for each clean up function).
-func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func(k, v)) {
-	tbl.wholeMu.Lock()
-	var mu *sync.Mutex
-	// attempt to fetch the element-wise mutex
+// New returns an initialized Table ready for use.
+func New[key_t comparable, value_t any]() *Table[key_t, value_t] {
+	return &Table[key_t, value_t]{
+		wholeMu:    sync.RWMutex{},
+		elementMus: make(map[key_t]*sync.Mutex),
+		elements:   make(map[key_t]timedV[value_t]),
+	}
+}
+
+// Fetches the mutex for element k.
+// If create is set:
+// 1) acquires the table-wide write lock.
+// 2) creates the mutex if it does not exist, guaranteeing the return will be non-nil.
+//
+// If create is unset:
+// 1) acquires a table-wide read lock.
+// 2) returns the mutex if found, nil otherwise.
+func (tbl *Table[k, v]) getElementMutex(key k, create bool) *sync.Mutex {
+	if create {
+		tbl.wholeMu.Lock()
+		defer tbl.wholeMu.Unlock()
+	} else {
+		tbl.wholeMu.RLock()
+		defer tbl.wholeMu.RUnlock()
+	}
 	mu, found := tbl.elementMus[key]
-	if !found || mu == nil {
+	if !found {
+		if !create {
+			return nil
+		}
 		// new element, create the associated mutex
 		mu = &sync.Mutex{}
 		tbl.elementMus[key] = mu
 	}
-	// step the mutex down to element-wise
-	tbl.wholeMu.Unlock()
+	return mu
+}
+
+// Store saves the given k/v and sets it to expire after the duration.
+// If a value was previously associated to this key, it will be overwritten and its timer reset.
+// cleanup functions will be called in given order after the key is deleted from the table.
+// Each is given the key and value associated to the record that expired (these values will be the same for each clean up function).
+func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...func(k, v)) {
+	mu := tbl.getElementMutex(key, true)
+	if mu == nil {
+		panic("getElementMutex returned a nil mutex despite being instructed to create")
+	}
 	mu.Lock()
+	defer mu.Unlock()
 	// stop existing timer and delete prior value (if applicable)
 	if val, found := tbl.elements[key]; found {
 		val.exp.Stop()
@@ -69,16 +97,9 @@ func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...f
 
 // Load fetches the value associated to the given key if available.
 func (tbl *Table[key_t, value_t]) Load(key key_t) (value value_t, found bool) {
-	var mu *sync.Mutex
-	// acquire the item's mutex
-	{
-		tbl.wholeMu.RLock()
-		var found bool
-		mu, found = tbl.elementMus[key]
-		tbl.wholeMu.RUnlock()
-		if !found { // if no mutex exists, neither does the item
-			return value, false
-		}
+	var mu *sync.Mutex = tbl.getElementMutex(key, false)
+	if mu == nil {
+		return value, false
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -92,16 +113,9 @@ func (tbl *Table[key_t, value_t]) Load(key key_t) (value value_t, found bool) {
 // Delete destroys a key in the map and stops its timer (if found).
 // Ineffectual if key is not found.
 func (tbl *Table[key_t, value_t]) Delete(key key_t) (found bool) {
-	var mu *sync.Mutex
-	// acquire the item's mutex
-	{
-		tbl.wholeMu.RLock()
-		var found bool
-		mu, found = tbl.elementMus[key]
-		tbl.wholeMu.RUnlock()
-		if !found { // if no mutex exists, neither does the item
-			return false
-		}
+	var mu *sync.Mutex = tbl.getElementMutex(key, false)
+	if mu == nil {
+		return false
 	}
 	// delete the element
 	mu.Lock()
@@ -113,54 +127,115 @@ func (tbl *Table[key_t, value_t]) Delete(key key_t) (found bool) {
 	tVal.exp.Stop()
 	delete(tbl.elements, key)
 	// delete the mutex for the element
-	// TODO but probably not in this version
+	tbl.wholeMu.Lock()
+	delete(tbl.elementMus, key)
+	tbl.wholeMu.Unlock()
 	return true
 }
 
 // Refresh refreshes the given key (if it exists) with the given duration.
 func (tbl *Table[key_t, value_t]) Refresh(key key_t, expire time.Duration) (found bool) {
-	tmp, found := tbl.m.Load(key)
+	var mu *sync.Mutex = tbl.getElementMutex(key, false)
+	if mu == nil {
+		return false
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	tVal, found := tbl.elements[key]
 	if !found {
 		return false
 	}
-	tVal, ok := tmp.(timedV[value_t])
-	if !ok {
-		panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
-	}
-	alreadyExpired := !tVal.exp.Stop()
-	if alreadyExpired {
+	if alreadyExpired := !tVal.exp.Stop(); alreadyExpired {
 		return false
 	}
 	tVal.exp.Reset(expire)
 	return true
 }
 
-// Range is a standard sync.Map range call and follows all the same rules and caveats.
-// They are restated here for ease-of-access:
+// CompareAndSwap atomically swaps the old and new values for key iff the value stored in the map is equal to old.
+// If key is not found, old will be compared against the zero value of it (mirroring the behavior of sync.Map).
+// expire and cleanup are only used if a swap occurs.
 //
-/*
-Range calls f sequentially for each key and value present in the map. If f returns false, range stops the iteration.
+// Holds a write lock on the whole table.
+func (tbl *Table[key_t, value_t]) CompareAndSwap(key key_t, old, new value_t, expire time.Duration, cleanup ...func(key_t, value_t)) (swapped bool) {
+	// TODO test me
 
-Range does not necessarily correspond to any consistent snapshot of the Map's contents: no key will be visited more than once, but if the value for any key is stored or deleted concurrently (including by f), Range may reflect any mapping for that key from any point during the Range call. Range does not block other methods on the receiver; even f itself may call any method on m.
+	// helper function that tests if old is the zero value and install key+new iff it is.
+	// Creates a mutex for the element if createMutex is set.
+	newElemCheck := func(createMutex bool) (swapped bool) {
+		// this is a new element, so only perform the swap if old is the zero value
+		if reflect.ValueOf(old).IsZero() {
+			if createMutex {
+				// create the mutex and install it
+				tbl.elementMus[key] = &sync.Mutex{}
+			}
+			// install new and set up the pruner
+			tbl.elements[key] = timedV[value_t]{
+				val: new,
+				exp: time.AfterFunc(expire, func() {
+					// if the time expires, remove ourself
+					tbl.Delete(key)
+					// execute additional clean up functions
+					for _, f := range cleanup {
+						f(key, new)
+					}
+				})}
+			return true
+		}
+		return false
+	}
 
-Range may be O(N) with the number of elements in the map even if f returns false after a constant number of calls.
-*/
-func (tbl *Table[key_t, value_t]) Range(f func(key_t, value_t) bool) {
-	tbl.m.Range(func(key, value any) bool {
-		// type assert k and v
-		aKey, ok := key.(key_t)
-		if !ok {
-			panic("failed to cast any key as key_t despite type safe wrapper")
-		}
+	// acquire the full table lock, to be safe in-case we need to create the mutex
+	tbl.wholeMu.Lock()
+	defer tbl.wholeMu.Unlock()
+	if _, found := tbl.elementMus[key]; !found {
+		return newElemCheck(true)
+	}
+	// check the value
+	tv, found := tbl.elements[key]
+	if !found {
+		return newElemCheck(false)
+	}
+	// compare
+	if tv.val != old {
+		return false
+	}
+	// install the new value
+	// TODO
+	return true
 
-		tmp, found := tbl.m.Load(key)
-		if !found {
-			return false
-		}
-		tVal, ok := tmp.(timedV[value_t])
-		if !ok {
-			panic(fmt.Sprintf("failed to cast value from syncmap (%v)", tmp))
-		}
-		return f(aKey, tVal.val)
-	})
 }
+
+// Range is similar to sync.Map.Range(), but acquires a full table read lock.
+// Thanks to the use a read lock, you may perform a limited subset of operations on the table from within f.
+// Specifically, you may call .Refresh(), .Delete(), and .Load().
+// Range exits early if f returns false.
+// Because a full table-lock is acquired, this range represents a consistent snapshot of the map and no expirations may occur during the range.
+// Do note, however, that expirations may still be queued for the moment Range returns.
+func (tbl *Table[key_t, value_t]) RangeLocked(f func(key_t, value_t) bool) {
+	tbl.wholeMu.RLock()
+	defer tbl.wholeMu.RUnlock()
+	for k, v := range tbl.elements {
+		if !f(k, v.val) {
+			return
+		}
+	}
+}
+
+// Range is similar to sync.Map.Range() and locks each value individually
+// (you may NOT interact with the element given to f from within f, as it will deadlock).
+// Range exits early if f returns false.
+// It does not correspond to a consistent snapshot of the map's contents and timers are not halted during operation.
+// As this function does not lock the entire table for its full runtime, it has improved throughput (compared to RangeLocked) when multiple threads are operating on it.
+// However, it has substantial lock contention as it reacquires the full table lock repeatedly, so outcomes may vary.
+//
+// If you need a consistent map state, use RangeLocked().
+/*func (tbl *Table[key_t, value_t]) Range(f func(key_t, value_t) bool) {
+	tbl.wholeMu.RLock()
+	defer tbl.wholeMu.RUnlock()
+	for k, v := range tbl.elements {
+		if !f(k, v.val) {
+			return
+		}
+	}
+}*/

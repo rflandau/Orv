@@ -14,7 +14,7 @@ import (
 
 func TestTable(t *testing.T) {
 	t.Run("prune on timeout", func(t *testing.T) {
-		tbl := expiring.Table[int, float64]{}
+		tbl := expiring.New[int, float64]()
 
 		k, timeout := 0, 5*time.Millisecond
 		tbl.Store(k, 1.1, timeout)
@@ -39,7 +39,7 @@ func TestTable(t *testing.T) {
 	})
 
 	t.Run("no prune prior to timeout", func(t *testing.T) {
-		tbl := expiring.Table[string, bool]{}
+		tbl := expiring.New[string, bool]()
 
 		tests := []struct {
 			k    string
@@ -54,12 +54,12 @@ func TestTable(t *testing.T) {
 		for i, tt := range tests {
 			t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
 				tbl.Store(tt.k, tt.v, tt.time)
-				checkLoad(t, &tbl, tt.k, true, tt.v)
+				checkLoad(t, tbl, tt.k, true, tt.v)
 				// unclear how much time has elapsed since original store, so sleep conservatively
 				time.Sleep((tt.time * 2) / 3)
-				checkLoad(t, &tbl, tt.k, true, tt.v)
+				checkLoad(t, tbl, tt.k, true, tt.v)
 				time.Sleep(tt.time/3 + time.Millisecond)
-				checkLoad(t, &tbl, tt.k, false, tt.v)
+				checkLoad(t, tbl, tt.k, false, tt.v)
 
 			})
 		}
@@ -70,32 +70,32 @@ func TestTable(t *testing.T) {
 			tbl.Store(key, true, 10*time.Millisecond)
 			time.Sleep(9 * time.Millisecond)
 			// NOTE(rlandau): we are close enough that instruction interleaving could cause fetching to fail, so this test may need to be tweaked on other machines
-			checkLoad(t, &tbl, key, true, true)
+			checkLoad(t, tbl, key, true, true)
 		})
 	})
 
 	t.Run("reset timer on new store", func(t *testing.T) {
-		tbl := expiring.Table[*int, string]{}
+		tbl := expiring.New[*int, string]()
 		key, val := 151, "Wing of Astel"
 
 		tbl.Store(&key, val, 5*time.Millisecond)
-		checkLoad(t, &tbl, &key, true, val)
+		checkLoad(t, tbl, &key, true, val)
 		tbl.Store(&key, val, 20*time.Millisecond)
 		time.Sleep(5 * time.Millisecond)
-		checkLoad(t, &tbl, &key, true, val)
+		checkLoad(t, tbl, &key, true, val)
 		time.Sleep(16 * time.Millisecond)
-		checkLoad(t, &tbl, &key, false, val)
+		checkLoad(t, tbl, &key, false, val)
 	})
 
 	t.Run("delete elements", func(t *testing.T) {
-		tbl := expiring.Table[string, string]{}
+		tbl := expiring.New[string, string]()
 		// insert and delete a key
 		key, val := "Comet Azur", "Azur Staff"
 		tbl.Store(key, val, 40*time.Millisecond)
 		if !tbl.Delete(key) {
 			t.Fatalf("failed to delete key='%v': not found", key)
 		}
-		checkLoad(t, &tbl, key, false, val)
+		checkLoad(t, tbl, key, false, val)
 		// delete a key that does not exist
 		if tbl.Delete("Aomet Czur") {
 			t.Fatal("successfully deleted non-existent key")
@@ -107,20 +107,20 @@ func TestTable(t *testing.T) {
 			v = 3.14
 		)
 
-		tbl := expiring.Table[struct{ a int }, float64]{}
+		tbl := expiring.New[struct{ a int }, float64]()
 		// insert a new key
 		tbl.Store(k, v, 20*time.Millisecond)
 		// test the value
 		time.Sleep(10 * time.Millisecond)
-		checkLoad(t, &tbl, k, true, v)
+		checkLoad(t, tbl, k, true, v)
 		// reset it before it expires
 		if !tbl.Refresh(k, 40*time.Millisecond) {
 			t.Fatal("failed to refresh value prior to original expiry: not found")
 		}
 		time.Sleep(30 * time.Millisecond)
-		checkLoad(t, &tbl, k, true, v)
+		checkLoad(t, tbl, k, true, v)
 		time.Sleep(11 * time.Millisecond)
-		checkLoad(t, &tbl, k, false, v)
+		checkLoad(t, tbl, k, false, v)
 		// refresh a non-existent key
 		if tbl.Refresh(struct{ a int }{1}, 10000000) {
 			t.Fatal("successfully refreshed non-existent key")
@@ -132,7 +132,7 @@ func TestTable(t *testing.T) {
 			expectedCleanupBuf = []int{1, -1, -2, 2, -1, -2, 3, -1, -2}
 			mu                 sync.Mutex
 		)
-		tbl := expiring.Table[int, int]{}
+		tbl := expiring.New[int, int]()
 		tbl.Store(-1, -2, 50*time.Millisecond, func(k, v int) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -168,22 +168,45 @@ func TestTable_Range(t *testing.T) {
 		"misericorde":     1000,
 		"reduvia":         11,
 	}
-	// create an expiring table from input
-	tbl := expiring.Table[string, int]{}
-	for k, v := range in {
-		tbl.Store(k, v, 3*time.Second)
-	}
+	t.Run("all items", func(t *testing.T) {
+		// create an expiring table from input
+		tbl := expiring.New[string, int]()
+		for k, v := range in {
+			tbl.Store(k, v, 3*time.Second)
+		}
 
-	// rebuild in by ranging over in
-	out := make(map[string]int)
-	tbl.Range(func(s string, i int) bool {
-		out[s] = i
-		return true
+		// rebuild in by ranging over in
+		out := make(map[string]int)
+		tbl.RangeLocked(func(s string, i int) bool {
+			out[s] = i
+			return true
+		})
+
+		if !maps.Equal(in, out) {
+			t.Fatal("input and output maps do not match", ExpectedActual(in, out))
+		}
 	})
+	t.Run("early exit", func(t *testing.T) {
+		// create table
+		tbl := expiring.New[string, int]()
+		for k, v := range in {
+			tbl.Store(k, v, 3*time.Second)
+		}
 
-	if !maps.Equal(in, out) {
-		t.Fatal("input and output maps do not match", ExpectedActual(in, out))
-	}
+		// early exit after 2 calls
+		var callCount uint
+		out := make(map[string]int)
+		tbl.RangeLocked(func(s string, i int) bool {
+			out[s] = i
+			callCount += 1
+			return callCount < 2
+		})
+
+		// ensure we have exactly 2 elements in our output map
+		if len(out) != int(callCount) {
+			t.Fatal("incorrect range call counts.", ExpectedActual(int(callCount), len(out)))
+		}
+	})
 }
 
 // tests the load returns the expected value and found state.
