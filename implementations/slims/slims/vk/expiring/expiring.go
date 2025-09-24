@@ -13,6 +13,19 @@ type timedV[value_t any] struct {
 	exp *time.Timer // expiring timer to clear this function out of the table
 }
 
+// prune is a helper function that returns the auto-pruner for this record, with its timer started.
+// If it fires, the record will be deleted from tbl, followed by sequential execution of cleanup.
+func prune[k comparable, v any](tbl *Table[k, v], key k, value v, expire time.Duration, cleanup ...func(k, v)) *time.Timer {
+	return time.AfterFunc(expire, func() {
+		// if the time expires, remove ourself
+		tbl.Delete(key)
+		// execute additional clean up functions
+		for _, f := range cleanup {
+			f(key, value)
+		}
+	})
+}
+
 // A Table is basically a syncmap, but elements prune themselves after their duration elapses.
 // The zero value is NOT ready for use; use expiring.New().
 //
@@ -20,11 +33,11 @@ type timedV[value_t any] struct {
 //
 // NOTE(rlandau): accessing elements AT their expiration time is, by its very nature, a race.
 // If a timer has not expired, then its associated data is guaranteed to not have been pruned. The inverse is not guaranteed.
-type Table[key_t comparable, value_t any] struct {
+type Table[k comparable, v any] struct {
 	wholeMu sync.RWMutex // table-wide mutex. Must be held to interact with elementMus.
 	// element-wise mutexes that must be held to interact with that element in m.
-	elementMus map[key_t]*sync.Mutex
-	elements   map[key_t]timedV[value_t]
+	elementMus map[k]*sync.Mutex
+	elements   map[k]timedV[v]
 }
 
 // New returns an initialized Table ready for use.
@@ -83,14 +96,7 @@ func (tbl *Table[k, v]) Store(key k, value v, expire time.Duration, cleanup ...f
 	// insert the new k/v
 	tVal := timedV[v]{
 		val: value,
-		exp: time.AfterFunc(expire, func() {
-			// if the time expires, remove ourself
-			tbl.Delete(key)
-			// execute additional clean up functions
-			for _, f := range cleanup {
-				f(key, value)
-			}
-		})}
+		exp: prune(tbl, key, value, expire, cleanup...)}
 
 	tbl.elements[key] = tVal
 }
@@ -154,54 +160,50 @@ func (tbl *Table[key_t, value_t]) Refresh(key key_t, expire time.Duration) (foun
 
 // CompareAndSwap atomically swaps the old and new values for key iff the value stored in the map is equal to old.
 // If key is not found, old will be compared against the zero value of it (mirroring the behavior of sync.Map).
+// Otherwise, reflect.DeepEqual is used for comparison.
+//
 // expire and cleanup are only used if a swap occurs.
 //
 // Holds a write lock on the whole table.
-func (tbl *Table[key_t, value_t]) CompareAndSwap(key key_t, old, new value_t, expire time.Duration, cleanup ...func(key_t, value_t)) (swapped bool) {
-	// TODO test me
-
+// TODO test me
+func (tbl *Table[k, v]) CompareAndSwap(key k, old, new v, expire time.Duration, cleanup ...func(k, v)) (swapped bool) {
 	// helper function that tests if old is the zero value and install key+new iff it is.
-	// Creates a mutex for the element if createMutex is set.
-	newElemCheck := func(createMutex bool) (swapped bool) {
+	// If !mutexAlreadyExists, a mutex will also be created for the element.
+	// Does not acquire any locks.
+	newElemCheck := func(mutexAlreadyExists bool) (swapped bool) {
 		// this is a new element, so only perform the swap if old is the zero value
-		if reflect.ValueOf(old).IsZero() {
-			if createMutex {
-				// create the mutex and install it
-				tbl.elementMus[key] = &sync.Mutex{}
-			}
-			// install new and set up the pruner
-			tbl.elements[key] = timedV[value_t]{
-				val: new,
-				exp: time.AfterFunc(expire, func() {
-					// if the time expires, remove ourself
-					tbl.Delete(key)
-					// execute additional clean up functions
-					for _, f := range cleanup {
-						f(key, new)
-					}
-				})}
-			return true
+		if !reflect.ValueOf(old).IsZero() {
+			return false
 		}
-		return false
+		if !mutexAlreadyExists {
+			// create the mutex and install it
+			tbl.elementMus[key] = &sync.Mutex{}
+		}
+		// install new and set up the pruner
+		tbl.elements[key] = timedV[v]{
+			val: new,
+			exp: prune(tbl, key, new, expire, cleanup...)}
+		return true
+
 	}
 
 	// acquire the full table lock, to be safe in-case we need to create the mutex
 	tbl.wholeMu.Lock()
 	defer tbl.wholeMu.Unlock()
 	if _, found := tbl.elementMus[key]; !found {
-		return newElemCheck(true)
+		return newElemCheck(false)
 	}
 	// check the value
 	tv, found := tbl.elements[key]
 	if !found {
-		return newElemCheck(false)
+		return newElemCheck(true)
 	}
 	// compare
-	if tv.val != old {
+	if !reflect.DeepEqual(tv.val, old) {
 		return false
 	}
 	// install the new value
-	// TODO
+
 	return true
 
 }
