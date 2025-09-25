@@ -165,7 +165,6 @@ func (tbl *Table[key_t, value_t]) Refresh(key key_t, expire time.Duration) (foun
 // expire and cleanup are only used if a swap occurs.
 //
 // Holds a write lock on the whole table.
-// TODO test me
 func (tbl *Table[k, v]) CompareAndSwap(key k, old, new v, expire time.Duration, cleanup ...func(k, v)) (swapped bool) {
 	// helper function that tests if old is the zero value and install key+new iff it is.
 	// If !mutexAlreadyExists, a mutex will also be created for the element.
@@ -195,11 +194,11 @@ func (tbl *Table[k, v]) CompareAndSwap(key k, old, new v, expire time.Duration, 
 	}
 	// check the value
 	tv, found := tbl.elements[key]
-	if !found {
+	if !found { // in case our mutexes+values got out of sync OR we had a race
 		return newElemCheck(true)
 	}
-	// compare
-	if !reflect.DeepEqual(tv.val, old) {
+	// compare (and check that it isn't actively being pruned)
+	if !reflect.DeepEqual(tv.val, old) || !tv.exp.Stop() {
 		return false
 	}
 	// install the new value
@@ -212,8 +211,7 @@ func (tbl *Table[k, v]) CompareAndSwap(key k, old, new v, expire time.Duration, 
 }
 
 // Range is similar to sync.Map.Range(), but acquires a full table read lock.
-// Thanks to the use a read lock, you may perform a limited subset of operations on the table from within f.
-// Specifically, you may call .Refresh(), .Delete(), and .Load().
+// Do not perform operations on the table or element within the table inside of f; this will cause a deadlock.
 // Range exits early if f returns false.
 // Because a full table-lock is acquired, this range represents a consistent snapshot of the map and no expirations may occur during the range.
 // Do note, however, that expirations may still be queued for the moment Range returns.
