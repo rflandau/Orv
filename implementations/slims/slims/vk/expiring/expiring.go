@@ -203,7 +203,10 @@ func (tbl *Table[k, v]) CompareAndSwap(key k, old, new v, expire time.Duration, 
 		return false
 	}
 	// install the new value
-
+	tbl.elements[key] = timedV[v]{
+		val: new,
+		exp: prune(tbl, key, new, expire, cleanup...),
+	}
 	return true
 
 }
