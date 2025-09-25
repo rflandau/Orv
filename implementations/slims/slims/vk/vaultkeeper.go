@@ -80,7 +80,7 @@ type VaultKeeper struct {
 		mu sync.Mutex // must be held to interact with this struct
 
 		// child vks
-		cvks expiring.Table[slims.NodeID, struct {
+		cvks *expiring.Table[slims.NodeID, struct {
 			services map[string]netip.AddrPort // service name -> service address
 			addr     netip.AddrPort            // address that the vk service is remotely accessible at
 		}]
@@ -92,7 +92,7 @@ type VaultKeeper struct {
 	}
 
 	// Hellos we have received but that have not yet been followed by a JOIN
-	pendingHellos expiring.Table[slims.NodeID, bool]
+	pendingHellos *expiring.Table[slims.NodeID, bool]
 	// hearbeat handling
 	// NOTE(rlandau): uses net.accepting to determine whether or not to send heartbeats
 	hb struct {
@@ -144,20 +144,21 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 		},
 		children: struct {
 			mu   sync.Mutex
-			cvks expiring.Table[slims.NodeID, struct {
+			cvks *expiring.Table[slims.NodeID, struct {
 				services map[string]netip.AddrPort
 				addr     netip.AddrPort
 			}]
 			leaves      map[slims.NodeID]leaf
 			allServices map[string]map[slims.NodeID]netip.AddrPort
 		}{
-			cvks: expiring.Table[slims.NodeID, struct {
+			cvks: expiring.New[slims.NodeID, struct {
 				services map[string]netip.AddrPort
 				addr     netip.AddrPort
-			}]{},
+			}](),
 			leaves:      make(map[slims.NodeID]leaf),
 			allServices: make(map[string]map[slims.NodeID]netip.AddrPort),
 		},
+		pendingHellos: expiring.New[slims.NodeID, bool](),
 		hb: struct {
 			auto              bool
 			freq              time.Duration
