@@ -219,9 +219,17 @@ func (tbl *Table[key_t, value_t]) RangeLocked(f func(key_t, value_t) bool) {
 	tbl.wholeMu.RLock()
 	defer tbl.wholeMu.RUnlock()
 	for k, v := range tbl.elements {
+		// acquire the element lock
+		mu, found := tbl.elementMus[k]
+		if !found { // if we don't find the mutex, something has gone wrong, so just move on
+			continue
+		}
+		mu.Lock()
 		if !f(k, v.val) {
+			mu.Unlock()
 			return
 		}
+		mu.Unlock()
 	}
 }
 
