@@ -30,7 +30,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 		hdr  protocol.Header
 		want struct {
 			version       byte         // outcome byte
-			shorthandType byte         // outcome composite byte
+			shorthandType byte         // outcome composite byte (0x10000000 & type)
 			id            slims.NodeID // last 8 bytes converted back into a uint64 (if shorthand was unset)
 		}
 		invalids []error
@@ -87,7 +87,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				version       byte
 				shorthandType byte
 				id            slims.NodeID
-			}{0x7, 20, 15},
+			}{0x7, byte(pb.MessageType_GET), 15},
 			invalids: []error{},
 		},
 		{name: "0.7 Get ID=MaxUint64",
@@ -96,7 +96,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				version       byte
 				shorthandType byte
 				id            slims.NodeID
-			}{0x7, 20, math.MaxUint64},
+			}{0x7, byte(pb.MessageType_GET), math.MaxUint64},
 			invalids: []error{},
 		},
 
@@ -172,7 +172,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				version       byte
 				shorthandType byte
 				id            slims.NodeID
-			}{0, 0b10001010, 1},
+			}{0, 0b10000000 | byte(pb.MessageType_INCREMENT), 1},
 			invalids: []error{protocol.ErrShorthandID},
 		},
 	}
