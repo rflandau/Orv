@@ -120,22 +120,19 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	if req.HopCount <= 0 || !vk.structure.parentAddr.IsValid() { // answer if we are root or no more hops are allowed
-		vk.children.mu.Lock()
-		var resp = pb.ListResponse{
-			Token:    req.Token,
-			Services: slices.Collect(maps.Keys(vk.children.allServices)),
-		}
-		vk.children.mu.Unlock()
-		vk.respondSuccess(senderAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
-		vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("answered LIST request")
+		vk.sendListResponse(senderAddr, &req, reqHdr)
+		return
 	}
-	defer vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("forwarded LIST request to parent")
+	// forward the request up the tree
+	// if an error occurs, log it and answer as if we are the final destination
 	// generate a dialer
 	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
 	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
 	if err != nil {
-		// TODO we do NOT actually want to send an error. We want to log this and increment our bad heartbeat count
-		return true, pb.Fault_UNSPECIFIED, []string{err.Error()}
+		vk.sendListResponse(senderAddr, &req, reqHdr)
+		newCount := vk.hb.badHeartbeatCount.Add(1)
+		vk.log.Warn().Str("action", "WritePacket").Err(err).Uint32("bad heartbeat count", newCount).Msg("failed to forward list request to parent")
+		return
 	}
 
 	// forward the request up the chain
@@ -144,8 +141,12 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 		Type:    pb.MessageType_LIST,
 		ID:      vk.id,
 	}, &req); err != nil {
-		// TODO we do NOT actually want to send an error. We want to log this and increment our bad heartbeat count
+		vk.sendListResponse(senderAddr, &req, reqHdr)
+		newCount := vk.hb.badHeartbeatCount.Add(1)
+		vk.log.Warn().Str("action", "WritePacket").Err(err).Uint32("bad heartbeat count", newCount).Msg("failed to forward list request to parent")
+		return
 	}
+	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("forwarded LIST request to parent")
 	// because we don't care about repeating, we don't actually care if we get an ACK.
 	return
 }
@@ -161,6 +162,19 @@ func (vk *VaultKeeper) sendListAck(senderAddr net.Addr, token string) {
 			Type:    pb.MessageType_LIST_ACK,
 			ID:      vk.ID(),
 		}, &la)
+}
+
+// helper function for serveList.
+// Sends a LIST_RESPONSE to the given address and log it.
+func (vk *VaultKeeper) sendListResponse(senderAddr net.Addr, req *pb.List, reqHdr protocol.Header) {
+	vk.children.mu.Lock()
+	var resp = pb.ListResponse{
+		Token:    req.Token,
+		Services: slices.Collect(maps.Keys(vk.children.allServices)),
+	}
+	vk.children.mu.Unlock()
+	vk.respondSuccess(senderAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
+	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("answered LIST request")
 }
 
 //#endregion client request handling
