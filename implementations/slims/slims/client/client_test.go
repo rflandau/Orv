@@ -2,6 +2,7 @@ package client_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/rand/v2"
 	"net/netip"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -100,6 +102,91 @@ func TestStatus(t *testing.T) {
 			t.Error("mismatching version list", ExpectedActual(respSR.VersionsSupported, actualVersions.AsBytes()))
 		}
 	})
+}
+
+func TestList(t *testing.T) {
+	t.Run("invalid IPAddr", func(t *testing.T) {
+		ap, err := netip.ParseAddrPort("")
+		if err == nil {
+			t.Fatal("unexpected nil error")
+		}
+		if _, services, err := client.List(ap, t.Context(), "", 0); !errors.Is(err, client.ErrInvalidAddrPort) {
+			t.Fatal("unexpected error", ExpectedActual[error](client.ErrInvalidAddrPort, err))
+		} else if services != nil {
+			t.Fatal("unexpected non-nil response")
+		}
+	})
+
+	// spawn a vk and register some services
+	const timeout time.Duration = 30 * time.Second
+	var (
+		vk    *vaultkeeper.VaultKeeper
+		child = struct {
+			ID       slims.NodeID
+			services []string
+		}{
+			ID:       rand.Uint64(),
+			services: []string{randomdata.SillyName(), randomdata.Month()},
+		}
+	)
+	{
+		var err error
+		if vk, err = vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: timeout, ServicelessLeaf: timeout, ChildVK: timeout}),
+		); err != nil {
+			t.Fatal(err)
+		} else if err = vk.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(vk.Stop)
+		if _, _, _, err := client.Hello(t.Context(), child.ID, vk.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := client.Join(t.Context(), child.ID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
+			t.Fatal(err)
+		}
+		for _, service := range child.services {
+			if _, _, err := client.Register(t.Context(), child.ID, vk.Address(), service, RandomLocalhostAddrPort(), timeout); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	const reqTimeout = 300 * time.Millisecond
+	//actualVersions := protocol.SupportedVersions()
+	t.Run("shorthand request, no token", func(t *testing.T) {
+		// submit a shorthand status request
+		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
+		defer cancel()
+		responderAddr, services, err := client.List(vk.Address(), ctx, "", 0)
+		if err != nil {
+			t.Fatal(err)
+		} else if services == nil {
+			t.Fatal("no services found")
+		} else if responderAddr.String() != vk.Address().String() { // ensure the original vk was also the responder
+			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), responderAddr.String()))
+		}
+		if !SlicesUnorderedEqual(child.services, services) {
+			t.Fatal("listed services do not match al registered services", ExpectedActual(child.services, services))
+		}
+	})
+	t.Run("longform request, token", func(t *testing.T) {
+		// submit a shorthand status request
+		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
+		defer cancel()
+		responderAddr, services, err := client.List(vk.Address(), ctx, randomdata.Digits(7), 0, child.ID)
+		if err != nil {
+			t.Fatal(err)
+		} else if services == nil {
+			t.Fatal("no services found")
+		} else if responderAddr.String() != vk.Address().String() { // ensure the original vk was also the responder
+			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), responderAddr.String()))
+		}
+		if !SlicesUnorderedEqual(child.services, services) {
+			t.Fatal("listed services do not match al registered services", ExpectedActual(child.services, services))
+		}
+	})
+	// TODO test lists being forwarded up the tree
 }
 
 // Tests that we can get HELLOs with valid output.
