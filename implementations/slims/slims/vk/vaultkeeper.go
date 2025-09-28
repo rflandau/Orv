@@ -175,7 +175,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			badHeartbeatLimit: DefaultBadHeartbeatLimit,
 			badHeartbeatCount: atomic.Uint32{},
 		},
-		closedListTokens: &expiring.Table[string, bool]{},
+		closedListTokens: expiring.NewTable[string, bool](),
 	}
 	vk.net.accepting.Store(false)
 
