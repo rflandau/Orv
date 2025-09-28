@@ -16,7 +16,7 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol/version"
-	"github.com/rflandau/Orv/implementations/slims/slims/vk/expiring"
+	"github.com/rflandau/expiring"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 )
@@ -151,14 +151,14 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 			leaves      map[slims.NodeID]leaf
 			allServices map[string]map[slims.NodeID]netip.AddrPort
 		}{
-			cvks: expiring.New[slims.NodeID, struct {
+			cvks: expiring.NewTable[slims.NodeID, struct {
 				services map[string]netip.AddrPort
 				addr     netip.AddrPort
 			}](),
 			leaves:      make(map[slims.NodeID]leaf),
 			allServices: make(map[string]map[slims.NodeID]netip.AddrPort),
 		},
-		pendingHellos: expiring.New[slims.NodeID, bool](),
+		pendingHellos: expiring.NewTable[slims.NodeID, bool](),
 		hb: struct {
 			auto              bool
 			freq              time.Duration
