@@ -103,6 +103,7 @@ type VaultKeeper struct {
 		freq time.Duration
 		// when we fail to heartbeat our parent this many times consecutively, the parent will be dropped
 		badHeartbeatLimit uint
+		badHeartbeatCount atomic.Uint32
 	}
 
 	// expiring hashset of tokens that we have seen and handled a LIST request for.
@@ -160,10 +161,20 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 		},
 		pendingHellos: expiring.NewTable[slims.NodeID, bool](),
 		hb: struct {
-			auto              bool
-			freq              time.Duration
+			// do we send heartbeats automatically?
+			// Defaults to true.
+			auto bool
+			// how often do we send heartbeats
+			freq time.Duration
+			// when we fail to heartbeat our parent this many times consecutively, the parent will be dropped
 			badHeartbeatLimit uint
-		}{true, DefaultParentHBFreq, DefaultBadHeartbeatLimit},
+			badHeartbeatCount atomic.Uint32
+		}{
+			auto:              true,
+			freq:              DefaultParentHBFreq,
+			badHeartbeatLimit: DefaultBadHeartbeatLimit,
+			badHeartbeatCount: atomic.Uint32{},
+		},
 		closedListTokens: &expiring.Table[string, bool]{},
 	}
 	vk.net.accepting.Store(false)
@@ -208,7 +219,6 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 
 		hbLog.Debug().Dur("frequency", vk.hb.freq).Uint("limit", vk.hb.badHeartbeatLimit).Msg("starting auto heartbeater")
 		tkr := time.NewTicker(vk.hb.freq)
-		badHBCount := 0
 		for {
 			<-tkr.C
 			hbSampled.Debug().Msg("heartbeater waking")
@@ -222,6 +232,7 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 
 			if !pAddr.IsValid() {
 				hbSampled.Debug().Msg("heartbeater skipping due to invalid parent addr")
+				vk.hb.badHeartbeatCount.Store(0)
 				continue
 			}
 
@@ -229,12 +240,12 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 
 			if err := vk.HeartbeatParent(); err != nil {
 				hbLog.Warn().Uint64("parent ID", p).Str("parent addr", pAddr.String()).Err(err).Msg("failed to heartbeat parent")
-				badHBCount += 1
+				vk.hb.badHeartbeatCount.Add(1)
 			} else {
-				badHBCount = 0
+				vk.hb.badHeartbeatCount.Store(0)
 			}
 
-			if badHBCount >= int(vk.hb.badHeartbeatLimit) {
+			if int(vk.hb.badHeartbeatCount.Load()) >= int(vk.hb.badHeartbeatLimit) {
 				hbLog.Info().Msg("assuming parent is dead due to consecutive bad heartbeats")
 				vk.structure.mu.Lock()
 				// only alter the parent if our data is still valid
@@ -251,7 +262,7 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 				}
 				vk.structure.mu.Unlock()
 				// clear the count
-				badHBCount = 0
+				vk.hb.badHeartbeatCount.Store(0)
 			}
 		}
 
