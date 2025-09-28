@@ -9,9 +9,11 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -384,6 +386,69 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	default:
 		return respHdr.ID, sr, fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
 	}
+}
+
+// List sends a LIST packet to the given address and returns the available services.
+// ID is optional; if given, the LIST packet will be sent long-form.
+// If token is empty, a random one will be generated.
+//
+// This subroutine can be invoked by any node.
+func List(target netip.AddrPort, ctx context.Context, token string, hopCount uint16, senderID ...slims.NodeID) (responderAddr net.Addr, services []string, err error) {
+	if !target.IsValid() {
+		return nil, nil, ErrInvalidAddrPort
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	if UDPAddr == nil {
+		return nil, nil, ErrInvalidAddrPort
+	}
+
+	// if token is empty, replace it
+	if strings.TrimSpace(token) == "" {
+		token = randomdata.SillyName()
+	}
+
+	// generate a header
+	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: pb.MessageType_LIST}
+	if len(senderID) > 0 {
+		reqHdr.Shorthand = false
+		reqHdr.ID = senderID[0]
+	}
+
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if _, err := protocol.WritePacket(ctx, conn, reqHdr, &pb.List{
+		Token:        token,
+		HopCount:     uint32(hopCount),
+		ResponseAddr: conn.LocalAddr().String(),
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	// wait until we get a response
+	var (
+		listResp pb.ListResponse
+	)
+	for ctx.Err() == nil {
+		_, origAddr, hdr, body, err := protocol.ReceivePacket(conn, ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		// check the token
+		if hdr.Type == pb.MessageType_LIST_RESP {
+			responderAddr = origAddr
+			// unpack body
+			if err := proto.Unmarshal(body, &listResp); err != nil {
+				return nil, nil, err
+			}
+			if listResp.Token == token { // the response we were waiting for!
+				break
+			}
+		}
+	}
+	return responderAddr, listResp.Services, nil
 }
 
 // #endregion client requests
