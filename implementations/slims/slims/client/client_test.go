@@ -3,8 +3,10 @@ package client_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"math/rand/v2"
+	"net"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -110,7 +112,7 @@ func TestList(t *testing.T) {
 		if err == nil {
 			t.Fatal("unexpected nil error")
 		}
-		if _, services, err := client.List(ap, t.Context(), "", 0); !errors.Is(err, client.ErrInvalidAddrPort) {
+		if _, services, err := client.List(ap, t.Context(), randomdata.Address(), 0); !errors.Is(err, client.ErrInvalidAddrPort) {
 			t.Fatal("unexpected error", ExpectedActual[error](client.ErrInvalidAddrPort, err))
 		} else if services != nil {
 			t.Fatal("unexpected non-nil response")
@@ -118,74 +120,94 @@ func TestList(t *testing.T) {
 	})
 
 	// spawn a vk and register some services
-	const timeout time.Duration = 30 * time.Second
+	const (
+		pruneTO   time.Duration = 30 * time.Second
+		staleTime time.Duration = 30 * time.Second // stale time to set for each service
+	)
 	var (
-		vk    *vaultkeeper.VaultKeeper
-		child = struct {
-			ID       slims.NodeID
-			services []string
-		}{
-			ID:       rand.Uint64(),
-			services: []string{randomdata.SillyName(), randomdata.Month()},
+		cVK, _     *vaultkeeper.VaultKeeper
+		cVKLeaf, _ = Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				randomdata.SillyName(): {staleTime, RandomLocalhostAddrPort()},
+				randomdata.Month():     {staleTime, RandomLocalhostAddrPort()},
+			},
+		}, Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				randomdata.Alphanumeric(5): {staleTime, RandomLocalhostAddrPort()},
+				randomdata.Adjective():     {staleTime, RandomLocalhostAddrPort()},
+			},
 		}
 	)
 	{
 		var err error
-		if vk, err = vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
-			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: timeout, ServicelessLeaf: timeout, ChildVK: timeout}),
-		); err != nil {
-			t.Fatal(err)
-		} else if err = vk.Start(); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(vk.Stop)
-		if _, _, _, err := client.Hello(t.Context(), child.ID, vk.Address()); err != nil {
+		// spawn the child VK and associate services to it
+		cVK, err = spawnVK(rand.Uint64(), cVKLeaf, vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}), // disable pruning
+			vaultkeeper.WithLogger(nil)) // disable logging
+		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := client.Join(t.Context(), child.ID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
-			t.Fatal(err)
-		}
-		for _, service := range child.services {
-			if _, _, err := client.Register(t.Context(), child.ID, vk.Address(), service, RandomLocalhostAddrPort(), timeout); err != nil {
-				t.Fatal(err)
-			}
-		}
+		t.Cleanup(cVK.Stop)
+		// spawn the parent VK and associate services to it
+		// TODO
+		// associate the childVK to the parent
+		// TODO
 	}
 
 	const reqTimeout = 300 * time.Millisecond
-	//actualVersions := protocol.SupportedVersions()
-	t.Run("shorthand request, no token", func(t *testing.T) {
-		// submit a shorthand status request
-		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
-		defer cancel()
-		responderAddr, services, err := client.List(vk.Address(), ctx, "", 0)
-		if err != nil {
-			t.Fatal(err)
-		} else if services == nil {
-			t.Fatal("no services found")
-		} else if responderAddr.String() != vk.Address().String() { // ensure the original vk was also the responder
-			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), responderAddr.String()))
-		}
-		if !SlicesUnorderedEqual(child.services, services) {
-			t.Fatal("listed services do not match al registered services", ExpectedActual(child.services, services))
-		}
-	})
-	t.Run("longform request, token", func(t *testing.T) {
-		// submit a shorthand status request
-		ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
-		defer cancel()
-		responderAddr, services, err := client.List(vk.Address(), ctx, randomdata.Digits(7), 0, child.ID)
-		if err != nil {
-			t.Fatal(err)
-		} else if services == nil {
-			t.Fatal("no services found")
-		} else if responderAddr.String() != vk.Address().String() { // ensure the original vk was also the responder
-			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), responderAddr.String()))
-		}
-		if !SlicesUnorderedEqual(child.services, services) {
-			t.Fatal("listed services do not match al registered services", ExpectedActual(child.services, services))
-		}
-	})
+
+	// sends requests against the child vk first
+	var tests = []struct {
+		name             string
+		childID          slims.NodeID // if 0, will be omitted from parameter list
+		hopCount         uint16
+		token            string
+		expectedError    bool
+		expectedServices []string // only checked if expectedError is passed
+	}{
+		{name: "no token error", hopCount: 0, token: "", expectedError: true, expectedServices: nil},
+		{name: "shorthand request", hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
+		{name: "longform request", childID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
+			defer cancel()
+			var (
+				responderAddr net.Addr
+				services      []string
+				err           error
+			)
+			if tt.childID != 0 {
+				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount, tt.childID)
+			} else {
+				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount)
+			}
+			if tt.expectedError && err == nil {
+				t.Fatal("error was expected but was not returned")
+			} else if !tt.expectedError {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if services == nil {
+					t.Fatal("no services found")
+				} else if responderAddr.String() != cVK.Address().String() { // ensure the original vk was also the responder
+					t.Fatal("bad responder address", ExpectedActual(cVK.Address().String(), responderAddr.String()))
+				}
+				if !SlicesUnorderedEqual(tt.expectedServices, services) {
+					t.Fatal("listed services do not match all registered services", ExpectedActual(tt.expectedServices, services))
+				}
+			}
+		})
+	}
 	// TODO test lists being forwarded up the tree
 }
 
@@ -354,4 +376,33 @@ func TestJoin(t *testing.T) {
 		}
 	})
 
+}
+
+// helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
+// Returns an error if an error occurs at any point.
+// make sure you call vk.Stop().
+// Attaches a 500ms timeout to each operation.
+func spawnVK(childID slims.NodeID, childLeaf Leaf, vkOpts ...vaultkeeper.VKOption) (*vaultkeeper.VaultKeeper, error) {
+	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cnl()
+
+	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(), vkOpts...)
+	if err != nil {
+		return nil, err
+	} else if err = vk.Start(); err != nil {
+		return nil, err
+	}
+	if _, _, _, err := client.Hello(ctx, childID, vk.Address()); err != nil {
+		return nil, err
+	}
+	if _, _, err := client.Join(ctx, childID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
+		return nil, err
+	}
+	for service, info := range childLeaf.Services {
+		if _, _, err := client.Register(ctx, childID, vk.Address(), service, info.Addr, info.Stale); err != nil {
+			return nil, err
+		}
+	}
+
+	return vk, nil
 }
