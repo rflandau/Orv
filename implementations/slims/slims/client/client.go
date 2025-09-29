@@ -390,10 +390,15 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 
 // List sends a LIST packet to the given address and returns the available services.
 // ID is optional; if given, the LIST packet will be sent long-form.
-// If token is empty, a random one will be generated.
+//
+// Assuming the request was successfully sent, List only returns if the context is cancelled/expires or a LIST_RESP is received.
+// LIST_ACKs are thrown away.
 //
 // This subroutine can be invoked by any node.
 func List(target netip.AddrPort, ctx context.Context, token string, hopCount uint16, senderID ...slims.NodeID) (responderAddr net.Addr, services []string, err error) {
+	if token == "" {
+		return nil, nil, errors.New("token must not be empty")
+	}
 	if !target.IsValid() {
 		return nil, nil, ErrInvalidAddrPort
 	}
