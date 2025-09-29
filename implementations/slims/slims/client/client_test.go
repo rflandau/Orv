@@ -125,8 +125,8 @@ func TestList(t *testing.T) {
 		staleTime time.Duration = 30 * time.Second // stale time to set for each service
 	)
 	var (
-		cVK, _     *vaultkeeper.VaultKeeper
-		cVKLeaf, _ = Leaf{
+		cVK, parentVK       *vaultkeeper.VaultKeeper
+		cVKLeaf, parentLeaf = Leaf{
 			ID: rand.Uint64(),
 			Services: map[string]struct {
 				Stale time.Duration
@@ -156,9 +156,22 @@ func TestList(t *testing.T) {
 		}
 		t.Cleanup(cVK.Stop)
 		// spawn the parent VK and associate services to it
-		// TODO
+		if parentVK, err = spawnVK(rand.Uint64(), parentLeaf,
+			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}),
+			vaultkeeper.WithLogger(nil),
+			vaultkeeper.WithDragonsHoard(1),
+		); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(parentVK.Stop)
+
 		// associate the childVK to the parent
-		// TODO
+		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	const reqTimeout = 300 * time.Millisecond
@@ -166,7 +179,7 @@ func TestList(t *testing.T) {
 	// sends requests against the child vk first
 	var tests = []struct {
 		name             string
-		childID          slims.NodeID // if 0, will be omitted from parameter list
+		clientID         slims.NodeID // if 0, will be omitted from parameter list
 		hopCount         uint16
 		token            string
 		expectedError    bool
@@ -174,7 +187,8 @@ func TestList(t *testing.T) {
 	}{
 		{name: "no token error", hopCount: 0, token: "", expectedError: true, expectedServices: nil},
 		{name: "shorthand request", hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
-		{name: "longform request", childID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
+		{name: "longform request", clientID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
+		{name: "forward to parent", clientID: rand.Uint64(), hopCount: 2, token: randomdata.Address(), expectedError: false, expectedServices: append(slices.Collect(maps.Keys(cVKLeaf.Services)), slices.Collect(maps.Keys(parentLeaf.Services))...)},
 	}
 
 	for _, tt := range tests {
@@ -186,8 +200,8 @@ func TestList(t *testing.T) {
 				services      []string
 				err           error
 			)
-			if tt.childID != 0 {
-				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount, tt.childID)
+			if tt.clientID != 0 {
+				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount, tt.clientID)
 			} else {
 				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount)
 			}
