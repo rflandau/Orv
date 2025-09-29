@@ -102,9 +102,16 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 		return true, pb.Fault_BODY_REQUIRED, nil
 	}
 
-	var req pb.List
+	var (
+		req          pb.List
+		addrToRespTo net.Addr
+	)
 	if err := pbun.Unmarshal(reqBody, &req); err != nil {
 		return true, pb.Fault_MALFORMED_BODY, nil
+	} else if req.Token == "" {
+		return true, pb.Fault_BAD_TOKEN, nil
+	} else if addrToRespTo, err = net.ResolveUDPAddr("udp", req.ResponseAddr); err != nil {
+		return true, pb.Fault_MALFORMED_ADDRESS, []string{"failed to parse ResponseAddr"}
 	}
 	// send back an ACK
 	vk.sendListAck(senderAddr, req.Token)
@@ -120,7 +127,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	if req.HopCount <= 0 || !vk.structure.parentAddr.IsValid() { // answer if we are root or no more hops are allowed
-		vk.sendListResponse(senderAddr, &req, reqHdr)
+		vk.sendListResponse(addrToRespTo, &req, reqHdr)
 		return
 	}
 	// forward the request up the tree
@@ -129,7 +136,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
 	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
 	if err != nil {
-		vk.sendListResponse(senderAddr, &req, reqHdr)
+		vk.sendListResponse(addrToRespTo, &req, reqHdr)
 		newCount := vk.hb.badHeartbeatCount.Add(1)
 		vk.log.Warn().Str("action", "WritePacket").Err(err).Uint32("bad heartbeat count", newCount).Msg("failed to forward list request to parent")
 		return
@@ -141,7 +148,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 		Type:    pb.MessageType_LIST,
 		ID:      vk.id,
 	}, &req); err != nil {
-		vk.sendListResponse(senderAddr, &req, reqHdr)
+		vk.sendListResponse(addrToRespTo, &req, reqHdr)
 		newCount := vk.hb.badHeartbeatCount.Add(1)
 		vk.log.Warn().Str("action", "WritePacket").Err(err).Uint32("bad heartbeat count", newCount).Msg("failed to forward list request to parent")
 		return
@@ -162,18 +169,19 @@ func (vk *VaultKeeper) sendListAck(senderAddr net.Addr, token string) {
 			Type:    pb.MessageType_LIST_ACK,
 			ID:      vk.ID(),
 		}, &la)
+	vk.log.Info().Str("token", token).Str("sender address", senderAddr.String()).Msg("acknowledged LIST request")
 }
 
 // helper function for serveList.
 // Sends a LIST_RESPONSE to the given address and log it.
-func (vk *VaultKeeper) sendListResponse(senderAddr net.Addr, req *pb.List, reqHdr protocol.Header) {
+func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, reqHdr protocol.Header) {
 	vk.children.mu.Lock()
 	var resp = pb.ListResponse{
 		Token:    req.Token,
 		Services: slices.Collect(maps.Keys(vk.children.allServices)),
 	}
 	vk.children.mu.Unlock()
-	vk.respondSuccess(senderAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
+	vk.respondSuccess(parsedRespAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
 	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("answered LIST request")
 }
 
