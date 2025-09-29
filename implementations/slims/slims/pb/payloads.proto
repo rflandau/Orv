@@ -27,6 +27,7 @@ message Fault {
     MALFORMED_BODY = 6;
     MALFORMED_ADDRESS = 7;
     UNKNOWN_CHILD_ID = 8;
+    BAD_TOKEN = 9;
 
     // JOIN
 

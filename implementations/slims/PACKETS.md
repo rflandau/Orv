@@ -78,7 +78,11 @@ FAULT may be sent in response to any number of request packets.
         007: MALFORMED_ADDRESS: address does not fit the expected address syntax.
             - This error is subject to implementation choices and may not be sent (if addresses are not validated).
             - This error is may be used for a number of different addresses, as necessitated by the message type.
+        
         008: UNKNOWN_CHILD_ID: ID did not correspond to a current child.
+
+        009: BAD_TOKEN: token was unsupported or empty.
+            - This error is subject to implementation choices and may only correspond to an empty token.
 
 
     - JOIN Codes (4XX):
