@@ -14,7 +14,6 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
-	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
@@ -27,11 +26,6 @@ import (
 // This implementation does not use endpoints; instead, we switch on packet types. See basically all the tests in implementations/slims/slims/client/client_test.go and all of the Test_serve* tests in  implementations/slims/slims/vk/vaultkeeper_test.go.
 
 // StatusRequest is services via TestVaultKeeper_StartStop in implementations/slims/slims/vk/vaultkeeper_test.go and TestStatus in implementations/slims/slims/client/client_test.go.
-
-type leaf struct {
-	id       slims.NodeID
-	services map[string]netip.AddrPort // service -> service addr
-}
 
 // TestMultiServiceMultiLeaf spins up a single vk and joins multiple leaves under it.
 // Each leaf offers at least one service and at least one service is offered by multiple leaves.
@@ -56,19 +50,19 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	}
 	// spawn a bunch of (at least 2) leaves and channels to catch heartbeat errors from them.
 	var (
-		leaves = make([]leaf, rand.Uint32N(maxLeaves)+2)
+		leaves = make([]Leaf, rand.Uint32N(maxLeaves)+2)
 		hb     = make(chan error, 10)
 	)
 
 	for i := range leaves {
 		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
-		leaves[i] = leaf{
-			id:       rand.Uint64(),
-			services: make(map[string]netip.AddrPort, serviceCount),
+		leaves[i] = Leaf{
+			ID:       rand.Uint64(),
+			Services: make(map[string]netip.AddrPort, serviceCount),
 		}
 
 		// attach it to the vk
-		parentID, _, ack, err := client.Hello(t.Context(), leaves[i].id, vk.Address())
+		parentID, _, ack, err := client.Hello(t.Context(), leaves[i].ID, vk.Address())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +72,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		if ack.Height != uint32(vk.Height()) {
 			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
 		}
-		parentID, accept, err := client.Join(t.Context(), leaves[i].id, vk.Address(), client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0})
+		parentID, accept, err := client.Join(t.Context(), leaves[i].ID, vk.Address(), client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,8 +85,8 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		// attach services to the leaf and register them with the VK
 		for range serviceCount {
 			serviceName := randomdata.SillyName()
-			leaves[i].services[serviceName] = RandomLocalhostAddrPort()
-			parentID, accept, err := client.Register(t.Context(), leaves[i].id, vk.Address(), serviceName, leaves[i].services[serviceName], 3*time.Minute)
+			leaves[i].Services[serviceName] = RandomLocalhostAddrPort()
+			parentID, accept, err := client.Register(t.Context(), leaves[i].ID, vk.Address(), serviceName, leaves[i].Services[serviceName], 3*time.Minute)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,10 +95,10 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			} else if serviceName != accept.Service {
 				t.Error(ExpectedActual(accept.Service, serviceName))
 			}
-			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].services[serviceName], leaves[i].id)
+			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].Services[serviceName], leaves[i].ID)
 		}
 
-		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].services)), hb)
+		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].Services)), hb)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,22 +117,22 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	for sshOwner1 == sshOwner2 {
 		sshOwner2 = rand.UintN(uint(len(leaves)))
 	}
-	leaves[sshOwner1].services["ssh"] = RandomLocalhostAddrPort()
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].id, vk.Address(), sharedService, leaves[sshOwner1].services[sharedService], 3*time.Minute); err != nil {
+	leaves[sshOwner1].Services["ssh"] = RandomLocalhostAddrPort()
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].ID, vk.Address(), sharedService, leaves[sshOwner1].Services[sharedService], 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner1].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner1].services)), hb)
+	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner1].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner1].Services)), hb)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel1()
 	}()
-	leaves[sshOwner2].services["ssh"] = RandomLocalhostAddrPort()
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].id, vk.Address(), sharedService, leaves[sshOwner2].services[sharedService], 3*time.Minute); err != nil {
+	leaves[sshOwner2].Services["ssh"] = RandomLocalhostAddrPort()
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].ID, vk.Address(), sharedService, leaves[sshOwner2].Services[sharedService], 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner2].id, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner2].services)), hb)
+	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner2].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner2].Services)), hb)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +152,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		// collect all the services each leaf owns
 		leafServices := map[string]uint32{} // service name -> provider count
 		for _, l := range leaves {
-			for service := range l.services {
+			for service := range l.Services {
 				leafServices[service] += 1
 			}
 		}

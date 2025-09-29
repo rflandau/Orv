@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"strconv"
 	"sync"
+
+	"github.com/rflandau/Orv/implementations/slims/slims"
 )
 
 // ExpectedActual returns a newline-prefixed string comparing the expected result to the actual result.
@@ -70,4 +72,11 @@ func RandomLocalhostAddrPort() netip.AddrPort {
 	}
 
 	return netip.MustParseAddrPort("[::1]:" + strconv.FormatUint(uint64(port), 10))
+}
+
+// struct to represent a leaf child.
+// Kept in TestSupport (as opposed to being exported) so users don't think it is necessary to use the library.
+type Leaf struct {
+	ID       slims.NodeID
+	Services map[string]netip.AddrPort // service -> service addr
 }
