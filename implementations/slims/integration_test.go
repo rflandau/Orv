@@ -31,8 +31,9 @@ import (
 // Each leaf offers at least one service and at least one service is offered by multiple leaves.
 func TestMultiServiceMultiLeaf(t *testing.T) {
 	const (
-		maxLeaves          uint32 = 25
-		maxServicesPerLeaf uint32 = 3
+		maxLeaves          uint32        = 25
+		maxServicesPerLeaf uint32        = 3
+		staleTime          time.Duration = 10 * time.Minute // disable
 
 		leafPrune  time.Duration = 100 * time.Millisecond
 		leafHBFreq time.Duration = 20 * time.Millisecond
@@ -57,8 +58,11 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	for i := range leaves {
 		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
 		leaves[i] = Leaf{
-			ID:       rand.Uint64(),
-			Services: make(map[string]netip.AddrPort, serviceCount),
+			ID: rand.Uint64(),
+			Services: make(map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}, serviceCount),
 		}
 
 		// attach it to the vk
@@ -85,8 +89,11 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		// attach services to the leaf and register them with the VK
 		for range serviceCount {
 			serviceName := randomdata.SillyName()
-			leaves[i].Services[serviceName] = RandomLocalhostAddrPort()
-			parentID, accept, err := client.Register(t.Context(), leaves[i].ID, vk.Address(), serviceName, leaves[i].Services[serviceName], 3*time.Minute)
+			leaves[i].Services[serviceName] = struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{staleTime, RandomLocalhostAddrPort()}
+			parentID, accept, err := client.Register(t.Context(), leaves[i].ID, vk.Address(), serviceName, leaves[i].Services[serviceName].Addr, leaves[i].Services[serviceName].Stale)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,8 +124,11 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	for sshOwner1 == sshOwner2 {
 		sshOwner2 = rand.UintN(uint(len(leaves)))
 	}
-	leaves[sshOwner1].Services["ssh"] = RandomLocalhostAddrPort()
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].ID, vk.Address(), sharedService, leaves[sshOwner1].Services[sharedService], 3*time.Minute); err != nil {
+	leaves[sshOwner1].Services["ssh"] = struct {
+		Stale time.Duration
+		Addr  netip.AddrPort
+	}{10 * time.Second, RandomLocalhostAddrPort()}
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].ID, vk.Address(), sharedService, leaves[sshOwner1].Services[sharedService].Addr, 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
 	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner1].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner1].Services)), hb)
@@ -128,8 +138,11 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	defer func() {
 		cancel1()
 	}()
-	leaves[sshOwner2].Services["ssh"] = RandomLocalhostAddrPort()
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].ID, vk.Address(), sharedService, leaves[sshOwner2].Services[sharedService], 3*time.Minute); err != nil {
+	leaves[sshOwner2].Services["ssh"] = struct {
+		Stale time.Duration
+		Addr  netip.AddrPort
+	}{10 * time.Second, RandomLocalhostAddrPort()}
+	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].ID, vk.Address(), sharedService, leaves[sshOwner2].Services[sharedService].Addr, 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
 	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner2].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner2].Services)), hb)
