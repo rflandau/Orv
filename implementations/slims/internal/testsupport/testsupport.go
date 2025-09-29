@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 )
@@ -78,5 +79,8 @@ func RandomLocalhostAddrPort() netip.AddrPort {
 // Kept in TestSupport (as opposed to being exported) so users don't think it is necessary to use the library.
 type Leaf struct {
 	ID       slims.NodeID
-	Services map[string]netip.AddrPort // service -> service addr
+	Services map[string]struct {
+		Stale time.Duration
+		Addr  netip.AddrPort
+	} // service name -> info
 }
