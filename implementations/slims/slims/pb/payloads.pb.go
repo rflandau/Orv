@@ -35,6 +35,7 @@ const (
 	Fault_MALFORMED_BODY         Fault_Errnos = 6
 	Fault_MALFORMED_ADDRESS      Fault_Errnos = 7
 	Fault_UNKNOWN_CHILD_ID       Fault_Errnos = 8
+	Fault_BAD_TOKEN              Fault_Errnos = 9
 	Fault_HELLO_REQUIRED         Fault_Errnos = 400
 	Fault_BAD_HEIGHT             Fault_Errnos = 401
 	Fault_ID_IN_USE              Fault_Errnos = 402
@@ -55,6 +56,7 @@ var (
 		6:    "MALFORMED_BODY",
 		7:    "MALFORMED_ADDRESS",
 		8:    "UNKNOWN_CHILD_ID",
+		9:    "BAD_TOKEN",
 		400:  "HELLO_REQUIRED",
 		401:  "BAD_HEIGHT",
 		402:  "ID_IN_USE",
@@ -72,6 +74,7 @@ var (
 		"MALFORMED_BODY":         6,
 		"MALFORMED_ADDRESS":      7,
 		"UNKNOWN_CHILD_ID":       8,
+		"BAD_TOKEN":              9,
 		"HELLO_REQUIRED":         400,
 		"BAD_HEIGHT":             401,
 		"ID_IN_USE":              402,
@@ -1041,11 +1044,11 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xe4\x03\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xf3\x03\n" +
 	"\x05Fault\x12,\n" +
 	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
 	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xc1\x02\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xd0\x02\n" +
 	"\x06Errnos\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x01\x12\x15\n" +
@@ -1055,7 +1058,8 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x15VERSION_NOT_SUPPORTED\x10\x05\x12\x12\n" +
 	"\x0eMALFORMED_BODY\x10\x06\x12\x15\n" +
 	"\x11MALFORMED_ADDRESS\x10\a\x12\x14\n" +
-	"\x10UNKNOWN_CHILD_ID\x10\b\x12\x13\n" +
+	"\x10UNKNOWN_CHILD_ID\x10\b\x12\r\n" +
+	"\tBAD_TOKEN\x10\t\x12\x13\n" +
 	"\x0eHELLO_REQUIRED\x10\x90\x03\x12\x0f\n" +
 	"\n" +
 	"BAD_HEIGHT\x10\x91\x03\x12\x0e\n" +
