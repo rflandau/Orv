@@ -121,8 +121,9 @@ func TestList(t *testing.T) {
 
 	// spawn a vk and register some services
 	const (
-		pruneTO   time.Duration = 30 * time.Second
-		staleTime time.Duration = 30 * time.Second // stale time to set for each service
+		pruneTO    time.Duration = 30 * time.Second
+		staleTime  time.Duration = 30 * time.Second // stale time to set for each service
+		reqTimeout               = 30 * time.Second // TODO reduce
 	)
 	var (
 		cVK, parentVK       *vaultkeeper.VaultKeeper
@@ -173,8 +174,16 @@ func TestList(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
-	const reqTimeout = 300 * time.Millisecond
+	t.Logf("ParentVK: %v @ %v", parentVK.ID(), parentVK.Address())
+	t.Logf("Leaf under Parent: %v", parentLeaf.ID)
+	for service := range parentLeaf.Services {
+		t.Log("---", service)
+	}
+	t.Logf("ChildVK: %v @ %v", cVK.ID(), cVK.Address())
+	t.Logf("Leaf under ChildVK: %v", cVKLeaf.ID)
+	for service := range cVKLeaf.Services {
+		t.Log("---", service)
+	}
 
 	// sends requests against the child vk first
 	var tests = []struct {
@@ -193,17 +202,18 @@ func TestList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
-			defer cancel()
+			//ctx, cancel := context.WithTimeout(t.Context(), reqTimeout)
+			//defer cancel()
 			var (
 				responderAddr net.Addr
 				services      []string
 				err           error
 			)
+			t.Logf("(%v)token: %v", tt.name, tt.token)
 			if tt.clientID != 0 {
-				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount, tt.clientID)
+				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount, tt.clientID)
 			} else {
-				responderAddr, services, err = client.List(cVK.Address(), ctx, tt.token, tt.hopCount)
+				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount)
 			}
 			if tt.expectedError && err == nil {
 				t.Fatal("error was expected but was not returned")
@@ -222,7 +232,6 @@ func TestList(t *testing.T) {
 			}
 		})
 	}
-	// TODO test lists being forwarded up the tree
 }
 
 // Tests that we can get HELLOs with valid output.
