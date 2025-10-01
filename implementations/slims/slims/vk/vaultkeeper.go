@@ -405,6 +405,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 				continue
 			} else if err != nil {
 				vk.log.Warn().Err(err).Msg("receive packet error")
+				continue
 			}
 			vk.log.Info().
 				Str("sender address", senderAddr.String()).
