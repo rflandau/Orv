@@ -406,18 +406,18 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 			} else if err != nil {
 				vk.log.Warn().Err(err).Msg("receive packet error")
 			}
-			vk.log.Debug().
+			vk.log.Info().
 				Str("sender address", senderAddr.String()).
 				Int("message size (bytes)", n).
 				Func(hdr.Zerolog).
 				Msg("packet received")
 			go func() {
-				// TODO increment waitgroup
-
 				mh, found := handlers[hdr.Type]
 				if !found {
 					vk.respondError(senderAddr, hdr.Type, pb.Fault_UNKNOWN_TYPE)
-				} else if erred, errno, ei := mh(hdr, body, senderAddr); erred {
+					return
+				}
+				if erred, errno, ei := mh(hdr, body, senderAddr); erred {
 					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
 			}()
