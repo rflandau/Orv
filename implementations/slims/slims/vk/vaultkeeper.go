@@ -188,7 +188,7 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 	if vk.log == nil {
 		l := zerolog.New(zerolog.ConsoleWriter{
 			Out:         os.Stdout,
-			FieldsOrder: []string{"vkid"},
+			FieldsOrder: []string{"vkid", "type"},
 			TimeFormat:  "15:04:05",
 		}).With().
 			Uint64("vkid", vk.id).
@@ -407,17 +407,17 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 				vk.log.Warn().Err(err).Msg("receive packet error")
 				continue
 			}
-			vk.log.Info().
-				Str("sender address", senderAddr.String()).
-				Int("message size (bytes)", n).
-				Func(hdr.Zerolog).
-				Msg("packet received")
 			go func() {
 				mh, found := handlers[hdr.Type]
 				if !found {
 					vk.respondError(senderAddr, hdr.Type, pb.Fault_UNKNOWN_TYPE)
 					return
 				}
+				vk.log.Info().
+					Str("sender address", senderAddr.String()).
+					Int("message size (bytes)", n).
+					Func(hdr.Zerolog).
+					Msg("packet received")
 				if erred, errno, ei := mh(hdr, body, senderAddr); erred {
 					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
