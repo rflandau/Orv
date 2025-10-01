@@ -182,7 +182,7 @@ func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, r
 	}
 	vk.children.mu.Unlock()
 	vk.respondSuccess(parsedRespAddr, protocol.Header{Version: reqHdr.Version, Type: pb.MessageType_LIST_RESP, ID: vk.id}, &resp)
-	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", req.ResponseAddr).Msg("answered LIST request")
+	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", parsedRespAddr.String()).Msg("answered LIST request")
 }
 
 //#endregion client request handling
