@@ -5,6 +5,7 @@ package version
 import (
 	"errors"
 	"slices"
+	"strconv"
 )
 
 // Version represents the Orv version number this node speaks.
@@ -15,6 +16,10 @@ type Version struct {
 	// Orv version minor number.
 	// Only 4 least-significant bits are used.
 	Minor uint8
+}
+
+func (v Version) String() string {
+	return strconv.FormatUint(uint64(v.Major), 10) + "." + strconv.FormatUint(uint64(v.Minor), 10)
 }
 
 // Byte returns Orv version as a single byte.

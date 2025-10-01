@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -52,6 +54,15 @@ type Header struct {
 	// Unique identifier of the sender. May be anything that fits into 8B, but is treated as an unsigned int in this implementation.
 	// Ignored if Shorthand is set.
 	ID slims.NodeID
+}
+
+func (hdr Header) String() string {
+	var sb strings.Builder
+	sb.WriteString("Version: " + hdr.Version.String() + " | Type: " + hdr.Type.String() + " | Shorthand? " + strconv.FormatBool(hdr.Shorthand))
+	if !hdr.Shorthand {
+		sb.WriteString(" | ID: " + strconv.FormatUint(hdr.ID, 10))
+	}
+	return sb.String()
 }
 
 //#region errors
