@@ -6,7 +6,7 @@ Orv is an algorithm for building self-organizing, decentralized service discover
 
 Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
 
-![a diagram of an Orv vault](img/Orv.drawio.svg)
+![a diagram of an Orv vault](../../img/Orv.drawio.svg)
 
 ## The Name 
 
@@ -252,7 +252,7 @@ Rivered VKs are VKs that duplicate information across one another. This allows a
 > [!WARNING]
 > Only VKs of the same height can be rivered and a VK that merges and therefore increases its height must leave the river.
 
-![Paired VKs](img/pairedVKs.drawio.svg)
+![Paired VKs](../../img/pairedVKs.drawio.svg)
 
 Rivered VKs do not query each other like children do of their parents; instead, they gossip information back and forth and act as if information from a paired node is always up to date (we cannot allow querying as it could create cycles and count-to-infinite problems). Recurrent heartbeats keep pairs up to date with one another, allowing them to know about services offered by their pairs' children without querying their root.
 
@@ -430,4 +430,4 @@ The Orv logo was created in [Photopea](https://www.photopea.com/) and uses the v
 
 - Professors Patrick Tague and Pedro Bustamante, for all of your assistance, advice, support, and just general pleasantness to be around.
 - My cats: Bee (the pretty tortie) and Coconut (the idiot stuck under a drawer), the rubber duck stand-ins
-![the babies](img/idiot_under_a_drawer.jpeg)
+![the babies](../../img/idiot_under_a_drawer.jpeg)
