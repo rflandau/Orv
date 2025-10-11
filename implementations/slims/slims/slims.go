@@ -22,6 +22,13 @@ const MaxPacketSize uint16 = 1024
 
 var ErrNilCtx = errors.New("do not pass nil contexts; use context.TODO or context.Background instead")
 
+// ErrUnexpectedResponseType indicates that a response was of the wrong message type.
+type ErrUnexpectedResponseType string
+
+func (e ErrUnexpectedResponseType) Error() string {
+	return "unexpected response type: " + string(e)
+}
+
 // FormatFault is a helper function used to format a fault message into a Go error.
 // Currently just prints errno and attaches additional_info (if supplied)
 func FormatFault(f *pb.Fault) error {
