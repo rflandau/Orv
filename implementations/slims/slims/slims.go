@@ -27,7 +27,7 @@ var ErrNilCtx = errors.New("do not pass nil contexts; use context.TODO or contex
 func FormatFault(f *pb.Fault) error {
 	errMsg := "errno#" + strconv.FormatUint(uint64(f.Errno), 10)
 	if f.AdditionalInfo != nil && strings.TrimSpace(*f.AdditionalInfo) != "" {
-		errMsg += *f.AdditionalInfo
+		errMsg += "(" + *f.AdditionalInfo + ")"
 	}
 	return errors.New(errMsg)
 }
