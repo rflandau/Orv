@@ -132,6 +132,7 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req Joi
 
 // Register sends a REGISTER packet to the given address, returning the target node's ID and response.
 // This registers a single service with the target so long as myID is a known children.
+// Stale is only important if the registering node is a leaf (not a child vk).
 func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, service string, serviceAddr netip.AddrPort, stale time.Duration) (vkID slims.NodeID, _ *pb.RegisterAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
