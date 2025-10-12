@@ -857,6 +857,11 @@ func Test_serveRegister(t *testing.T) {
 			}
 		}
 		// register leaf and its services to pVK
+		if registered, err := client.RegisterNewLeaf(t.Context(), pLeaf.ID, pVK.Address(), pLeaf.Services); err != nil {
+			t.Fatal(err)
+		} else if svcs := slices.Collect(maps.Keys(pLeaf.Services)); !SlicesUnorderedEqual(svcs, registered) {
+			t.Fatal("services registered mismatch", ExpectedActual(svcs, registered))
+		}
 		if _, _, _, err := client.Hello(t.Context(), pLeaf.ID, pVK.Address()); err != nil {
 			t.Fatal(err)
 		}
