@@ -21,6 +21,12 @@ Versions are negotiated implicitly. A client requests the version it would like 
 
 Of course, this is all theoretical as the implementation only supports one version at the moment.
 
+# Caveats
+
+## Client Response Handling
+
+The functions in the `client` package, namely `Get` and `List`, spawn a new server on the given laddr in order to receive the response from the final hop. This address is included in the requested. This means, however, that NAT could mangle the addressing and cause responses to not be received.
+
 # Contributing
 
 Orv Slims is a pretty run-of-the-mill Go project, just make sure you utilize [staticcheck](staticcheck.dev).

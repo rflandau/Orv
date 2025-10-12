@@ -112,7 +112,7 @@ func TestList(t *testing.T) {
 		if err == nil {
 			t.Fatal("unexpected nil error")
 		}
-		if _, services, err := client.List(ap, t.Context(), randomdata.Address(), 0); !errors.Is(err, client.ErrInvalidAddrPort) {
+		if _, services, err := client.List(ap, t.Context(), randomdata.Address(), 1, nil, 0); !errors.Is(err, client.ErrInvalidAddrPort) {
 			t.Fatal("unexpected error", ExpectedActual[error](client.ErrInvalidAddrPort, err))
 		} else if services != nil {
 			t.Fatal("unexpected non-nil response")
@@ -187,17 +187,18 @@ func TestList(t *testing.T) {
 
 	// sends requests against the child vk first
 	var tests = []struct {
-		name             string
-		clientID         slims.NodeID // if 0, will be omitted from parameter list
-		hopCount         uint16
-		token            string
-		expectedError    bool
-		expectedServices []string // only checked if expectedError is passed
+		name              string
+		clientID          slims.NodeID // if 0, will be omitted from parameter list
+		hopCount          uint16
+		token             string
+		expectedError     bool
+		expectedServices  []string // only checked if expectedError is passed
+		expectedResponder netip.AddrPort
 	}{
-		{name: "no token error", hopCount: 0, token: "", expectedError: true, expectedServices: nil},
-		{name: "shorthand request", hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
-		{name: "longform request", clientID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services))},
-		{name: "forward to parent", clientID: rand.Uint64(), hopCount: 2, token: randomdata.Address(), expectedError: false, expectedServices: append(slices.Collect(maps.Keys(cVKLeaf.Services)), slices.Collect(maps.Keys(parentLeaf.Services))...)},
+		{name: "no token error", hopCount: 0, token: "", expectedError: true, expectedServices: nil, expectedResponder: cVK.Address()},
+		{name: "shorthand request", hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services)), expectedResponder: cVK.Address()},
+		{name: "longform request", clientID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services)), expectedResponder: cVK.Address()},
+		{name: "forward to parent", clientID: rand.Uint64(), hopCount: 2, token: randomdata.Address(), expectedError: false, expectedServices: append(slices.Collect(maps.Keys(cVKLeaf.Services)), slices.Collect(maps.Keys(parentLeaf.Services))...), expectedResponder: parentVK.Address()},
 	}
 
 	for _, tt := range tests {
@@ -211,9 +212,9 @@ func TestList(t *testing.T) {
 			)
 			t.Logf("(%v)token: %v", tt.name, tt.token)
 			if tt.clientID != 0 {
-				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount, tt.clientID)
+				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount, nil, tt.clientID)
 			} else {
-				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount)
+				responderAddr, services, err = client.List(cVK.Address(), t.Context(), tt.token, tt.hopCount, nil)
 			}
 			if tt.expectedError && err == nil {
 				t.Fatal("error was expected but was not returned")
@@ -223,7 +224,7 @@ func TestList(t *testing.T) {
 				}
 				if services == nil {
 					t.Fatal("no services found")
-				} else if responderAddr.String() != cVK.Address().String() { // ensure the original vk was also the responder
+				} else if responderAddr.String() != tt.expectedResponder.String() { // ensure the original vk was also the responder
 					t.Fatal("bad responder address", ExpectedActual(cVK.Address().String(), responderAddr.String()))
 				}
 				if !SlicesUnorderedEqual(tt.expectedServices, services) {

@@ -9,11 +9,9 @@ import (
 	"net"
 	"net/netip"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/Pallinder/go-randomdata"
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -391,11 +389,16 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 // List sends a LIST packet to the given address and returns the available services.
 // ID is optional; if given, the LIST packet will be sent long-form.
 //
+// laddr is used to receive the response.
+// If the IP field of laddr is nil or an unspecified IP address,
+// ListenUDP listens on all available IP addresses of the local system except multicast IP addresses.
+// If the Port field of laddr is 0, a port number is automatically chosen.
+//
 // Assuming the request was successfully sent, List only returns if the context is cancelled/expires or a LIST_RESP is received.
 // LIST_ACKs are thrown away.
 //
 // This subroutine can be invoked by any node.
-func List(target netip.AddrPort, ctx context.Context, token string, hopCount uint16, senderID ...slims.NodeID) (responderAddr net.Addr, services []string, err error) {
+func List(target netip.AddrPort, ctx context.Context, token string, hopCount uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, services []string, err error) {
 	if token == "" {
 		return nil, nil, errors.New("token must not be empty")
 	}
@@ -407,10 +410,54 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 		return nil, nil, ErrInvalidAddrPort
 	}
 
-	// if token is empty, replace it
-	if strings.TrimSpace(token) == "" {
-		token = randomdata.SillyName()
+	// spool up a listener and channels to await a response.
+	// both channels are closed when receive returns
+	msgCh := make(chan struct {
+		addr     net.Addr
+		services []string
+	})
+	errCh := make(chan error)
+	ear, err := net.ListenUDP("udp", laddr)
+	if err != nil {
+		return nil, nil, err
 	}
+	defer ear.Close()
+	go func() {
+		defer close(msgCh)
+		defer close(errCh)
+		// continues to receive until one of the following occurs:
+		// 1. an error occurs (such as the context expiring)
+		// 2. a fault is received
+		// 3. a list response with the expected token is received
+		for {
+			_, addr, hdr, body, err := protocol.ReceivePacket(ear, ctx)
+			if err != nil {
+				errCh <- err
+				return
+			} else if hdr.Type == pb.MessageType_FAULT {
+				// unpack the body
+				var f pb.Fault
+				if err := proto.Unmarshal(body, &f); err != nil {
+					errCh <- err
+					return
+				}
+				errCh <- slims.FormatFault(&f)
+				return
+			} else if hdr.Type == pb.MessageType_LIST_RESP {
+				var lr pb.ListResponse
+				if err := proto.Unmarshal(body, &lr); err != nil {
+					errCh <- err
+					return
+				} else if lr.Token == token {
+					msgCh <- struct {
+						addr     net.Addr
+						services []string
+					}{addr, lr.Services}
+					return
+				}
+			}
+		}
+	}()
 
 	// generate a header
 	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: pb.MessageType_LIST}
@@ -419,41 +466,29 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 		reqHdr.ID = senderID[0]
 	}
 
-	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	// send the request
+	requestorConn, err := net.DialUDP("udp", nil, UDPAddr)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if _, err := protocol.WritePacket(ctx, conn, reqHdr, &pb.List{
+	fmt.Println("requestorConn: local:", requestorConn.LocalAddr(), " remote:", requestorConn.RemoteAddr()) // TODO remove me
+	if _, err := protocol.WritePacket(ctx, requestorConn, reqHdr, &pb.List{
 		Token:        token,
 		HopCount:     uint32(hopCount),
-		ResponseAddr: conn.LocalAddr().String(),
+		ResponseAddr: ear.LocalAddr().String(),
 	}); err != nil {
 		return nil, nil, err
 	}
 
-	// wait until we get a response
-	var (
-		listResp pb.ListResponse
-	)
-	for ctx.Err() == nil {
-		_, origAddr, hdr, body, err := protocol.ReceivePacket(conn, ctx)
-		if err != nil {
-			return nil, nil, err
-		}
-		// check the token
-		if hdr.Type == pb.MessageType_LIST_RESP {
-			responderAddr = origAddr
-			// unpack body
-			if err := proto.Unmarshal(body, &listResp); err != nil {
-				return nil, nil, err
-			}
-			if listResp.Token == token { // the response we were waiting for!
-				break
-			}
-		}
+	// wait until we get a response.
+	// the context given to ear should cancel it and return an error over the channel for us.
+	// no need to also check context.
+	select {
+	case msg := <-msgCh:
+		return msg.addr, msg.services, nil
+	case err := <-errCh:
+		return nil, nil, err
 	}
-	return responderAddr, listResp.Services, nil
 }
 
 // #endregion client requests
