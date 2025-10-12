@@ -628,10 +628,6 @@ func Test_serveRegister(t *testing.T) {
 	defer cancel()
 	t.Logf("requestor address: %v", requestorAddr)
 
-	// test expired join (no services registered in time) // TODO
-	// test out of order (only JOIN) // TODO
-	// test that registrations propagate up the tree to the parent // TODO
-
 	tests := []struct {
 		name      string
 		sendHELLO bool
