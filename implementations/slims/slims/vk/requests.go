@@ -2,6 +2,7 @@ package vaultkeeper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -16,6 +17,7 @@ import (
 // File requests.go implements vk methods to wrap the client requests.
 
 // Join directs the vk to attempt to join the VK at target.
+// On success, the VK's parent info will be updated and the parent will be notified of all known services.
 // Returns nil on success
 func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err error) {
 	if ctx == nil {
@@ -23,15 +25,33 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	}
 
 	vk.structure.mu.Lock()
-	defer vk.structure.mu.Unlock()
 
 	parentID, _, err := client.Join(ctx, vk.id, target, client.JoinInfo{IsVK: true, VKAddr: vk.addr, Height: vk.structure.height})
 	if err != nil {
+		vk.structure.mu.Unlock()
 		return err
 	}
 	// update our parent
 	vk.structure.parentAddr = target
 	vk.structure.parentID = parentID
+	vk.structure.mu.Unlock()
+	// send all of our services (and their providers) up to our parent
+	for svc, providers := range vk.children.allServices {
+		for _, addr := range providers {
+			// if our parent has changed, quit
+			vk.structure.mu.Lock()
+			curParent := vk.structure.parentAddr
+			vk.structure.mu.Unlock()
+			if curParent != target {
+				return errors.New("parent changed while registering services")
+			}
+			// register this service+provider
+			_, _, err := client.Register(ctx, vk.id, target, svc, addr, 0)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
