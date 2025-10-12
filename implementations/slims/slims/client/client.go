@@ -184,6 +184,30 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 	}
 }
 
+// RegisterNewLeaf is an ease-of-use function that HELLOs, JOINs, and REGISTERs under the target, returning on the first failure.
+// The new child will be registered as a leaf; if you are trying to join as a VK use the method on Vaultkeeper.
+//
+// ctx will be shared among all requests.
+func RegisterNewLeaf(ctx context.Context, myID slims.NodeID, target netip.AddrPort, services map[string]struct {
+	Stale time.Duration
+	Addr  netip.AddrPort
+}) (servicesRegistered []string, _ error) {
+	if _, _, _, err := Hello(ctx, myID, target); err != nil {
+		return nil, err
+	}
+	if _, _, err := Join(ctx, myID, target, JoinInfo{}); err != nil {
+		return nil, err
+	}
+	// track the services that were registered in case we get interrupted
+	for svc, inf := range services {
+		servicesRegistered = append(servicesRegistered, svc)
+		if _, _, err := Register(ctx, myID, target, svc, inf.Addr, inf.Stale); err != nil {
+			return servicesRegistered, err
+		}
+	}
+	return servicesRegistered, nil
+}
+
 // ServiceHeartbeat sends a SERVICE_HEARTBEAT packet to the given address, which must be owned by this node's parent.
 // This should be run in a loop to ensure the service does not get pruned.
 // Because we are using UDP and thus packets can get lost, you should repeat this if no ACK is received (otherwise the service risks being pruned).
