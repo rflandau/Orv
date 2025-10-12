@@ -225,7 +225,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	var j = &pb.Join{}
 	if err := pbun.Unmarshal(reqBody, j); err != nil {
 		return true, pb.Fault_MALFORMED_BODY, nil
-	} // TODO check for unknown fields
+	}
 
 	// acquire lock
 	vk.structure.mu.Lock()
@@ -313,7 +313,6 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 	vk.structure.mu.Lock()
 	if vk.structure.parentAddr.IsValid() {
 		// register the service to our parent under our name
-		// TODO  test me
 		ctx, cancel := context.WithTimeout(context.Background(), registerPropagateTimeout)
 		defer cancel()
 		if parentID, accept, err := client.Register(ctx, vk.id, vk.structure.parentAddr, registerReq.Service, serviceAddress, 0); err != nil {
