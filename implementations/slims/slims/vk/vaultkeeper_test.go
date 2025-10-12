@@ -3,6 +3,7 @@ package vaultkeeper
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"net"
@@ -629,6 +630,7 @@ func Test_serveRegister(t *testing.T) {
 
 	// test expired join (no services registered in time) // TODO
 	// test out of order (only JOIN) // TODO
+	// test that registrations propagate up the tree to the parent // TODO
 
 	tests := []struct {
 		name      string
@@ -787,6 +789,122 @@ func Test_serveRegister(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("propagate to parent", func(t *testing.T) {
+		cLeaf := Leaf{ID: 100,
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				"cs1": {
+					Stale: 3 * time.Second,
+					Addr:  RandomLocalhostAddrPort(),
+				},
+				"cs2": {
+					Stale: 3 * time.Second,
+					Addr:  RandomLocalhostAddrPort(),
+				},
+				"cs3": {
+					Stale: 3 * time.Second,
+					Addr:  RandomLocalhostAddrPort(),
+				},
+			},
+		}
+		pLeaf := Leaf{ID: 200,
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				"ps1": {
+					Stale: 3 * time.Second,
+					Addr:  RandomLocalhostAddrPort(),
+				},
+				"ps2": {
+					Stale: 3 * time.Second,
+					Addr:  RandomLocalhostAddrPort(),
+				},
+			},
+		}
+
+		// spawn a vk and assign it a parent
+		cVK, err := New(1, RandomLocalhostAddrPort(), WithLogger(nil))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := cVK.Start(); err != nil {
+			t.Fatal(err)
+		}
+		pVK, err := New(2, RandomLocalhostAddrPort(), WithLogger(nil), WithDragonsHoard(1))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := pVK.Start(); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), pVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if err := cVK.Join(t.Context(), pVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), pVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		// register leaf and its services to cVK
+		if _, _, _, err := client.Hello(t.Context(), cLeaf.ID, cVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := client.Join(t.Context(), cLeaf.ID, cVK.Address(), client.JoinInfo{}); err != nil {
+			t.Fatal(err)
+		}
+		for svc, inf := range cLeaf.Services {
+			if _, _, err := client.Register(t.Context(), cLeaf.ID, cVK.Address(), svc, inf.Addr, inf.Stale); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// register leaf and its services to pVK
+		if _, _, _, err := client.Hello(t.Context(), pLeaf.ID, pVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := client.Join(t.Context(), pLeaf.ID, pVK.Address(), client.JoinInfo{}); err != nil {
+			t.Fatal(err)
+		}
+		for svc, inf := range pLeaf.Services {
+			if _, _, err := client.Register(t.Context(), pLeaf.ID, pVK.Address(), svc, inf.Addr, inf.Stale); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// check that the child has only the child leaf service associated
+		{
+			snap := cVK.Snapshot()
+			if lservices, found := snap.Children.Leaves[cLeaf.ID]; !found {
+				t.Fatalf("failed to find cLeaf %v on cVK (children: %v)", cLeaf.ID, snap.Children)
+			} else if !maps.Equal(lservices, cLeaf.Services) {
+				t.Fatalf("services mismatch.\ncLeaf services: %v\n associated services found in snapshot: %v\n", cLeaf.Services, lservices)
+			}
+		}
+		// check that the parent has both child and parent leaf services associated
+		{
+			snap := pVK.Snapshot()
+			if lservices, found := snap.Children.Leaves[pLeaf.ID]; !found {
+				t.Fatalf("failed to find pLeaf %v on pVK (children: %v)", pLeaf.ID, snap.Children)
+			} else if !maps.Equal(lservices, pLeaf.Services) { // check leaf services
+				t.Fatalf("services mismatch.\npLeaf services: %v\n associated services found in snapshot: %v\n", pLeaf.Services, lservices)
+			}
+			if vkServices, found := snap.Children.CVKs[cVK.ID()]; !found {
+				t.Fatalf("failed to find cvk %v in list of children (%v)", cVK.ID(), snap.Children)
+			} else {
+				for svc := range cLeaf.Services {
+					if _, found := vkServices.Services[svc]; !found {
+						t.Errorf("child leaf service %v not found via child VK", svc)
+					}
+				}
+				if t.Failed() {
+					return
+				}
+			}
+		}
+
+	})
+
 }
 
 // Each test spins up a VK and crafts serviceHeartbeat packets to send to it, directing the response over a dummy response listener.
