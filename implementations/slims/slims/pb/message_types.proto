@@ -3,8 +3,7 @@ package msg;
 
 option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
 
-
-// TODO replace builtin message type with pb.MessageType
+// MessageType enumerates the number associated to each packet tyoe
 enum MessageType {
   UNKNOWN = 0;
   FAULT = 1;
@@ -14,20 +13,22 @@ enum MessageType {
   JOIN_ACCEPT = 5;
   REGISTER = 6;
   REGISTER_ACCEPT = 7;
-  MERGE = 8;
-  MERGE_ACCEPT = 9;
-  INCREMENT = 10;
-  INCREMENT_ACK = 11;
-  SERVICE_HEARTBEAT = 12;
-  SERVICE_HEARTBEAT_ACK = 13;
-  VK_HEARTBEAT = 14;
-  VK_HEARTBEAT_ACK = 15;
+  DEREGISTER = 8;
+  DEREGISTER_ACK = 9;
+  MERGE = 10;
+  MERGE_ACCEPT = 11;
+  INCREMENT = 12;
+  INCREMENT_ACK = 13;
+  SERVICE_HEARTBEAT = 14;
+  SERVICE_HEARTBEAT_ACK = 15;
+  VK_HEARTBEAT = 16;
+  VK_HEARTBEAT_ACK = 17;
   // client
-  STATUS = 16;
-  STATUS_RESP = 17;
-  LIST = 18;
-  LIST_ACK = 19;
-  LIST_RESP = 20;
-  GET = 21;
-  GET_RESP = 22;
+  STATUS = 18;
+  STATUS_RESP = 19;
+  LIST = 20;
+  LIST_ACK = 21;
+  LIST_RESP = 22;
+  GET = 23;
+  GET_RESP = 24;
 }

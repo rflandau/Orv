@@ -97,13 +97,45 @@ message RegisterAccept {
   string service = 1;
 }
 
+// Type #8
+// Sent by a node to indicate that a service it offered is no longer available and should be delisted.
+message Deregister {
+  string service = 1;
+}
+
+// Type #9
+// Sent by VKs in response to a node's DEREGISTER to confirm that the node has been delisted as a provider of the named service.
+message DeregisterAck{
+  string service = 1;
+}
+
+// Type #10
+message Merge {
+  // unknown payload
+}
+
+// Type #11
+message MergeAccept {
+  // unknown payload
+}
+
 // Type #12
+message Increment {
+  uint32 new_height = 1;
+}
+
+// Type #13
+message IncrementAck {
+  uint32 new_height = 1;
+}
+
+// Type #14
 message ServiceHeartbeat {
   // name of the service that was registered
   repeated string services = 1;
 }
 
-// Type #13
+// Type #15
 message ServiceHeartbeatAck {
   // name of the services that were refreshed
   repeated string refresheds = 1;
@@ -111,9 +143,23 @@ message ServiceHeartbeatAck {
   repeated string unknowns = 2;
 }
 
+// Type #16
+message VKHeartbeat {
+  // no payload
+}
+
+// Type #17
+message VKHeartbeatAck {
+  // no payload
+}
+
 //#region client requests
 
-// Type #17.
+// Type #18
+message Status {
+}
+
+// Type #19
 // Response to a STATUS request.
 // Closely resembles a VKSnapshot.
 message StatusResp {
@@ -136,7 +182,7 @@ message StatusResp {
   optional uint32 auto_hb_bad_limit = 16;
 }
 
-// Type #18
+// Type #20
 message List {
   string token = 1;
   // uint16 | number of nodes to traverse (limited by root height)
@@ -144,20 +190,20 @@ message List {
   string response_addr = 3;
 }
 
-// Type #19
+// Type #21
 message ListAck {
   string token = 1;
 }
 
-// Type #20
+// Type #22
 // Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
-message ListResponse {
+message ListResponse { // TODO rename to Resp
   string token = 1;
   // list of services known to the responding vk
   repeated string services = 2;
 }
 
-// Type #21
+// Type #23
 message Get {
   string service = 1;   //  the name of the desired service
   uint32 hop_limit = 2; // uint16
@@ -165,7 +211,7 @@ message Get {
   uint64 token = 3;
 }
 
-// Type #22
+// Type #24
 message GetResp {
   uint64 host_id = 1;
   string service = 2;

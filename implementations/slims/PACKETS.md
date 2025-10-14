@@ -203,9 +203,30 @@ Sent by a parent VK to confirm registration of the service offered by the child.
 1. *service* (**string**): name of the service that was registered.
     - example: "SSH"
 
-## MERGE
+## DEREGISTER
 
 **Type Number:** 8
+
+Sent by a node to indicate that a service it offered is no longer available and should be delisted.
+
+### Payload
+
+1. *service* (**string**): name of the service to be deregistered.
+
+## DEREGISTER_ACK
+
+**Type Number:** 9
+
+Sent by VKs in response to a node's DEREGISTER to confirm that the node has been delisted as a provider of the named service.
+
+### Payload
+
+1. *service* (**string**): name of the service that was deregistered.
+
+
+## MERGE
+
+**Type Number:** 10
 
 Sent by a vk to indicate that the target vk should become one of its children (like a reverse JOIN). Only used in root-root interactions. Must follow a HELLO_ACK. Should not be considered confirmed until a MERGE_ACCEPT is received by the requestor.
 
@@ -216,7 +237,7 @@ Sent by a vk to indicate that the target vk should become one of its children (l
 
 ## MERGE_ACCEPT
 
-**Type Number:** 9
+**Type Number:** 11
 
 Sent by a vk to accept a vk's request to merge. Only used in root-root interactions.
 
@@ -226,7 +247,7 @@ MERGE_ACCEPT has no payload.
 
 ## INCREMENT
 
-**Type Number:** 10
+**Type Number:** 12
 
 Sent by the new root of a freshly merged vault to inform all existing children of their new height (which should be a simple +1).
 Children who receive an INCREMENT must echo it to *their* child vks.
@@ -236,11 +257,11 @@ If a vk receives an INCREMENT with an unexpected height from its parent, handlin
 
 ### Payload
 
-1. *newHeight* (**uint16**): the new height the receiver should adjust themselves to. It should be their current height + 1.
+1. *newHeight* (**uint16**): the new height the receiver should adjust themselves to. It should be their current height + 
 
 ## INCREMENT_ACK
 
-**Type Number:** 11
+**Type Number:** 13
 
 **Optionally** sent by the a child vk after it has adjusted its height so the parent knows it does not need to resend the INCREMENT. Counts as a VK_HEARTBEAT.
 
@@ -250,7 +271,7 @@ If a vk receives an INCREMENT with an unexpected height from its parent, handlin
 
 ## SERVICE_HEARTBEAT
 
-**Type Number:** 12
+**Type Number:** 14
 
 Sent by a leaf to refresh the lifetimes of all services named therein.
 
@@ -262,7 +283,7 @@ Sent by a leaf to refresh the lifetimes of all services named therein.
 
 ## SERVICE_HEARTBEAT_ACK
 
-**Type Number:** 13
+**Type Number:** 15
 
 Sent by a parent vk to acknowledge receipt of a SERVICE_HEARTBEAT and enumerate the services that were refreshed.
 
@@ -278,7 +299,7 @@ If no services were refreshed, a FAULT is sent instead.
 
 ## VK_HEARTBEAT
 
-**Type Number:** 14
+**Type Number:** 16
 
 Sent by child VKs to alert their parent that they are still alive.
 
@@ -286,7 +307,7 @@ VK_HEARTBEAT has no payload.
 
 ## VK_HEARTBEAT_ACK
 
-**Type Number:** 15
+**Type Number:** 17
 
 Sent by a parent VK to confirm receipt of a child's VK_HEARTBEAT.
 
@@ -300,7 +321,7 @@ The ID field of the header is not used in client requests and can be zeroed.
 
 ## STATUS
 
-**Type Number:** 16
+**Type Number:** 18
 
 Used by clients and tests to fetch information about the current state of the receiver VK. STATUS can recur up the tree up to *hop limit* times or until it hits root, whichever is sooner. If hop limit is 0 or 1, requests will be halted at the first VK.
 
@@ -308,7 +329,7 @@ STATUS does not have a payload.
 
 ## STATUS_RESPONSE
 
-**Type Number:** 17
+**Type Number:** 19
 
 Returns the status of the current node.
 *All fields (other than id and height) are optional* and may be omitted at the VK's discretion. Other fields may also be included; those listed below are just suggested.
@@ -333,7 +354,7 @@ Returns the status of the current node.
 
 ## LIST
 
-**Type Number:** 18
+**Type Number:** 20
 
 Sent by a client to learn what services are available. Lists targeting higher-hop nodes should return a superset of services from lower nodes (assuming your Orv implementation has root omnipotence and/or does not rely on downward traversal outside of INCREMENTs).
 
@@ -347,7 +368,7 @@ Use hop limit to enforce locality. A hop limit of 0 or 1 means the request will 
 
 ## LIST_ACK
 
-**Type Number:** 19
+**Type Number:** 21
 
 Sent by each node that receives a LIST request to signal that the request has been received and will be processed.
 
@@ -387,7 +408,7 @@ sequenceDiagram
 
 ## LIST_RESPONSE
 
-**Type Number:** 20
+**Type Number:** 22
 
 Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
 
@@ -398,7 +419,7 @@ Sent by the node that chooses to end and answer a list request (because it is ro
 
 ## GET
 
-**Type Number:** 21
+**Type Number:** 23
 
 ### Payload
 
@@ -408,7 +429,7 @@ Sent by the node that chooses to end and answer a list request (because it is ro
 
 ## GET_RESPONSE
 
-**Type Number:** 22
+**Type Number:** 24
 
 ### Payload
 
