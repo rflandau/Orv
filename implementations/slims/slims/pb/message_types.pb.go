@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// TODO replace builtin message type with pb.MessageType
+// MessageType enumerates the number associated to each packet tyoe
 type MessageType int32
 
 const (
@@ -33,22 +33,24 @@ const (
 	MessageType_JOIN_ACCEPT           MessageType = 5
 	MessageType_REGISTER              MessageType = 6
 	MessageType_REGISTER_ACCEPT       MessageType = 7
-	MessageType_MERGE                 MessageType = 8
-	MessageType_MERGE_ACCEPT          MessageType = 9
-	MessageType_INCREMENT             MessageType = 10
-	MessageType_INCREMENT_ACK         MessageType = 11
-	MessageType_SERVICE_HEARTBEAT     MessageType = 12
-	MessageType_SERVICE_HEARTBEAT_ACK MessageType = 13
-	MessageType_VK_HEARTBEAT          MessageType = 14
-	MessageType_VK_HEARTBEAT_ACK      MessageType = 15
+	MessageType_DEREGISTER            MessageType = 8
+	MessageType_DEREGISTER_ACK        MessageType = 9
+	MessageType_MERGE                 MessageType = 10
+	MessageType_MERGE_ACCEPT          MessageType = 11
+	MessageType_INCREMENT             MessageType = 12
+	MessageType_INCREMENT_ACK         MessageType = 13
+	MessageType_SERVICE_HEARTBEAT     MessageType = 14
+	MessageType_SERVICE_HEARTBEAT_ACK MessageType = 15
+	MessageType_VK_HEARTBEAT          MessageType = 16
+	MessageType_VK_HEARTBEAT_ACK      MessageType = 17
 	// client
-	MessageType_STATUS      MessageType = 16
-	MessageType_STATUS_RESP MessageType = 17
-	MessageType_LIST        MessageType = 18
-	MessageType_LIST_ACK    MessageType = 19
-	MessageType_LIST_RESP   MessageType = 20
-	MessageType_GET         MessageType = 21
-	MessageType_GET_RESP    MessageType = 22
+	MessageType_STATUS      MessageType = 18
+	MessageType_STATUS_RESP MessageType = 19
+	MessageType_LIST        MessageType = 20
+	MessageType_LIST_ACK    MessageType = 21
+	MessageType_LIST_RESP   MessageType = 22
+	MessageType_GET         MessageType = 23
+	MessageType_GET_RESP    MessageType = 24
 )
 
 // Enum value maps for MessageType.
@@ -62,21 +64,23 @@ var (
 		5:  "JOIN_ACCEPT",
 		6:  "REGISTER",
 		7:  "REGISTER_ACCEPT",
-		8:  "MERGE",
-		9:  "MERGE_ACCEPT",
-		10: "INCREMENT",
-		11: "INCREMENT_ACK",
-		12: "SERVICE_HEARTBEAT",
-		13: "SERVICE_HEARTBEAT_ACK",
-		14: "VK_HEARTBEAT",
-		15: "VK_HEARTBEAT_ACK",
-		16: "STATUS",
-		17: "STATUS_RESP",
-		18: "LIST",
-		19: "LIST_ACK",
-		20: "LIST_RESP",
-		21: "GET",
-		22: "GET_RESP",
+		8:  "DEREGISTER",
+		9:  "DEREGISTER_ACK",
+		10: "MERGE",
+		11: "MERGE_ACCEPT",
+		12: "INCREMENT",
+		13: "INCREMENT_ACK",
+		14: "SERVICE_HEARTBEAT",
+		15: "SERVICE_HEARTBEAT_ACK",
+		16: "VK_HEARTBEAT",
+		17: "VK_HEARTBEAT_ACK",
+		18: "STATUS",
+		19: "STATUS_RESP",
+		20: "LIST",
+		21: "LIST_ACK",
+		22: "LIST_RESP",
+		23: "GET",
+		24: "GET_RESP",
 	}
 	MessageType_value = map[string]int32{
 		"UNKNOWN":               0,
@@ -87,21 +91,23 @@ var (
 		"JOIN_ACCEPT":           5,
 		"REGISTER":              6,
 		"REGISTER_ACCEPT":       7,
-		"MERGE":                 8,
-		"MERGE_ACCEPT":          9,
-		"INCREMENT":             10,
-		"INCREMENT_ACK":         11,
-		"SERVICE_HEARTBEAT":     12,
-		"SERVICE_HEARTBEAT_ACK": 13,
-		"VK_HEARTBEAT":          14,
-		"VK_HEARTBEAT_ACK":      15,
-		"STATUS":                16,
-		"STATUS_RESP":           17,
-		"LIST":                  18,
-		"LIST_ACK":              19,
-		"LIST_RESP":             20,
-		"GET":                   21,
-		"GET_RESP":              22,
+		"DEREGISTER":            8,
+		"DEREGISTER_ACK":        9,
+		"MERGE":                 10,
+		"MERGE_ACCEPT":          11,
+		"INCREMENT":             12,
+		"INCREMENT_ACK":         13,
+		"SERVICE_HEARTBEAT":     14,
+		"SERVICE_HEARTBEAT_ACK": 15,
+		"VK_HEARTBEAT":          16,
+		"VK_HEARTBEAT_ACK":      17,
+		"STATUS":                18,
+		"STATUS_RESP":           19,
+		"LIST":                  20,
+		"LIST_ACK":              21,
+		"LIST_RESP":             22,
+		"GET":                   23,
+		"GET_RESP":              24,
 	}
 )
 
@@ -136,7 +142,7 @@ var File_slims_pb_message_types_proto protoreflect.FileDescriptor
 
 const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1cslims/pb/message_types.proto\x12\x03msg*\xf1\x02\n" +
+	"\x1cslims/pb/message_types.proto\x12\x03msg*\x95\x03\n" +
 	"\vMessageType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\t\n" +
 	"\x05FAULT\x10\x01\x12\t\n" +
@@ -145,24 +151,27 @@ const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\x04JOIN\x10\x04\x12\x0f\n" +
 	"\vJOIN_ACCEPT\x10\x05\x12\f\n" +
 	"\bREGISTER\x10\x06\x12\x13\n" +
-	"\x0fREGISTER_ACCEPT\x10\a\x12\t\n" +
-	"\x05MERGE\x10\b\x12\x10\n" +
-	"\fMERGE_ACCEPT\x10\t\x12\r\n" +
-	"\tINCREMENT\x10\n" +
-	"\x12\x11\n" +
-	"\rINCREMENT_ACK\x10\v\x12\x15\n" +
-	"\x11SERVICE_HEARTBEAT\x10\f\x12\x19\n" +
-	"\x15SERVICE_HEARTBEAT_ACK\x10\r\x12\x10\n" +
-	"\fVK_HEARTBEAT\x10\x0e\x12\x14\n" +
-	"\x10VK_HEARTBEAT_ACK\x10\x0f\x12\n" +
+	"\x0fREGISTER_ACCEPT\x10\a\x12\x0e\n" +
 	"\n" +
-	"\x06STATUS\x10\x10\x12\x0f\n" +
-	"\vSTATUS_RESP\x10\x11\x12\b\n" +
-	"\x04LIST\x10\x12\x12\f\n" +
-	"\bLIST_ACK\x10\x13\x12\r\n" +
-	"\tLIST_RESP\x10\x14\x12\a\n" +
-	"\x03GET\x10\x15\x12\f\n" +
-	"\bGET_RESP\x10\x16B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"DEREGISTER\x10\b\x12\x12\n" +
+	"\x0eDEREGISTER_ACK\x10\t\x12\t\n" +
+	"\x05MERGE\x10\n" +
+	"\x12\x10\n" +
+	"\fMERGE_ACCEPT\x10\v\x12\r\n" +
+	"\tINCREMENT\x10\f\x12\x11\n" +
+	"\rINCREMENT_ACK\x10\r\x12\x15\n" +
+	"\x11SERVICE_HEARTBEAT\x10\x0e\x12\x19\n" +
+	"\x15SERVICE_HEARTBEAT_ACK\x10\x0f\x12\x10\n" +
+	"\fVK_HEARTBEAT\x10\x10\x12\x14\n" +
+	"\x10VK_HEARTBEAT_ACK\x10\x11\x12\n" +
+	"\n" +
+	"\x06STATUS\x10\x12\x12\x0f\n" +
+	"\vSTATUS_RESP\x10\x13\x12\b\n" +
+	"\x04LIST\x10\x14\x12\f\n" +
+	"\bLIST_ACK\x10\x15\x12\r\n" +
+	"\tLIST_RESP\x10\x16\x12\a\n" +
+	"\x03GET\x10\x17\x12\f\n" +
+	"\bGET_RESP\x10\x18B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_message_types_proto_rawDescOnce sync.Once

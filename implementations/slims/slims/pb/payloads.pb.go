@@ -484,7 +484,263 @@ func (x *RegisterAccept) GetService() string {
 	return ""
 }
 
+// Type #8
+// Sent by a node to indicate that a service it offered is no longer available and should be delisted.
+type Deregister struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Deregister) Reset() {
+	*x = Deregister{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Deregister) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Deregister) ProtoMessage() {}
+
+func (x *Deregister) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Deregister.ProtoReflect.Descriptor instead.
+func (*Deregister) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Deregister) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+// Type #9
+// Sent by VKs in response to a node's DEREGISTER to confirm that the node has been delisted as a provider of the named service.
+type DeregisterAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeregisterAck) Reset() {
+	*x = DeregisterAck{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeregisterAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeregisterAck) ProtoMessage() {}
+
+func (x *DeregisterAck) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeregisterAck.ProtoReflect.Descriptor instead.
+func (*DeregisterAck) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DeregisterAck) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+// Type #10
+type Merge struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Merge) Reset() {
+	*x = Merge{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Merge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Merge) ProtoMessage() {}
+
+func (x *Merge) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Merge.ProtoReflect.Descriptor instead.
+func (*Merge) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{9}
+}
+
+// Type #11
+type MergeAccept struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MergeAccept) Reset() {
+	*x = MergeAccept{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MergeAccept) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MergeAccept) ProtoMessage() {}
+
+func (x *MergeAccept) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MergeAccept.ProtoReflect.Descriptor instead.
+func (*MergeAccept) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{10}
+}
+
 // Type #12
+type Increment struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NewHeight     uint32                 `protobuf:"varint,1,opt,name=new_height,json=newHeight,proto3" json:"new_height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Increment) Reset() {
+	*x = Increment{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Increment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Increment) ProtoMessage() {}
+
+func (x *Increment) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Increment.ProtoReflect.Descriptor instead.
+func (*Increment) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Increment) GetNewHeight() uint32 {
+	if x != nil {
+		return x.NewHeight
+	}
+	return 0
+}
+
+// Type #13
+type IncrementAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NewHeight     uint32                 `protobuf:"varint,1,opt,name=new_height,json=newHeight,proto3" json:"new_height,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IncrementAck) Reset() {
+	*x = IncrementAck{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IncrementAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IncrementAck) ProtoMessage() {}
+
+func (x *IncrementAck) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IncrementAck.ProtoReflect.Descriptor instead.
+func (*IncrementAck) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *IncrementAck) GetNewHeight() uint32 {
+	if x != nil {
+		return x.NewHeight
+	}
+	return 0
+}
+
+// Type #14
 type ServiceHeartbeat struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name of the service that was registered
@@ -495,7 +751,7 @@ type ServiceHeartbeat struct {
 
 func (x *ServiceHeartbeat) Reset() {
 	*x = ServiceHeartbeat{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[7]
+	mi := &file_slims_pb_payloads_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -507,7 +763,7 @@ func (x *ServiceHeartbeat) String() string {
 func (*ServiceHeartbeat) ProtoMessage() {}
 
 func (x *ServiceHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[7]
+	mi := &file_slims_pb_payloads_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -520,7 +776,7 @@ func (x *ServiceHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceHeartbeat.ProtoReflect.Descriptor instead.
 func (*ServiceHeartbeat) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{7}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ServiceHeartbeat) GetServices() []string {
@@ -530,7 +786,7 @@ func (x *ServiceHeartbeat) GetServices() []string {
 	return nil
 }
 
-// Type #13
+// Type #15
 type ServiceHeartbeatAck struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name of the services that were refreshed
@@ -543,7 +799,7 @@ type ServiceHeartbeatAck struct {
 
 func (x *ServiceHeartbeatAck) Reset() {
 	*x = ServiceHeartbeatAck{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[8]
+	mi := &file_slims_pb_payloads_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -555,7 +811,7 @@ func (x *ServiceHeartbeatAck) String() string {
 func (*ServiceHeartbeatAck) ProtoMessage() {}
 
 func (x *ServiceHeartbeatAck) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[8]
+	mi := &file_slims_pb_payloads_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -568,7 +824,7 @@ func (x *ServiceHeartbeatAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceHeartbeatAck.ProtoReflect.Descriptor instead.
 func (*ServiceHeartbeatAck) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{8}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ServiceHeartbeatAck) GetRefresheds() []string {
@@ -585,7 +841,118 @@ func (x *ServiceHeartbeatAck) GetUnknowns() []string {
 	return nil
 }
 
-// Type #17.
+// Type #16
+type VKHeartbeat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VKHeartbeat) Reset() {
+	*x = VKHeartbeat{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VKHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VKHeartbeat) ProtoMessage() {}
+
+func (x *VKHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VKHeartbeat.ProtoReflect.Descriptor instead.
+func (*VKHeartbeat) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{15}
+}
+
+// Type #17
+type VKHeartbeatAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VKHeartbeatAck) Reset() {
+	*x = VKHeartbeatAck{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VKHeartbeatAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VKHeartbeatAck) ProtoMessage() {}
+
+func (x *VKHeartbeatAck) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VKHeartbeatAck.ProtoReflect.Descriptor instead.
+func (*VKHeartbeatAck) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{16}
+}
+
+// Type #18
+type Status struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Status) Reset() {
+	*x = Status{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Status) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Status) ProtoMessage() {}
+
+func (x *Status) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Status.ProtoReflect.Descriptor instead.
+func (*Status) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{17}
+}
+
+// Type #19
 // Response to a STATUS request.
 // Closely resembles a VKSnapshot.
 type StatusResp struct {
@@ -613,7 +980,7 @@ type StatusResp struct {
 
 func (x *StatusResp) Reset() {
 	*x = StatusResp{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[9]
+	mi := &file_slims_pb_payloads_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -625,7 +992,7 @@ func (x *StatusResp) String() string {
 func (*StatusResp) ProtoMessage() {}
 
 func (x *StatusResp) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[9]
+	mi := &file_slims_pb_payloads_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +1005,7 @@ func (x *StatusResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResp.ProtoReflect.Descriptor instead.
 func (*StatusResp) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{9}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StatusResp) GetId() uint64 {
@@ -746,7 +1113,7 @@ func (x *StatusResp) GetAutoHbBadLimit() uint32 {
 	return 0
 }
 
-// Type #18
+// Type #20
 type List struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -759,7 +1126,7 @@ type List struct {
 
 func (x *List) Reset() {
 	*x = List{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[10]
+	mi := &file_slims_pb_payloads_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -771,7 +1138,7 @@ func (x *List) String() string {
 func (*List) ProtoMessage() {}
 
 func (x *List) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[10]
+	mi := &file_slims_pb_payloads_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -784,7 +1151,7 @@ func (x *List) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use List.ProtoReflect.Descriptor instead.
 func (*List) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{10}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *List) GetToken() string {
@@ -808,7 +1175,7 @@ func (x *List) GetResponseAddr() string {
 	return ""
 }
 
-// Type #19
+// Type #21
 type ListAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -818,7 +1185,7 @@ type ListAck struct {
 
 func (x *ListAck) Reset() {
 	*x = ListAck{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[11]
+	mi := &file_slims_pb_payloads_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -830,7 +1197,7 @@ func (x *ListAck) String() string {
 func (*ListAck) ProtoMessage() {}
 
 func (x *ListAck) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[11]
+	mi := &file_slims_pb_payloads_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -843,7 +1210,7 @@ func (x *ListAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAck.ProtoReflect.Descriptor instead.
 func (*ListAck) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{11}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListAck) GetToken() string {
@@ -853,7 +1220,7 @@ func (x *ListAck) GetToken() string {
 	return ""
 }
 
-// Type #20
+// Type #22
 // Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
 type ListResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -866,7 +1233,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	mi := &file_slims_pb_payloads_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +1245,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[12]
+	mi := &file_slims_pb_payloads_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +1258,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{12}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListResponse) GetToken() string {
@@ -908,7 +1275,7 @@ func (x *ListResponse) GetServices() []string {
 	return nil
 }
 
-// Type #21
+// Type #23
 type Get struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Service  string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                    //  the name of the desired service
@@ -921,7 +1288,7 @@ type Get struct {
 
 func (x *Get) Reset() {
 	*x = Get{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[13]
+	mi := &file_slims_pb_payloads_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -933,7 +1300,7 @@ func (x *Get) String() string {
 func (*Get) ProtoMessage() {}
 
 func (x *Get) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[13]
+	mi := &file_slims_pb_payloads_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -946,7 +1313,7 @@ func (x *Get) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Get.ProtoReflect.Descriptor instead.
 func (*Get) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{13}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Get) GetService() string {
@@ -970,7 +1337,7 @@ func (x *Get) GetToken() uint64 {
 	return 0
 }
 
-// Type #22
+// Type #24
 type GetResp struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	HostId  uint64                 `protobuf:"varint,1,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
@@ -984,7 +1351,7 @@ type GetResp struct {
 
 func (x *GetResp) Reset() {
 	*x = GetResp{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[14]
+	mi := &file_slims_pb_payloads_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -996,7 +1363,7 @@ func (x *GetResp) String() string {
 func (*GetResp) ProtoMessage() {}
 
 func (x *GetResp) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[14]
+	mi := &file_slims_pb_payloads_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1009,7 +1376,7 @@ func (x *GetResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResp.ProtoReflect.Descriptor instead.
 func (*GetResp) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{14}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetResp) GetHostId() uint64 {
@@ -1083,14 +1450,30 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x14\n" +
 	"\x05stale\x18\x03 \x01(\tR\x05stale\"*\n" +
 	"\x0eRegisterAccept\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\".\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"&\n" +
+	"\n" +
+	"Deregister\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\")\n" +
+	"\rDeregisterAck\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"\a\n" +
+	"\x05Merge\"\r\n" +
+	"\vMergeAccept\"*\n" +
+	"\tIncrement\x12\x1d\n" +
+	"\n" +
+	"new_height\x18\x01 \x01(\rR\tnewHeight\"-\n" +
+	"\fIncrementAck\x12\x1d\n" +
+	"\n" +
+	"new_height\x18\x01 \x01(\rR\tnewHeight\".\n" +
 	"\x10ServiceHeartbeat\x12\x1a\n" +
 	"\bservices\x18\x01 \x03(\tR\bservices\"Q\n" +
 	"\x13ServiceHeartbeatAck\x12\x1e\n" +
 	"\n" +
 	"refresheds\x18\x01 \x03(\tR\n" +
 	"refresheds\x12\x1a\n" +
-	"\bunknowns\x18\x02 \x03(\tR\bunknowns\"\xbc\a\n" +
+	"\bunknowns\x18\x02 \x03(\tR\bunknowns\"\r\n" +
+	"\vVKHeartbeat\"\x10\n" +
+	"\x0eVKHeartbeatAck\"\b\n" +
+	"\x06Status\"\xbc\a\n" +
 	"\n" +
 	"StatusResp\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
@@ -1157,7 +1540,7 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 }
 
 var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_slims_pb_payloads_proto_goTypes = []any{
 	(Fault_Errnos)(0),           // 0: orv.Fault.Errnos
 	(*Fault)(nil),               // 1: orv.Fault
@@ -1167,23 +1550,32 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*JoinAccept)(nil),          // 5: orv.JoinAccept
 	(*Register)(nil),            // 6: orv.Register
 	(*RegisterAccept)(nil),      // 7: orv.RegisterAccept
-	(*ServiceHeartbeat)(nil),    // 8: orv.ServiceHeartbeat
-	(*ServiceHeartbeatAck)(nil), // 9: orv.ServiceHeartbeatAck
-	(*StatusResp)(nil),          // 10: orv.StatusResp
-	(*List)(nil),                // 11: orv.List
-	(*ListAck)(nil),             // 12: orv.ListAck
-	(*ListResponse)(nil),        // 13: orv.ListResponse
-	(*Get)(nil),                 // 14: orv.Get
-	(*GetResp)(nil),             // 15: orv.GetResp
-	nil,                         // 16: orv.StatusResp.ChildVksEntry
-	nil,                         // 17: orv.StatusResp.ServicesEntry
-	(MessageType)(0),            // 18: msg.MessageType
+	(*Deregister)(nil),          // 8: orv.Deregister
+	(*DeregisterAck)(nil),       // 9: orv.DeregisterAck
+	(*Merge)(nil),               // 10: orv.Merge
+	(*MergeAccept)(nil),         // 11: orv.MergeAccept
+	(*Increment)(nil),           // 12: orv.Increment
+	(*IncrementAck)(nil),        // 13: orv.IncrementAck
+	(*ServiceHeartbeat)(nil),    // 14: orv.ServiceHeartbeat
+	(*ServiceHeartbeatAck)(nil), // 15: orv.ServiceHeartbeatAck
+	(*VKHeartbeat)(nil),         // 16: orv.VKHeartbeat
+	(*VKHeartbeatAck)(nil),      // 17: orv.VKHeartbeatAck
+	(*Status)(nil),              // 18: orv.Status
+	(*StatusResp)(nil),          // 19: orv.StatusResp
+	(*List)(nil),                // 20: orv.List
+	(*ListAck)(nil),             // 21: orv.ListAck
+	(*ListResponse)(nil),        // 22: orv.ListResponse
+	(*Get)(nil),                 // 23: orv.Get
+	(*GetResp)(nil),             // 24: orv.GetResp
+	nil,                         // 25: orv.StatusResp.ChildVksEntry
+	nil,                         // 26: orv.StatusResp.ServicesEntry
+	(MessageType)(0),            // 27: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	18, // 0: orv.Fault.original:type_name -> msg.MessageType
+	27, // 0: orv.Fault.original:type_name -> msg.MessageType
 	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
-	16, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
-	17, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
+	25, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
+	26, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
@@ -1198,14 +1590,14 @@ func file_slims_pb_payloads_proto_init() {
 	}
 	file_slims_pb_message_types_proto_init()
 	file_slims_pb_payloads_proto_msgTypes[0].OneofWrappers = []any{}
-	file_slims_pb_payloads_proto_msgTypes[9].OneofWrappers = []any{}
+	file_slims_pb_payloads_proto_msgTypes[18].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   17,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
