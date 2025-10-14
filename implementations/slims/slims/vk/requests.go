@@ -60,41 +60,55 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 //
 // ! Does NOT alter the parent information in this VK on a bad or lost heartbeat.
 func (vk *VaultKeeper) HeartbeatParent() error {
+	respHdr, respBody, err := vk.messageParent(pb.MessageType_VK_HEARTBEAT, nil)
+	if err != nil {
+		return err
+	} else if respHdr.Type != pb.MessageType_VK_HEARTBEAT_ACK {
+		return fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+	if len(respBody) > 0 {
+		vk.log.Warn().Int("body length", len(respBody)).Bytes("body", respBody).Msg("VK_HEARTBEAT has a non-zero body")
+	}
+	return nil
+}
+
+// MessageToParent sends the header and body to the parent, if they exist.
+// Returns a client.ErrInvalidAddrPort if parentAddr is invalid (or empty).
+//
+// respHdr and body will not be of type FAULT; FAULTs will be returned as an error per FormatFault.
+func (vk *VaultKeeper) messageParent(typ pb.MessageType, payload proto.Message) (respHdr protocol.Header, respBody []byte, _ error) {
 	vk.structure.mu.RLock()
 	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
 	vk.structure.mu.RUnlock()
 	if UDPParentAddr == nil {
-		return client.ErrInvalidAddrPort
+		return protocol.Header{}, nil, client.ErrInvalidAddrPort
 	}
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPParentAddr)
 	if err != nil {
-		return err
+		return protocol.Header{}, nil, err
 	}
 	// send
-	if _, err := protocol.WritePacket(context.Background(), conn,
-		protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Type: pb.MessageType_VK_HEARTBEAT, ID: vk.ID()}, nil); err != nil {
-		return err
+	if _, err := protocol.WritePacket(
+		vk.net.ctx, conn,
+		protocol.Header{
+			Version: protocol.SupportedVersions().HighestSupported(),
+			Type:    typ,
+			ID:      vk.ID()},
+		payload); err != nil {
+		return protocol.Header{}, nil, err
 	}
 	// receive
-	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, context.Background())
+	_, _, respHdr, respBody, err = protocol.ReceivePacket(conn, vk.net.ctx)
 	if err != nil {
-		return err
+		return protocol.Header{}, nil, err
 	}
-	switch respHdr.Type {
-	case pb.MessageType_FAULT:
+	if respHdr.Type == pb.MessageType_FAULT {
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(respBody, f); err != nil {
-			return err
+			return protocol.Header{}, nil, err
 		}
-		return slims.FormatFault(f)
-	case pb.MessageType_VK_HEARTBEAT_ACK:
-		if len(respBody) > 0 {
-			vk.log.Warn().Int("body length", len(respBody)).Bytes("body", respBody).Msg("VK_HEARTBEAT has a non-zero body")
-		}
-		return nil
-	default:
-		return fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+		return protocol.Header{}, nil, slims.FormatFault(f)
 	}
-
+	return respHdr, respBody, nil
 }

@@ -1,11 +1,13 @@
 package vaultkeeper
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
+	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 )
 
@@ -170,7 +172,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 
 // pruneServiceFromLeaf is called whenever a service's stale timer is triggered (which can only occurs on leaves as cvk's services do not have stale timers).
 // The service is removed from the leaf's list of services and the leaf is removed from the list of providers of the service.
-// If this was the last service offered by the leaf, the leaf's servicelss prune timer is restarted.
+// If this was the last service offered by the leaf, the leaf's serviceless prune timer is restarted.
 func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string) {
 	// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
 	vk.children.mu.Lock()
@@ -182,26 +184,46 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 	}
 
 	// remove this service from the leaf's list of services
-	if _, found := vk.children.leaves[childID]; found {
-		delete(vk.children.leaves[childID].services, service)
-		// TODO send a DEREGISTER up the tree
-		vk.log.Info().
-			Uint64("child", childID).
-			Str("service", service).
-			Msg("pruned service from leaf")
-		// if that was the last service offered by this leaf, restart the leaf's prune timer
-		if len(vk.children.leaves[childID].services) == 0 {
-			if vk.children.leaves[childID].servicelessPruner.Reset(vk.pruneTime.ServicelessLeaf) {
-				vk.log.Warn().
-					Uint64("leaf ID", childID).
-					Str("pruned service", service).
-					Msg("restarted serviceless timer, but timer was already running")
-			}
-		}
-	} else {
+	if _, found := vk.children.leaves[childID]; !found {
 		vk.log.Info().
 			Uint64("child", childID).
 			Str("service", service).
 			Msg("failed to pruned service from leaf: child no longer exists")
+		return
+	}
+	delete(vk.children.leaves[childID].services, service)
+	vk.log.Info().
+		Uint64("child", childID).
+		Str("service", service).
+		Msg("pruned service from leaf")
+	// if that was the last service offered by this leaf, restart the leaf's prune timer
+	if len(vk.children.leaves[childID].services) == 0 {
+		if vk.children.leaves[childID].servicelessPruner.Reset(vk.pruneTime.ServicelessLeaf) {
+			vk.log.Warn().
+				Uint64("leaf ID", childID).
+				Str("pruned service", service).
+				Msg("restarted serviceless timer, but timer was already running")
+		}
+	}
+	// notify our parent
+	respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: service})
+	// log the result, but do not otherwise act on it (as we don't care about retries)
+	if err != nil && !errors.Is(err, client.ErrInvalidAddrPort) { // swallow invalid address errors as we are probably root
+		vk.log.Warn().Err(err).Msg("failed to deregister message to parent")
+		return
+	} else if respHdr.Type != pb.MessageType_DEREGISTER_ACK {
+		vk.log.Error().Msgf("unhandled message type ('%s') received in response to DEREGISTER", respHdr.Type.String())
+		return
+	}
+	vk.log.Info().Str("service", service).Msg("propagated deregister to parent")
+	// sanity check the body
+	if len(respBody) > 0 {
+		var b pb.DeregisterAck
+		if err := pbun.Unmarshal(respBody, &b); err != nil {
+			vk.log.Error().Err(err).Msg("failed to unmarshal DEREGISTER_ACK body")
+			return
+		} else if b.Service != service {
+			vk.log.Warn().Str("expected service", service).Str("deregistered service", b.Service).Msg("incorrect service acknowledged by DEREGISTER_ACK")
+		}
 	}
 }
