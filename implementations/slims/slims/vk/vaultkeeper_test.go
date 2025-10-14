@@ -402,8 +402,7 @@ func Test_Join(t *testing.T) {
 			t.Error("did not find a child vk associated to childVK's ID")
 		}
 	}
-	// join a leaf under parent
-	{
+	{ // join a leaf under parent
 		leafID := rand.Uint64()
 		t.Logf("child (%d) sending HELLO to parent (%d)", leafID, parentVK.ID())
 		if id, ver, ack, err := client.Hello(t.Context(), leafID, parentVK.Address()); err != nil {
@@ -428,6 +427,98 @@ func Test_Join(t *testing.T) {
 			t.Error("did not find a child leaf associated to leaf's ID")
 		}
 	}
+	// test to ensure that services already registered on a child are then registered to the parent (and not pruned) after joining
+	t.Run("services propagates to parent", func(t *testing.T) {
+		const (
+			serviceStaleTime = 1 * time.Second
+			bufferTime       = 50 * time.Millisecond // extra time to give after stale to give the pruner time to run
+		)
+		nop := zerolog.Nop()
+		LeafA, LeafB := Leaf{ID: rand.Uint64(), Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{
+			randomdata.City(): {serviceStaleTime, RandomLocalhostAddrPort()},
+		}}, Leaf{ID: rand.Uint64(), Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{
+			randomdata.Day(): {serviceStaleTime, RandomLocalhostAddrPort()},
+		}}
+		cVK, err := New(rand.Uint64(), RandomLocalhostAddrPort(), WithLogger(&nop))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := cVK.Start(); err != nil {
+			t.Fatal(err)
+		}
+		// register services to the cVK and set up automated heartbeating
+		if _, err := client.RegisterNewLeaf(t.Context(), LeafA.ID, cVK.Address(), LeafA.Services); err != nil {
+			t.Fatal(err)
+		} else if _, err := client.RegisterNewLeaf(t.Context(), LeafB.ID, cVK.Address(), LeafB.Services); err != nil {
+			t.Fatal(err)
+		}
+		hbErr := make(chan error, 10)
+		hbACancel, err := client.AutoServiceHeartbeat(
+			300*time.Millisecond,
+			serviceStaleTime/2,
+			LeafA.ID,
+			client.ParentInfo{ID: cVK.ID(), Addr: cVK.Address()}, slices.Collect(maps.Keys(LeafA.Services)), hbErr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hbBCancel, err := client.AutoServiceHeartbeat(
+			300*time.Millisecond,
+			serviceStaleTime/2,
+			LeafB.ID,
+			client.ParentInfo{ID: cVK.ID(), Addr: cVK.Address()}, slices.Collect(maps.Keys(LeafB.Services)), hbErr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(hbACancel)
+		t.Cleanup(hbBCancel)
+		// await at least one heartbeat to ensure no errors occur
+		select {
+		case <-time.After(serviceStaleTime + bufferTime):
+		case err := <-hbErr:
+			t.Error(err)
+			// drain the rest of the error
+			for err := range hbErr {
+				t.Error(err)
+			}
+			t.FailNow()
+		}
+		// join the cVK to the parent vk and check that services propagated upward
+		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		} else if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond) // give a moment for the services to propagate
+		for svc, inf := range LeafA.Services {
+			if providers, found := parentVK.children.allServices[svc]; !found {
+				t.Errorf("did not find LeafA service %v on parent", svc)
+			} else if addr, found := providers[cVK.ID()]; !found {
+				t.Errorf("cVK %v is not a provider of LeafA service %v on parent", cVK.ID(), svc)
+			} else if addr != inf.Addr {
+				t.Errorf("bad address on LeafA service %v: %s", svc, ExpectedActual(inf.Addr, addr))
+			}
+		}
+
+		// allow one of the leaves to age out from cVK and ensure the parent learns this too
+		{
+			hbBCancel()
+			time.Sleep(serviceStaleTime + bufferTime)
+			parentSnap := parentVK.Snapshot()
+			/*childInf*/ _, found := parentSnap.Children.CVKs[cVK.ID()]
+			if !found {
+				t.Fatal("cVK is considered not a provider of any services, but should still be offering the services of leafA", parentSnap.Children)
+			}
+			// all leafA services should be found
+			// TODO
+			// no leafB services should be found
+			// TODO
+		}
+	})
 }
 
 // Tests both the serveVKHeartbeat handler and the vaultkeeper.HeartbeatParent request method.
