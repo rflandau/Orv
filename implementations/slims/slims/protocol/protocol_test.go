@@ -78,7 +78,7 @@ func TestHeader_SerializeWithValidate(t *testing.T) {
 				version       byte
 				shorthandType byte
 				id            slims.NodeID
-			}{0xFF, 0x9, 0},
+			}{0xFF, byte(pb.MessageType_MERGE_ACCEPT), 0},
 			invalids: []error{},
 		},
 		{name: "0.7 Get ID=15",
