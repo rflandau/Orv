@@ -185,6 +185,10 @@ func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, r
 	vk.log.Info().Str("token", req.Token).Uint32("decremented hop count", req.HopCount).Str("response address", parsedRespAddr.String()).Msg("answered LIST request")
 }
 
+func (vk *VaultKeeper) serveGet(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+
+}
+
 //#endregion client request handling
 
 // serveHello answers HELLO packets with HELLO_ACK or FAULT.

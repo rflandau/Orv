@@ -392,6 +392,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 		// client requests
 		pb.MessageType_STATUS: vk.serveStatus,
 		pb.MessageType_LIST:   vk.serveList,
+		pb.MessageType_GET:    vk.serveGet,
 	}
 
 	// slurp the packet and pass it to the handler func
