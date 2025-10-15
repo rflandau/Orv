@@ -234,6 +234,32 @@ func TestList(t *testing.T) {
 	}
 }
 
+func TestGet(t *testing.T) {
+	serviceStale := 10 * time.Second
+	t.Run("Simple", func(t *testing.T) { // Get request direct to VK with some leaf and two services
+		l := Leaf{ID: rand.Uint64(), Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{"ssh": {Stale: serviceStale, Addr: RandomLocalhostAddrPort()}},
+		}
+		vk, err := spawnVK(rand.Uint64(), l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil); err != nil {
+			t.Fatal(err)
+		} else if respAddr.String() != vk.Address().String() {
+			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), respAddr.String()))
+		} else if svcAddr != l.Services["ssh"].Addr.String() {
+			t.Fatal("bad service address", ExpectedActual(l.Services["ssh"].Addr.String(), svcAddr))
+		}
+		// try again with an ID included, should be the same result
+		// TODO
+		// try again with an unknown service
+		// TODO
+	})
+}
+
 // Tests that we can get HELLOs with valid output.
 // Companion to vaultkeeper's Test_serveHello()
 func TestHello(t *testing.T) {
