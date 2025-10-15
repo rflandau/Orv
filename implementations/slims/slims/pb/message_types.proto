@@ -30,5 +30,6 @@ enum MessageType {
   LIST_ACK = 21;
   LIST_RESP = 22;
   GET = 23;
-  GET_RESP = 24;
+  GET_ACK = 24;
+  GET_RESP = 25;
 }

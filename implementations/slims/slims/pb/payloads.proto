@@ -207,19 +207,24 @@ message ListResponse { // TODO rename to Resp
 
 // Type #23
 message Get {
-  string service = 1;   //  the name of the desired service
-  uint32 hop_limit = 2; // uint16
-  // identifier created by the requestor so it can correlate a valid response
-  string token = 3;
+  string token = 1; // identifier created by the requestor so it can correlate a valid response
+  // uint16 | maximum number of nodes to traverse before giving up (limited by root height)
+  uint32 hop_limit = 2;
+  string response_addr = 3;
+  string service = 4; // the name of the desired service
 }
 
 // Type #24
-message GetResp {
-  //uint64 host_id = 1;
-  string service = 2; // echo
-  string address = 3; // accessible-at address
-  // echo of the token created by the requestor
-  string token = 4;
-  //repeated string blacklisted_addresses = 5;
+message GetAck {
+  string token = 1;
 }
+
+// Type #25
+message GetResp {
+  string token = 1; // echo of the token created by the requestor
+  string service = 2; // echo
+  string address = 3; // accessible-at address of the service (empty if not found)
+  //repeated string blacklisted_addresses = 4;
+}
+
 //#endregion client requests
