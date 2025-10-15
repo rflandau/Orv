@@ -114,7 +114,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 		return true, pb.Fault_MALFORMED_ADDRESS, []string{"failed to parse ResponseAddr"}
 	}
 	// send back an ACK
-	vk.sendListAck(senderAddr, req.Token)
+	vk.sendClientAck(senderAddr, req.Token, pb.MessageType_LIST_ACK)
 	// mark this token as handled
 	if swapped := vk.closedListTokens.CompareAndSwap(req.Token, false, true, tokenCooldown); !swapped {
 		// duplicate of a request we have already handled
@@ -159,20 +159,6 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 }
 
 // helper function for serveList.
-// Sends a LIST_ACK to the given address.
-func (vk *VaultKeeper) sendListAck(senderAddr net.Addr, token string) {
-	var la = pb.ListAck{Token: token}
-
-	vk.respondSuccess(senderAddr,
-		protocol.Header{
-			Version: vk.versionSet.HighestSupported(),
-			Type:    pb.MessageType_LIST_ACK,
-			ID:      vk.ID(),
-		}, &la)
-	vk.log.Info().Str("token", token).Str("sender address", senderAddr.String()).Msg("acknowledged LIST request")
-}
-
-// helper function for serveList.
 // Sends a LIST_RESPONSE to the given address and log it.
 func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, reqHdr protocol.Header) {
 	vk.children.mu.Lock()
@@ -186,7 +172,103 @@ func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, r
 }
 
 func (vk *VaultKeeper) serveGet(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	// validate parameters
+	if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+	// check that we were given a body
+	if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, nil
+	}
 
+	var (
+		req          pb.Get
+		addrToRespTo net.Addr
+	)
+	if err := pbun.Unmarshal(reqBody, &req); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, nil
+	} else if req.Token == "" {
+		return true, pb.Fault_BAD_TOKEN, nil
+	} else if addrToRespTo, err = net.ResolveUDPAddr("udp", req.ResponseAddr); err != nil {
+		return true, pb.Fault_MALFORMED_ADDRESS, []string{"failed to parse ResponseAddr"}
+	}
+	// send back an ACK
+	vk.sendClientAck(senderAddr, req.GetToken(), pb.MessageType_GET_ACK)
+	// mark this token as handled
+	// TODO
+	if req.HopLimit > 0 {
+		req.HopLimit -= 1
+	}
+
+	// check if we know of this service
+	vk.children.mu.Lock()
+	providers, found := vk.children.allServices[req.Service]
+	if found {
+		// pick any provider to answer with
+		for _, k := range providers {
+			// answer the request
+			vk.respondSuccess(addrToRespTo, protocol.Header{
+				Version: reqHdr.Version,
+				Type:    pb.MessageType_GET_RESP,
+				ID:      vk.id,
+			}, &pb.GetResp{
+				Token:   req.Token,
+				Service: req.Service,
+				Address: k.String(),
+			})
+			break
+		}
+		vk.children.mu.Unlock()
+		return
+	}
+	vk.children.mu.Unlock()
+
+	// not found
+	vk.structure.mu.RLock()
+	defer vk.structure.mu.RUnlock()
+	if req.HopLimit <= 0 || !vk.structure.parentAddr.IsValid() { // no more hops are allowed or we are root, but we did not find the service
+		vk.respondSuccess(addrToRespTo, protocol.Header{
+			Version: reqHdr.Version,
+			Type:    pb.MessageType_GET_RESP,
+			ID:      vk.id,
+		}, &pb.GetResp{
+			Token:   req.Token,
+			Service: req.Service,
+			Address: "",
+		})
+		return
+	}
+	// forward the request up the tree
+	if _, _, err := vk.messageParent(pb.MessageType_GET, &req); err != nil {
+		vk.log.Warn().Err(err).Uint32("decremented hop limit", req.HopLimit).Msg("failed to forward GET request up the tree")
+	} // NOTE(rlandau): does not validate the returned ACK
+	return
+}
+
+// helper function for serveList and serveGet.
+// panics if typ is not GET_ACK or LIST_ACK.
+func (vk *VaultKeeper) sendClientAck(senderAddr net.Addr, token string, typ pb.MessageType) {
+	var (
+		body proto.Message
+	)
+	switch typ {
+	case pb.MessageType_GET_ACK:
+		body = &pb.GetAck{Token: token}
+	case pb.MessageType_LIST_ACK:
+		body = &pb.ListAck{Token: token}
+	default:
+		panic("unhandled message type")
+	}
+
+	vk.respondSuccess(senderAddr,
+		protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    typ,
+			ID:      vk.ID(),
+		},
+		body,
+	)
+	vk.log.Info().Str("token", token).Str("sender address", senderAddr.String()).Str("request type", typ.String()).Msg("acknowledged client request")
 }
 
 //#endregion client request handling
