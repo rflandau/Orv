@@ -17,8 +17,10 @@ import (
 // File requests.go implements vk methods to wrap the client requests.
 
 // Join directs the vk to attempt to join the VK at target.
+// Expects a HELLO to have already been sent on this VK's behalf.
+//
 // On success, the VK's parent info will be updated and the parent will be notified of all known services.
-// Returns nil on success
+// Returns nil on success.
 func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err error) {
 	if ctx == nil {
 		return slims.ErrNilCtx
@@ -53,6 +55,11 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		}
 	}
 	return nil
+}
+
+// TODO
+func (vk *VaultKeeper) Leave() {
+	panic("nyi")
 }
 
 // HeartbeatParent sends a VK_HEARTBEAT to the parent of this vk.
