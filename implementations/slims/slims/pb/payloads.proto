@@ -40,9 +40,11 @@ message Fault {
     BAD_SERVICE_NAME = 600;
     BAD_STALE_TIME = 601;
 
-    // SERVICE_HEARTBEAT
+    // DEREGISTER
+    UNKNOWN_SERVICE_ID = 800;
 
-    ALL_UNKNOWN = 1200;
+    // SERVICE_HEARTBEAT
+    ALL_UNKNOWN = 1400;
   }
 
   // uint16 | the type of error, for automated testing.

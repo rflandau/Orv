@@ -41,7 +41,9 @@ const (
 	Fault_ID_IN_USE              Fault_Errnos = 402
 	Fault_BAD_SERVICE_NAME       Fault_Errnos = 600
 	Fault_BAD_STALE_TIME         Fault_Errnos = 601
-	Fault_ALL_UNKNOWN            Fault_Errnos = 1200
+	// DEREGISTER
+	Fault_UNKNOWN_SERVICE_ID Fault_Errnos = 800
+	Fault_ALL_UNKNOWN        Fault_Errnos = 1400
 )
 
 // Enum value maps for Fault_Errnos.
@@ -62,7 +64,8 @@ var (
 		402:  "ID_IN_USE",
 		600:  "BAD_SERVICE_NAME",
 		601:  "BAD_STALE_TIME",
-		1200: "ALL_UNKNOWN",
+		800:  "UNKNOWN_SERVICE_ID",
+		1400: "ALL_UNKNOWN",
 	}
 	Fault_Errnos_value = map[string]int32{
 		"UNSPECIFIED":            0,
@@ -80,7 +83,8 @@ var (
 		"ID_IN_USE":              402,
 		"BAD_SERVICE_NAME":       600,
 		"BAD_STALE_TIME":         601,
-		"ALL_UNKNOWN":            1200,
+		"UNKNOWN_SERVICE_ID":     800,
+		"ALL_UNKNOWN":            1400,
 	}
 )
 
@@ -1411,11 +1415,11 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xf3\x03\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x8c\x04\n" +
 	"\x05Fault\x12,\n" +
 	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
 	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xd0\x02\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xe9\x02\n" +
 	"\x06Errnos\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x01\x12\x15\n" +
@@ -1432,8 +1436,10 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"BAD_HEIGHT\x10\x91\x03\x12\x0e\n" +
 	"\tID_IN_USE\x10\x92\x03\x12\x15\n" +
 	"\x10BAD_SERVICE_NAME\x10\xd8\x04\x12\x13\n" +
-	"\x0eBAD_STALE_TIME\x10\xd9\x04\x12\x10\n" +
-	"\vALL_UNKNOWN\x10\xb0\tB\x12\n" +
+	"\x0eBAD_STALE_TIME\x10\xd9\x04\x12\x17\n" +
+	"\x12UNKNOWN_SERVICE_ID\x10\xa0\x06\x12\x10\n" +
+	"\vALL_UNKNOWN\x10\xf8\n" +
+	"B\x12\n" +
 	"\x10_additional_info\"\a\n" +
 	"\x05Hello\"\"\n" +
 	"\bHelloAck\x12\x16\n" +
