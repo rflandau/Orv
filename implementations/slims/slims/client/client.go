@@ -514,7 +514,7 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 	}
 }
 
-func Get(target netip.AddrPort, ctx context.Context, token string, hopLimit uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, serviceAddr string, err error) {
+func Get(ctx context.Context, service string, target netip.AddrPort, token string, hopLimit uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, serviceAddr string, err error) {
 	if token == "" {
 		return nil, "", errors.New("token must not be empty")
 	} else if !target.IsValid() {
@@ -592,6 +592,7 @@ func Get(target netip.AddrPort, ctx context.Context, token string, hopLimit uint
 		Token:        token,
 		HopLimit:     uint32(hopLimit),
 		ResponseAddr: ear.LocalAddr().String(),
+		Service:      service,
 	}); err != nil {
 		return nil, "", err
 	}
