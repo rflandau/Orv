@@ -50,7 +50,8 @@ const (
 	MessageType_LIST_ACK    MessageType = 21
 	MessageType_LIST_RESP   MessageType = 22
 	MessageType_GET         MessageType = 23
-	MessageType_GET_RESP    MessageType = 24
+	MessageType_GET_ACK     MessageType = 24
+	MessageType_GET_RESP    MessageType = 25
 )
 
 // Enum value maps for MessageType.
@@ -80,7 +81,8 @@ var (
 		21: "LIST_ACK",
 		22: "LIST_RESP",
 		23: "GET",
-		24: "GET_RESP",
+		24: "GET_ACK",
+		25: "GET_RESP",
 	}
 	MessageType_value = map[string]int32{
 		"UNKNOWN":               0,
@@ -107,7 +109,8 @@ var (
 		"LIST_ACK":              21,
 		"LIST_RESP":             22,
 		"GET":                   23,
-		"GET_RESP":              24,
+		"GET_ACK":               24,
+		"GET_RESP":              25,
 	}
 )
 
@@ -142,7 +145,7 @@ var File_slims_pb_message_types_proto protoreflect.FileDescriptor
 
 const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\n" +
-	"\x1cslims/pb/message_types.proto\x12\x03msg*\x95\x03\n" +
+	"\x1cslims/pb/message_types.proto\x12\x03msg*\xa2\x03\n" +
 	"\vMessageType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\t\n" +
 	"\x05FAULT\x10\x01\x12\t\n" +
@@ -170,8 +173,9 @@ const file_slims_pb_message_types_proto_rawDesc = "" +
 	"\x04LIST\x10\x14\x12\f\n" +
 	"\bLIST_ACK\x10\x15\x12\r\n" +
 	"\tLIST_RESP\x10\x16\x12\a\n" +
-	"\x03GET\x10\x17\x12\f\n" +
-	"\bGET_RESP\x10\x18B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\x03GET\x10\x17\x12\v\n" +
+	"\aGET_ACK\x10\x18\x12\f\n" +
+	"\bGET_RESP\x10\x19B7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_message_types_proto_rawDescOnce sync.Once

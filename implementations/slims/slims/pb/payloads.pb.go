@@ -1282,11 +1282,12 @@ func (x *ListResponse) GetServices() []string {
 
 // Type #23
 type Get struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Service  string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                    //  the name of the desired service
-	HopLimit uint32                 `protobuf:"varint,2,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"` // uint16
-	// identifier created by the requestor so it can correlate a valid response
-	Token         string `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"` // identifier created by the requestor so it can correlate a valid response
+	// uint16 | maximum number of nodes to traverse before giving up (limited by root height)
+	HopLimit      uint32 `protobuf:"varint,2,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"`
+	ResponseAddr  string `protobuf:"bytes,3,opt,name=response_addr,json=responseAddr,proto3" json:"response_addr,omitempty"`
+	Service       string `protobuf:"bytes,4,opt,name=service,proto3" json:"service,omitempty"` // the name of the desired service
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1321,9 +1322,9 @@ func (*Get) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{22}
 }
 
-func (x *Get) GetService() string {
+func (x *Get) GetToken() string {
 	if x != nil {
-		return x.Service
+		return x.Token
 	}
 	return ""
 }
@@ -1335,28 +1336,78 @@ func (x *Get) GetHopLimit() uint32 {
 	return 0
 }
 
-func (x *Get) GetToken() string {
+func (x *Get) GetResponseAddr() string {
+	if x != nil {
+		return x.ResponseAddr
+	}
+	return ""
+}
+
+func (x *Get) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+// Type #24
+type GetAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAck) Reset() {
+	*x = GetAck{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAck) ProtoMessage() {}
+
+func (x *GetAck) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAck.ProtoReflect.Descriptor instead.
+func (*GetAck) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetAck) GetToken() string {
 	if x != nil {
 		return x.Token
 	}
 	return ""
 }
 
-// Type #24
+// Type #25
 type GetResp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// uint64 host_id = 1;
-	Service string `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"` // echo
-	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"` // accessible-at address
-	// echo of the token created by the requestor
-	Token         string `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"` //repeated string blacklisted_addresses = 5;
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`     // echo of the token created by the requestor
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"` // echo
+	Address       string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"` // accessible-at address of the service (empty if not found)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetResp) Reset() {
 	*x = GetResp{}
-	mi := &file_slims_pb_payloads_proto_msgTypes[23]
+	mi := &file_slims_pb_payloads_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1368,7 +1419,7 @@ func (x *GetResp) String() string {
 func (*GetResp) ProtoMessage() {}
 
 func (x *GetResp) ProtoReflect() protoreflect.Message {
-	mi := &file_slims_pb_payloads_proto_msgTypes[23]
+	mi := &file_slims_pb_payloads_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1381,7 +1432,14 @@ func (x *GetResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetResp.ProtoReflect.Descriptor instead.
 func (*GetResp) Descriptor() ([]byte, []int) {
-	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{23}
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetResp) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
 }
 
 func (x *GetResp) GetService() string {
@@ -1394,13 +1452,6 @@ func (x *GetResp) GetService() string {
 func (x *GetResp) GetAddress() string {
 	if x != nil {
 		return x.Address
-	}
-	return ""
-}
-
-func (x *GetResp) GetToken() string {
-	if x != nil {
-		return x.Token
 	}
 	return ""
 }
@@ -1516,15 +1567,18 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"@\n" +
 	"\fListResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
-	"\bservices\x18\x02 \x03(\tR\bservices\"R\n" +
-	"\x03Get\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1b\n" +
-	"\thop_limit\x18\x02 \x01(\rR\bhopLimit\x12\x14\n" +
-	"\x05token\x18\x03 \x01(\tR\x05token\"S\n" +
-	"\aGetResp\x12\x18\n" +
+	"\bservices\x18\x02 \x03(\tR\bservices\"w\n" +
+	"\x03Get\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1b\n" +
+	"\thop_limit\x18\x02 \x01(\rR\bhopLimit\x12#\n" +
+	"\rresponse_addr\x18\x03 \x01(\tR\fresponseAddr\x12\x18\n" +
+	"\aservice\x18\x04 \x01(\tR\aservice\"\x1e\n" +
+	"\x06GetAck\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"S\n" +
+	"\aGetResp\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x14\n" +
-	"\x05token\x18\x04 \x01(\tR\x05tokenB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\aaddress\x18\x03 \x01(\tR\aaddressB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
@@ -1539,7 +1593,7 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 }
 
 var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_slims_pb_payloads_proto_goTypes = []any{
 	(Fault_Errnos)(0),           // 0: orv.Fault.Errnos
 	(*Fault)(nil),               // 1: orv.Fault
@@ -1565,16 +1619,17 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*ListAck)(nil),             // 21: orv.ListAck
 	(*ListResponse)(nil),        // 22: orv.ListResponse
 	(*Get)(nil),                 // 23: orv.Get
-	(*GetResp)(nil),             // 24: orv.GetResp
-	nil,                         // 25: orv.StatusResp.ChildVksEntry
-	nil,                         // 26: orv.StatusResp.ServicesEntry
-	(MessageType)(0),            // 27: msg.MessageType
+	(*GetAck)(nil),              // 24: orv.GetAck
+	(*GetResp)(nil),             // 25: orv.GetResp
+	nil,                         // 26: orv.StatusResp.ChildVksEntry
+	nil,                         // 27: orv.StatusResp.ServicesEntry
+	(MessageType)(0),            // 28: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	27, // 0: orv.Fault.original:type_name -> msg.MessageType
+	28, // 0: orv.Fault.original:type_name -> msg.MessageType
 	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
-	25, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
-	26, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
+	26, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
+	27, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
@@ -1596,7 +1651,7 @@ func file_slims_pb_payloads_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   26,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
