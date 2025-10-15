@@ -216,7 +216,6 @@ func RegisterNewLeaf(ctx context.Context, myID slims.NodeID, target netip.AddrPo
 // ServicesRefreshed should be checked to ensure it matches the given list of services; missing services may or may not have been refreshed.
 //
 // Do NOT use this for VK heartbeats. Use vk.Heartbeat() for that (or rely on the automated heartbeating this library implements in VKs).
-// TODO write unit tests and a vk handler for me!
 func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.AddrPort, services []string) (vkID slims.NodeID, servicesRefreshed []string, servicesUnknown []string, rerr error) {
 	if ctx == nil {
 		rerr = slims.ErrNilCtx
