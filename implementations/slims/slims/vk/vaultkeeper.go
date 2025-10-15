@@ -41,7 +41,7 @@ var (
 )
 
 // PBUnmarshaller returns the unmarshal options used by VKs to decode incoming bodies.
-// The unmarshaller is not settable; this is
+// The unmarshaller is not settable; this is just for informational purposes.
 func PBUnmarshaller() proto.UnmarshalOptions {
 	return pbun
 }
