@@ -210,15 +210,16 @@ message Get {
   string service = 1;   //  the name of the desired service
   uint32 hop_limit = 2; // uint16
   // identifier created by the requestor so it can correlate a valid response
-  uint64 token = 3;
+  string token = 3;
 }
 
 // Type #24
 message GetResp {
-  uint64 host_id = 1;
-  string service = 2;
-  string address = 3;
+  //uint64 host_id = 1;
+  string service = 2; // echo
+  string address = 3; // accessible-at address
   // echo of the token created by the requestor
-  uint64 token = 4;
+  string token = 4;
+  //repeated string blacklisted_addresses = 5;
 }
 //#endregion client requests
