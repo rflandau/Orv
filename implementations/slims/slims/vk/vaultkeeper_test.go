@@ -493,7 +493,7 @@ func Test_Join(t *testing.T) {
 		} else if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(20 * time.Millisecond) // give a moment for the services to propagate
+		time.Sleep(bufferTime) // give a moment for the services to propagate
 		for svc, inf := range LeafA.Services {
 			if providers, found := parentVK.children.allServices[svc]; !found {
 				t.Errorf("did not find LeafA service %v on parent", svc)
@@ -509,14 +509,22 @@ func Test_Join(t *testing.T) {
 			hbBCancel()
 			time.Sleep(serviceStaleTime + bufferTime)
 			parentSnap := parentVK.Snapshot()
-			/*childInf*/ _, found := parentSnap.Children.CVKs[cVK.ID()]
+			cvkInf, found := parentSnap.Children.CVKs[cVK.ID()]
 			if !found {
 				t.Fatal("cVK is considered not a provider of any services, but should still be offering the services of leafA", parentSnap.Children)
 			}
 			// all leafA services should be found
-			// TODO
+			for svc := range LeafA.Services {
+				if _, found := cvkInf.Services[svc]; !found {
+					t.Errorf("failed to find LeafA service '%s' at parent", svc)
+				}
+			}
 			// no leafB services should be found
-			// TODO
+			for svc := range LeafB.Services {
+				if _, found := cvkInf.Services[svc]; found {
+					t.Errorf("found LeafB service '%s' at parent (should have been deregistered)", svc)
+				}
+			}
 		}
 	})
 }
