@@ -330,6 +330,48 @@ func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, sen
 	return
 }
 
+func (vk *VaultKeeper) serveDeregister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	// validate parameters
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, []string{"body must include one field: \"Service\""}
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+	// unpack the body
+	msg := pb.Deregister{}
+	if err := pbun.Unmarshal(reqBody, &msg); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, nil
+	}
+	// check that this is a known service
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+	providers, found := vk.children.allServices[msg.Service]
+	if !found {
+		return true, pb.Fault_UNKNOWN_SERVICE_ID, nil
+	}
+	if _, found := providers[reqHdr.ID]; !found { // this ID is not a provider of the service
+		return true, pb.Fault_UNKNOWN_CHILD_ID, []string{fmt.Sprintf("child ID '%v' is not a known provider of service '%s'", reqHdr.ID, msg.Service)}
+	}
+	// also remove this service from the ID
+	if inf, found := vk.children.cvks.Load(reqHdr.ID); found { // check cvks
+		delete(inf.services, msg.Service)
+	} else if inf, found := vk.children.leaves[reqHdr.ID]; found { // check leaf
+		delete(inf.services, msg.Service)
+	} else {
+		// we found the service in the provider's view, but its owner does not exist.
+		// Could be a timing thing, could be an indication of a broader issue
+		vk.log.Warn().Str("service", msg.Service).Msg("failed to prune service from child view; child is not a known leaf or vk")
+	}
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    pb.MessageType_DEREGISTER_ACK,
+		ID:      vk.id,
+	}, &pb.DeregisterAck{Service: msg.Service})
+	return
+}
+
 // serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.
 func (vk *VaultKeeper) serveServiceHeartbeat(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	//validate parameters

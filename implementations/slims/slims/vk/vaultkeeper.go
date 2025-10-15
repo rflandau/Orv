@@ -385,6 +385,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 		pb.MessageType_HELLO:             vk.serveHello,
 		pb.MessageType_JOIN:              vk.serveJoin,
 		pb.MessageType_REGISTER:          vk.serveRegister,
+		pb.MessageType_DEREGISTER:        vk.serveDeregister,
 		pb.MessageType_SERVICE_HEARTBEAT: vk.serveServiceHeartbeat,
 		pb.MessageType_VK_HEARTBEAT:      vk.serveVKHeartbeat,
 
