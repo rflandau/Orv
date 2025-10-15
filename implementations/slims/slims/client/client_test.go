@@ -121,9 +121,8 @@ func TestList(t *testing.T) {
 
 	// spawn a vk and register some services
 	const (
-		pruneTO    time.Duration = 30 * time.Second
-		staleTime  time.Duration = 30 * time.Second // stale time to set for each service
-		reqTimeout               = 30 * time.Second // TODO reduce
+		pruneTO   time.Duration = 30 * time.Second
+		staleTime time.Duration = 30 * time.Second // stale time to set for each service
 	)
 	var (
 		cVK, parentVK       *vaultkeeper.VaultKeeper
