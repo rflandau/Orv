@@ -147,22 +147,16 @@ func TestList(t *testing.T) {
 		}
 	)
 	{
-		var err error
 		// spawn the child VK and associate services to it
-		cVK, err = spawnVK(rand.Uint64(), cVKLeaf, vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}), // disable pruning
+		cVK = spawnVK(t, rand.Uint64(), cVKLeaf, vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}), // disable pruning
 			vaultkeeper.WithLogger(nil)) // disable logging
-		if err != nil {
-			t.Fatal(err)
-		}
 		t.Cleanup(cVK.Stop)
 		// spawn the parent VK and associate services to it
-		if parentVK, err = spawnVK(rand.Uint64(), parentLeaf,
+		parentVK = spawnVK(t, rand.Uint64(), parentLeaf,
 			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}),
 			vaultkeeper.WithLogger(nil),
 			vaultkeeper.WithDragonsHoard(1),
-		); err != nil {
-			t.Fatal(err)
-		}
+		)
 		t.Cleanup(parentVK.Stop)
 
 		// associate the childVK to the parent
@@ -242,10 +236,8 @@ func TestGet(t *testing.T) {
 			Addr  netip.AddrPort
 		}{"ssh": {Stale: serviceStale, Addr: RandomLocalhostAddrPort()}},
 		}
-		vk, err := spawnVK(rand.Uint64(), l)
-		if err != nil {
-			t.Fatal(err)
-		}
+		vk := spawnVK(t, rand.Uint64(), l)
+		defer vk.Stop()
 		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil); err != nil {
 			t.Fatal(err)
 		} else if respAddr.String() != vk.Address().String() {
@@ -254,9 +246,116 @@ func TestGet(t *testing.T) {
 			t.Fatal("bad service address", ExpectedActual(l.Services["ssh"].Addr.String(), svcAddr))
 		}
 		// try again with an ID included, should be the same result
-		// TODO
-		// try again with an unknown service
-		// TODO
+		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil, rand.Uint64()); err != nil {
+			t.Fatal(err)
+		} else if respAddr.String() != vk.Address().String() {
+			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), respAddr.String()))
+		} else if svcAddr != l.Services["ssh"].Addr.String() {
+			t.Fatal("bad service address", ExpectedActual(l.Services["ssh"].Addr.String(), svcAddr))
+		}
+		// try again (shorthand) with an unknown service
+		if respAddr, svcAddr, err := client.Get(t.Context(), "unknown service", vk.Address(), randomdata.Month(), 1, nil); err != nil {
+			t.Fatal(err)
+		} else if respAddr.String() != vk.Address().String() {
+			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), respAddr.String()))
+		} else if svcAddr != "" {
+			t.Fatal("bad service address", ExpectedActual("", svcAddr))
+		}
+	})
+	t.Run("4-node linear topology", func(t *testing.T) { // GET requests propagate up a 4-node, linear "tree"
+		// for ease-of-use: ID == height
+		l0 := Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{},
+		}
+		vk0 := spawnVK(t, 0, l0)
+		t.Cleanup(vk0.Stop)
+		l1 := Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				"leaf1s1": {serviceStale, RandomLocalhostAddrPort()},
+				"leaf1s2": {serviceStale, RandomLocalhostAddrPort()},
+			},
+		}
+		vk1 := spawnVK(t, 1, l1, vaultkeeper.WithDragonsHoard(1))
+		t.Cleanup(vk1.Stop)
+		l2 := Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				"leaf2s1": {serviceStale, RandomLocalhostAddrPort()},
+			},
+		}
+		vk2 := spawnVK(t, 2, l2, vaultkeeper.WithDragonsHoard(2))
+		t.Cleanup(vk2.Stop)
+		l3 := Leaf{
+			ID: rand.Uint64(),
+			Services: map[string]struct {
+				Stale time.Duration
+				Addr  netip.AddrPort
+			}{
+				"leaf3s1": {serviceStale, RandomLocalhostAddrPort()},
+				"leaf3s2": {serviceStale, RandomLocalhostAddrPort()},
+			},
+		}
+		vk3 := spawnVK(t, 3, l3, vaultkeeper.WithDragonsHoard(3))
+		t.Cleanup(vk3.Stop)
+		// join all the VKs together
+		{
+			// vk0 -> vk1
+			if _, _, _, err := client.Hello(t.Context(), vk0.ID(), vk1.Address()); err != nil {
+				t.Fatal(err)
+			}
+			if err := vk0.Join(t.Context(), vk1.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// vk0 -> vk1 -> vk2
+			if _, _, _, err := client.Hello(t.Context(), vk1.ID(), vk2.Address()); err != nil {
+				t.Fatal(err)
+			}
+			if err := vk1.Join(t.Context(), vk2.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// vk0 -> vk1 -> vk2 -> vk3
+			if _, _, _, err := client.Hello(t.Context(), vk2.ID(), vk3.Address()); err != nil {
+				t.Fatal(err)
+			}
+			if err := vk2.Join(t.Context(), vk3.Address()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// make requests
+		var tests = []struct {
+			name                  string
+			requestedService      string
+			targetVK              *vaultkeeper.VaultKeeper
+			hopLimit              uint16
+			expectedResponderAddr string
+			expectedServiceAddr   string // what we expect the service's address to be ("" if not found)
+		}{} // TODO
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				// generate a token
+				tkn := randomdata.Currency()
+
+				respAddr, serviceAddr, err := client.Get(t.Context(), tt.requestedService, tt.targetVK.Address(), tkn, tt.hopLimit, nil)
+				if err != nil {
+					t.Fatal(err)
+				} else if respAddr.String() != tt.expectedResponderAddr {
+					t.Fatal("bad responder address", ExpectedActual(tt.expectedResponderAddr, respAddr.String()))
+				} else if serviceAddr != tt.expectedServiceAddr {
+					t.Fatal("bad service address", ExpectedActual(tt.expectedServiceAddr, serviceAddr))
+				}
+			})
+		}
 	})
 }
 
@@ -428,30 +527,31 @@ func TestJoin(t *testing.T) {
 }
 
 // helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
-// Returns an error if an error occurs at any point.
-// make sure you call vk.Stop().
+// Fatal on error.
+// Remember to defer vk.Stop().
 // Attaches a 500ms timeout to each operation.
-func spawnVK(childID slims.NodeID, childLeaf Leaf, vkOpts ...vaultkeeper.VKOption) (*vaultkeeper.VaultKeeper, error) {
+func spawnVK(t *testing.T, childID slims.NodeID, childLeaf Leaf, vkOpts ...vaultkeeper.VKOption) *vaultkeeper.VaultKeeper {
+	t.Helper()
 	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cnl()
 
 	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(), vkOpts...)
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
 	} else if err = vk.Start(); err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
 	if _, _, _, err := client.Hello(ctx, childID, vk.Address()); err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
 	if _, _, err := client.Join(ctx, childID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
 	for service, info := range childLeaf.Services {
 		if _, _, err := client.Register(ctx, childID, vk.Address(), service, info.Addr, info.Stale); err != nil {
-			return nil, err
+			t.Fatal(err)
 		}
 	}
 
-	return vk, nil
+	return vk
 }
