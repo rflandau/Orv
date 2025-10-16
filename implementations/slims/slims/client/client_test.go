@@ -291,7 +291,8 @@ func TestGet(t *testing.T) {
 				Stale time.Duration
 				Addr  netip.AddrPort
 			}{
-				"leaf2s1": {serviceStale, RandomLocalhostAddrPort()},
+				"leaf2s1":       {serviceStale, RandomLocalhostAddrPort()},
+				"multiprovider": {serviceStale, RandomLocalhostAddrPort()},
 			},
 		}
 		vk2 := spawnVK(t, 2, l2, vaultkeeper.WithDragonsHoard(2))
@@ -302,8 +303,9 @@ func TestGet(t *testing.T) {
 				Stale time.Duration
 				Addr  netip.AddrPort
 			}{
-				"leaf3s1": {serviceStale, RandomLocalhostAddrPort()},
-				"leaf3s2": {serviceStale, RandomLocalhostAddrPort()},
+				"leaf3s1":       {serviceStale, RandomLocalhostAddrPort()},
+				"leaf3s2":       {serviceStale, RandomLocalhostAddrPort()},
+				"multiprovider": {serviceStale, RandomLocalhostAddrPort()},
 			},
 		}
 		vk3 := spawnVK(t, 3, l3, vaultkeeper.WithDragonsHoard(3))
@@ -340,7 +342,43 @@ func TestGet(t *testing.T) {
 			hopLimit              uint16
 			expectedResponderAddr string
 			expectedServiceAddr   string // what we expect the service's address to be ("" if not found)
-		}{} // TODO
+		}{
+			{name: "vk0_hl=0_unknown service",
+				requestedService:      "unknown service",
+				targetVK:              vk0,
+				hopLimit:              0,
+				expectedResponderAddr: vk0.Address().String(),
+				expectedServiceAddr:   "",
+			},
+			{name: "vk0_hl=2_l1-service",
+				requestedService:      "leaf1s1",
+				targetVK:              vk0,
+				hopLimit:              2,
+				expectedResponderAddr: vk1.Address().String(),
+				expectedServiceAddr:   l1.Services["leaf1s1"].Addr.String(),
+			},
+			{name: "multiple-providers_locality", // service exists on multiple nodes; ensure the most local result is answered
+				requestedService:      "multiprovider",
+				targetVK:              vk2,
+				hopLimit:              10,
+				expectedResponderAddr: vk2.Address().String(),
+				expectedServiceAddr:   l2.Services["multiprovider"].Addr.String(),
+			},
+			{name: "absent-from-tree", // service exists on multiple nodes; ensure the most local result is answered
+				requestedService:      "unknown service across whole vault",
+				targetVK:              vk0,
+				hopLimit:              10,
+				expectedResponderAddr: vk3.Address().String(),
+				expectedServiceAddr:   "",
+			},
+			{name: "services propagate to root",
+				requestedService:      "leaf1s2",
+				targetVK:              vk3,
+				hopLimit:              10,
+				expectedResponderAddr: vk3.Address().String(),
+				expectedServiceAddr:   l1.Services["leaf1s2"].Addr.String(),
+			},
+		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				// generate a token
