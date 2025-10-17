@@ -81,7 +81,9 @@ func stopAndCheck(t *testing.T, vk *VaultKeeper) {
 // upstate returns the alive state of the given vk and the result of trying to hit it with a STATUS packet (no matter its declared `alive` status).
 func upstate(t *testing.T, vk *VaultKeeper) (alive bool, srErr error) {
 	t.Helper()
-	alive = vk.net.accepting.Load()
+	vk.net.mu.RLock()
+	defer vk.net.mu.RUnlock()
+	alive = vk.net.accepting
 
 	// send a STATUS packet
 	if respVKID, sr, err := client.Status(netip.MustParseAddrPort(vk.addr.String()), t.Context()); err != nil {

@@ -55,7 +55,8 @@ type VaultKeeper struct {
 	id   slims.NodeID   // unique identifier of this node
 	addr netip.AddrPort // address this vk accepts packets on
 	net  struct {
-		accepting atomic.Bool        // are we currently accepting connections?
+		mu        sync.RWMutex       // must be held to interact with this struct
+		accepting bool               // are we currently accepting connections?
 		pconn     net.PacketConn     // the packet-oriented UDP connection we are listening on
 		ctx       context.Context    // the context pconn is running under
 		cancel    context.CancelFunc // callable to kill ctx
@@ -65,10 +66,10 @@ type VaultKeeper struct {
 
 	// vault information relevant to us
 	structure struct {
-		mu         sync.RWMutex // must be held to interact with this struct
-		height     uint16       // current node height
-		parentID   slims.NodeID // 0 if we are root
-		parentAddr netip.AddrPort
+		mu         sync.RWMutex   // must be held to interact with this struct
+		height     uint16         // current node height
+		parentID   slims.NodeID   // 0 if we are root
+		parentAddr netip.AddrPort // invalid if we are root
 	}
 
 	// how quickly are pieces of data pruned
@@ -120,11 +121,11 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 
 	// set defaults
 	vk := &VaultKeeper{
-		//alive: &atomic.Bool{},
 		id:   id,
 		addr: addr,
 		net: struct {
-			accepting atomic.Bool
+			mu        sync.RWMutex
+			accepting bool
 			pconn     net.PacketConn
 			ctx       context.Context
 			cancel    context.CancelFunc
@@ -177,7 +178,6 @@ func New(id uint64, addr netip.AddrPort, opts ...VKOption) (*VaultKeeper, error)
 		},
 		closedListTokens: expiring.NewTable[string, bool](),
 	}
-	vk.net.accepting.Store(false)
 
 	// apply options
 	for _, opt := range opts {
@@ -222,9 +222,12 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 		for {
 			<-tkr.C
 			hbSampled.Debug().Msg("heartbeater waking")
-			if !vk.net.accepting.Load() {
+			vk.net.mu.RLock()
+			if !vk.net.accepting {
+				vk.net.mu.RUnlock()
 				continue
 			}
+			vk.net.mu.RUnlock()
 			// cache parent information
 			vk.structure.mu.RLock()
 			p, pAddr := vk.structure.parentID, vk.structure.parentAddr
@@ -349,9 +352,12 @@ func (vk *VaultKeeper) respondSuccess(addr net.Addr, hdr protocol.Header, payloa
 // Start causes the server to begin listening.
 // Ineffectual if already listening.
 func (vk *VaultKeeper) Start() error {
-	if swapped := vk.net.accepting.CompareAndSwap(false, true); !swapped { // mark us as alive; quit if we were already alive
+	vk.net.mu.Lock()
+	defer vk.net.mu.Unlock()
+	if vk.net.accepting {
 		return nil
 	}
+	vk.net.accepting = true
 	// ! context, cancellation, and pconn are rebuilt on each start up
 
 	// create a context so we can kill this listener instance
@@ -431,9 +437,12 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 // Stop causes the server to stop accepting requests.
 // Ineffectual if not listening.
 func (vk *VaultKeeper) Stop() {
-	if !vk.net.accepting.CompareAndSwap(true, false) {
+	vk.net.mu.Lock()
+	defer vk.net.mu.Unlock()
+	if !vk.net.accepting {
 		return
 	}
+	vk.net.accepting = false
 	// ! context, cancellation, and pconn are rebuilt on each start up
 
 	vk.log.Info().Msg("initializing graceful shutdown")
@@ -510,6 +519,8 @@ type VKSnapshot struct {
 // If you are using zerolog, call vk.Zerolog() instead, as that will properly format this data into a single log item.
 func (vk *VaultKeeper) Snapshot() VKSnapshot {
 	// acquire all locks
+	vk.net.mu.RLock()
+	defer vk.net.mu.RUnlock()
 	vk.structure.mu.RLock()
 	defer vk.structure.mu.RUnlock()
 	vk.children.mu.Lock()
@@ -517,7 +528,7 @@ func (vk *VaultKeeper) Snapshot() VKSnapshot {
 	snap := VKSnapshot{
 		ID:                   vk.id,
 		Addr:                 vk.addr,
-		AcceptingConnections: vk.net.accepting.Load(),
+		AcceptingConnections: vk.net.accepting,
 		Versions:             vk.versionSet,
 		Height:               vk.structure.height,
 		ParentID:             vk.structure.parentID,
