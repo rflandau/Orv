@@ -162,7 +162,7 @@ func (vk *VaultKeeper) serveList(reqHdr protocol.Header, reqBody []byte, senderA
 // Sends a LIST_RESPONSE to the given address and log it.
 func (vk *VaultKeeper) sendListResponse(parsedRespAddr net.Addr, req *pb.List, reqHdr protocol.Header) {
 	vk.children.mu.Lock()
-	var resp = pb.ListResponse{
+	var resp = pb.ListResp{
 		Token:    req.Token,
 		Services: slices.Collect(maps.Keys(vk.children.allServices)),
 	}

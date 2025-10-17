@@ -468,7 +468,7 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 				errCh <- slims.FormatFault(&f)
 				return
 			} else if hdr.Type == pb.MessageType_LIST_RESP {
-				var lr pb.ListResponse
+				var lr pb.ListResp
 				if err := proto.Unmarshal(body, &lr); err != nil {
 					errCh <- err
 					return

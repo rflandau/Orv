@@ -1227,7 +1227,7 @@ func (x *ListAck) GetToken() string {
 
 // Type #22
 // Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
-type ListResponse struct {
+type ListResp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// list of services known to the responding vk
@@ -1236,20 +1236,20 @@ type ListResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListResponse) Reset() {
-	*x = ListResponse{}
+func (x *ListResp) Reset() {
+	*x = ListResp{}
 	mi := &file_slims_pb_payloads_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListResponse) String() string {
+func (x *ListResp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListResponse) ProtoMessage() {}
+func (*ListResp) ProtoMessage() {}
 
-func (x *ListResponse) ProtoReflect() protoreflect.Message {
+func (x *ListResp) ProtoReflect() protoreflect.Message {
 	mi := &file_slims_pb_payloads_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1261,19 +1261,19 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
-func (*ListResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListResp.ProtoReflect.Descriptor instead.
+func (*ListResp) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *ListResponse) GetToken() string {
+func (x *ListResp) GetToken() string {
 	if x != nil {
 		return x.Token
 	}
 	return ""
 }
 
-func (x *ListResponse) GetServices() []string {
+func (x *ListResp) GetServices() []string {
 	if x != nil {
 		return x.Services
 	}
@@ -1564,8 +1564,8 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\thop_count\x18\x02 \x01(\rR\bhopCount\x12#\n" +
 	"\rresponse_addr\x18\x03 \x01(\tR\fresponseAddr\"\x1f\n" +
 	"\aListAck\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"@\n" +
-	"\fListResponse\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"<\n" +
+	"\bListResp\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
 	"\bservices\x18\x02 \x03(\tR\bservices\"w\n" +
 	"\x03Get\x12\x14\n" +
@@ -1617,7 +1617,7 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*StatusResp)(nil),          // 19: orv.StatusResp
 	(*List)(nil),                // 20: orv.List
 	(*ListAck)(nil),             // 21: orv.ListAck
-	(*ListResponse)(nil),        // 22: orv.ListResponse
+	(*ListResp)(nil),            // 22: orv.ListResp
 	(*Get)(nil),                 // 23: orv.Get
 	(*GetAck)(nil),              // 24: orv.GetAck
 	(*GetResp)(nil),             // 25: orv.GetResp

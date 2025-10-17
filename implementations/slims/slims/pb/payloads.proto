@@ -199,7 +199,7 @@ message ListAck {
 
 // Type #22
 // Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
-message ListResponse { // TODO rename to Resp
+message ListResp {
   string token = 1;
   // list of services known to the responding vk
   repeated string services = 2;
