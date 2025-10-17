@@ -27,8 +27,7 @@ func CompilePB() error {
 	return nil
 }
 
-// Lint the protobuf files.
-// If suppress is true, this command swallows EnumField prefix warnings.
+// Lint the protobuf files. If arg1(suppress) is true, this command swallows EnumField prefix warnings.
 func LintPB(suppress bool) error {
 	if _, err := exec.LookPath("protolint"); err != nil {
 		return errors.Join(errors.New("protolint not available in $PATH"), err)
@@ -55,13 +54,6 @@ func LintPB(suppress bool) error {
 		splitInput(&sbOut)
 	}
 
-	return nil
-}
-
-// NYI
-func Build() error {
-	//mg.Deps(CompileProtoBufs)
-	// TODO
 	return nil
 }
 
