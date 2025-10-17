@@ -35,6 +35,12 @@ Slims does not currently perform retries or even await ACKs in many cases to sav
 
 See [DESIGN.md](implementations/slims/DESIGN.md) for more information.
 
+## Lack of Graceful Shutdown
+
+Unlike how the logs read, vaultkeepers do not actually shutdown gracefully. The context is immediately cancelled, so all inflight operations will be thrown away.
+
+Adding a timed waitgroup to vaultkeepers to ensure that all inflights actually complete would easily facilitate true graceful shutdown.
+
 # Contributing
 
 Orv Slims is a pretty run-of-the-mill Go project, just make sure you utilize [staticcheck](staticcheck.dev).
