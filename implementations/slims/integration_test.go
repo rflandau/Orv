@@ -193,7 +193,7 @@ func checkAutoHBErrs(t *testing.T, ch chan error, wait time.Duration) {
 		for range eCount {
 			t.Error(<-ch)
 		}
-		//atErr.CompareAndSwap(nil, e) // attempt to swap; only the first error will be preserved
+		t.FailNow()
 	case <-time.After(wait):
 		t.Log("no initial heartbeat errors found. Continuing...")
 	}
