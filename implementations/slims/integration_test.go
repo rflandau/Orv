@@ -49,6 +49,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	} else if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("vk %d established @ %v", vk.ID(), vk.Address())
 	// spawn a bunch of (at least 2) leaves and channels to catch heartbeat errors from them.
 	var (
 		leaves = make([]Leaf, rand.Uint32N(maxLeaves)+2)
