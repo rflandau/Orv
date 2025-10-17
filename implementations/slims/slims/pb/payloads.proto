@@ -159,6 +159,7 @@ message VKHeartbeatAck {
 
 // Type #18
 message Status {
+  // no payload
 }
 
 // Type #19
@@ -228,3 +229,15 @@ message GetResp {
 }
 
 //#endregion client requests
+
+// Type #26
+// Used by a node to tell its parent that it is leaving the vault.
+// Somewhat unnecessary, given a child can simply stop heartbeating and allow itself to be pruned.
+message Leave {
+  // no payload
+}
+
+// Type #27
+message LeaveAck {
+  // no payload
+}

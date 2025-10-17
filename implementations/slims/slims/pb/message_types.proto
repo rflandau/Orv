@@ -32,4 +32,7 @@ enum MessageType {
   GET = 23;
   GET_ACK = 24;
   GET_RESP = 25;
+  
+  LEAVE = 26;
+  LEAVE_ACK = 27;
 }

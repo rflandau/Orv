@@ -1456,6 +1456,82 @@ func (x *GetResp) GetAddress() string {
 	return ""
 }
 
+// Type #26
+// Used by a node to tell its parent that it is leaving the vault.
+// Somewhat unnecessary, given a child can simply stop heartbeating and allow itself to be pruned.
+type Leave struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Leave) Reset() {
+	*x = Leave{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Leave) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Leave) ProtoMessage() {}
+
+func (x *Leave) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Leave.ProtoReflect.Descriptor instead.
+func (*Leave) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{25}
+}
+
+// Type #27
+type LeaveAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaveAck) Reset() {
+	*x = LeaveAck{}
+	mi := &file_slims_pb_payloads_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaveAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaveAck) ProtoMessage() {}
+
+func (x *LeaveAck) ProtoReflect() protoreflect.Message {
+	mi := &file_slims_pb_payloads_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaveAck.ProtoReflect.Descriptor instead.
+func (*LeaveAck) Descriptor() ([]byte, []int) {
+	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{26}
+}
+
 var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
@@ -1578,7 +1654,10 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\aGetResp\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
-	"\aaddress\x18\x03 \x01(\tR\aaddressB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
+	"\aaddress\x18\x03 \x01(\tR\aaddress\"\a\n" +
+	"\x05Leave\"\n" +
+	"\n" +
+	"\bLeaveAckB7Z5github.com/rflandau/Orv/implementations/slims/orv/pb/b\x06proto3"
 
 var (
 	file_slims_pb_payloads_proto_rawDescOnce sync.Once
@@ -1593,7 +1672,7 @@ func file_slims_pb_payloads_proto_rawDescGZIP() []byte {
 }
 
 var file_slims_pb_payloads_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_slims_pb_payloads_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_slims_pb_payloads_proto_goTypes = []any{
 	(Fault_Errnos)(0),           // 0: orv.Fault.Errnos
 	(*Fault)(nil),               // 1: orv.Fault
@@ -1621,15 +1700,17 @@ var file_slims_pb_payloads_proto_goTypes = []any{
 	(*Get)(nil),                 // 23: orv.Get
 	(*GetAck)(nil),              // 24: orv.GetAck
 	(*GetResp)(nil),             // 25: orv.GetResp
-	nil,                         // 26: orv.StatusResp.ChildVksEntry
-	nil,                         // 27: orv.StatusResp.ServicesEntry
-	(MessageType)(0),            // 28: msg.MessageType
+	(*Leave)(nil),               // 26: orv.Leave
+	(*LeaveAck)(nil),            // 27: orv.LeaveAck
+	nil,                         // 28: orv.StatusResp.ChildVksEntry
+	nil,                         // 29: orv.StatusResp.ServicesEntry
+	(MessageType)(0),            // 30: msg.MessageType
 }
 var file_slims_pb_payloads_proto_depIdxs = []int32{
-	28, // 0: orv.Fault.original:type_name -> msg.MessageType
+	30, // 0: orv.Fault.original:type_name -> msg.MessageType
 	0,  // 1: orv.Fault.errno:type_name -> orv.Fault.Errnos
-	26, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
-	27, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
+	28, // 2: orv.StatusResp.child_vks:type_name -> orv.StatusResp.ChildVksEntry
+	29, // 3: orv.StatusResp.services:type_name -> orv.StatusResp.ServicesEntry
 	4,  // [4:4] is the sub-list for method output_type
 	4,  // [4:4] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
@@ -1651,7 +1732,7 @@ func file_slims_pb_payloads_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_slims_pb_payloads_proto_rawDesc), len(file_slims_pb_payloads_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   27,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
