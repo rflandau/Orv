@@ -360,6 +360,50 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	return
 }
 
+// serveLeave handles incoming LEAVE packets.
+func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if len(reqBody) != 0 {
+		return true, pb.Fault_BODY_NOT_ACCEPTED, nil
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+
+	// check if this is from a known child
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+
+	if cvk, found := vk.children.cvks.Load(reqHdr.ID); found { // try cVK
+		// remove this child as a provider of all of its services
+		for svc := range cvk.services {
+			if providers, found := vk.children.allServices[svc]; found {
+				delete(providers, reqHdr.ID)
+			}
+		}
+		// delist this child
+		vk.children.cvks.Delete(reqHdr.ID)
+	} else if l, found := vk.children.leaves[reqHdr.ID]; found { // try leaf
+		// remove this child as a provider of all of its services
+		for svc, inf := range l.services {
+			inf.pruner.Stop()
+			if providers, found := vk.children.allServices[svc]; found {
+				delete(providers, reqHdr.ID)
+			}
+		}
+		// delist this child
+		delete(vk.children.leaves, reqHdr.ID)
+	} else { // not found
+		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
+	}
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    pb.MessageType_LEAVE_ACK,
+		ID:      vk.id,
+	}, nil)
+	return
+}
+
 func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	// validate parameters
 	if reqHdr.Shorthand {

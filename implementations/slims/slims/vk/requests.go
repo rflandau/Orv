@@ -57,9 +57,20 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	return nil
 }
 
-// TODO
+// Leave makes the vaultkeeper leave its current parent.
+// No-op if this vaultkeeper does not have a parent.
 func (vk *VaultKeeper) Leave() {
-	panic("nyi")
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	if !vk.structure.parentAddr.IsValid() {
+		return
+	}
+	vk.log.Info().Str("former parent address", vk.structure.parentAddr.String()).Uint64("former parent address", vk.structure.parentID).Msg("leaving parent...")
+	if _, _, err := vk.messageParent(pb.MessageType_LEAVE, nil); err != nil {
+		vk.log.Warn().Err(err).Msg("failed to tell parent we are leaving")
+	}
+	vk.structure.parentAddr = netip.AddrPort{}
+	vk.structure.parentID = 0
 }
 
 // HeartbeatParent sends a VK_HEARTBEAT to the parent of this vk.
