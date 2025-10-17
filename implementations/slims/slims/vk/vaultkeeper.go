@@ -239,8 +239,6 @@ func (vk *VaultKeeper) runAutoHeartbeat() {
 				continue
 			}
 
-			// TODO add check for terminate to kill entirely
-
 			if err := vk.HeartbeatParent(); err != nil {
 				hbLog.Warn().Uint64("parent ID", p).Str("parent addr", pAddr.String()).Err(err).Msg("failed to heartbeat parent")
 				vk.hb.badHeartbeatCount.Add(1)
@@ -451,7 +449,6 @@ func (vk *VaultKeeper) Stop() {
 	}
 	// do not nil the context or dispatch will attempt to wait on a nil channel.
 	// instead, allow cancel to close the channel and the next .Start() to overwrite the net.ctx reference
-	// TODO await all handlers
 	if err := vk.net.pconn.Close(); err != nil {
 		vk.log.Warn().Err(err).Msg("completed shutting down with an error")
 	} else {

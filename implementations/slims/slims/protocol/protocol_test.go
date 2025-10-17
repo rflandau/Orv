@@ -363,7 +363,7 @@ func TestFullSend(t *testing.T) {
 				continue
 			}
 
-			if sentN, err := pconn.WriteTo(respHdrB, senderAddr); err != nil { // TODO echo back body
+			if sentN, err := pconn.WriteTo(respHdrB, senderAddr); err != nil {
 				t.Error(err)
 			} else if rcvdN != sentN {
 				t.Errorf("sent (%d) != received (%d)", sentN, rcvdN)
