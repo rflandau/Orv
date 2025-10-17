@@ -67,9 +67,7 @@ Vaults are designed to only ferry information *up* the tree (with [one, key exce
 The root of the tree is expected to know all services offered by the vault.
 
 > [!TIP]
-> While the bubble-up paradigm attempts to keep requests as local as possible, root omnipotence can result in a north-south traffic pattern. Orv's traffic pattern can be sculpted to a more east-west pattern via Rivering. 
-
-TODO link rivering
+> While the bubble-up paradigm attempts to keep requests as local as possible, root omnipotence can result in a north-south traffic pattern. Orv's traffic pattern can be better spatially localized via Rivering. 
 
 ## Principle: Lower Height == Lower Power
 
@@ -101,16 +99,15 @@ Some examples:
 
 For us to assume anything about this discovery mechanism would be to make assumptions about the use-case of Orv and potentially bloat the protocol.
 
-
 ## Assumption: Unique Identifiers
 
 We assume each node can determine and utilize a unique identifier. This is a weighty assumption in a decentralized system.
 
-If we receive a request from ID X on the opposite end of the tree than we last saw ID X, we assume that node has left its original sub-vault and rejoined a new sub-vault in this same vault.
-
 # Interaction Model
 
 ## Initiating and Joining a Vault
+
+
 
 ## TODO (with suggested packet)
 
@@ -155,6 +152,33 @@ The current design disallows this due to the cost of echoing an INCREMENT down t
 #### Lazy Depth/Height Knowledge
 
 Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height. This shifts the burden around a bit, potentially increasing the already-likely hotspot on root. However, this method could support depth *or* height and increase the rate at which children learn about changes to their ancestry.
+
+## Rivering in Spirit versus Rivering in Action
+
+The intention of rivers is to improve the robustness of a vault by duplicating information across nodes. By rivering two siblings, you dramatically reduce the fragmentation of services that would occur should the parent node die. By rivering the roots of two vaults, you can horizontally scale and thus widen the pool of services available to both trees.
+
+### Multi-hop Gossip
+
+...
+
+Enabling gossip to propagate through rivers beyond two hops (s.t. gossip from A could reach D via B & C (A <-> B <-> C <-> D)) improves knowledge within the river and thus further increases vault resiliency. However, this does not gel with the fact that node knowledge is spatially limited to a single hop, both in terms of river peers *and* parent/child relations (aka a VK knows its parent, immediate children, and its river peers, but does not know its grandchildren, grandparent, or the river peers of its peer). Specifically, the issue comes from gossip recirculation: because rivers can have cycles, gossip that hops through the river can return to its source without the source being able to identify that the information was originally its own.
+
+Consider this perfectly valid (multi-hop) river: A <-> B <-> C <-> A.
+If gossip can propagate more than two hops, A can reach A. If A offers service X, this information will travel to B, then C, and finally back to A. A will not be able to identify that the source of service X was itself. It can see an identical record, but cannot confirm that it is, in fact, the same record as opposed to a different instance that happens to have the same information. Should service X expire on A, A will remove it from its known services, but continue to propagate the gossip version.
+
+#### Potential Solutions
+
+##### Limit Hops
+
+The most straightforward solution and the solution used by Slims (NYI). Gossip is originated with a hop count of 2.
+
+##### Source Field
+
+Gossip could include a source field, enabling a node to not unduly propagate its own services.
+
+This comes with substantial limitations, most notably that stale information may continue to propagate forever if the cycle does not include the source.
+
+To similar effect, an implementation could hash the record and use that as a unique identifier as long as the hash includes a timestamp. Hashing just the address will have the same problem noted above (identical addresses but referring to different service instances).
 
 ## Token buckets, request fairness, and supernodes
 

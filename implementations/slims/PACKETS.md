@@ -35,7 +35,7 @@ Shorthand whether or not ID has been omitted. If S is set, then the 2B form of t
 Type declares the message type of this packet as an unsigned integer that maps to the types defined below.
 Undefined type numbers are reserved for future use.
 
-## ID [0 or 10 Bytes]
+## ID [0 or 8 Bytes]
 
 ID is the unique identifier of the sender as a uint64, used to correlate a packet to its origin for handling (such as from a known child, a pending join, etc). It may only be omitted when sending client requests, as client requests may originate from outside the vault. If it is omitted, S must be set.
 
