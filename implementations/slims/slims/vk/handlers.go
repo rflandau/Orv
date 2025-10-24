@@ -379,6 +379,10 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 		for svc := range cvk.services {
 			if providers, found := vk.children.allServices[svc]; found {
 				delete(providers, reqHdr.ID)
+				// notify parent
+				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
+					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
+				}
 			}
 		}
 		// delist this child
@@ -389,6 +393,10 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 			inf.pruner.Stop()
 			if providers, found := vk.children.allServices[svc]; found {
 				delete(providers, reqHdr.ID)
+				// notify parent
+				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
+					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
+				}
 			}
 		}
 		// delist this child
