@@ -15,7 +15,6 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
-	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
 	"github.com/rs/zerolog"
 )
@@ -35,14 +34,13 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		maxServicesPerLeaf uint32        = 3
 		staleTime          time.Duration = 10 * time.Minute // disable
 
-		leafPrune  time.Duration = 100 * time.Millisecond
 		leafHBFreq time.Duration = 20 * time.Millisecond
 	)
 	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
 		vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{
-			Hello:           3 * time.Second,        // functionally disabled
-			ServicelessLeaf: 200 * time.Millisecond, // to prove that heartbeats actually work
-			ChildVK:         3 * time.Second,        // irrelevant for this test
+			Hello:           10 * time.Second,       // functionally disabled
+			ServicelessLeaf: 300 * time.Millisecond, // to prove that heartbeats actually work
+			ChildVK:         10 * time.Second,       // irrelevant for this test
 		}), vaultkeeper.WithLogger(&zerolog.Logger{}))
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +85,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 		if accept.Height != uint32(vk.Height()) {
 			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
 		}
+		t.Logf("Established leaf %d with services:", leaves[i].ID)
 		// attach services to the leaf and register them with the VK
 		for range serviceCount {
 			serviceName := randomdata.SillyName()
@@ -103,7 +102,7 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 			} else if serviceName != accept.Service {
 				t.Error(ExpectedActual(accept.Service, serviceName))
 			}
-			t.Logf("attached service '%s' @ %v to leaf %v", serviceName, leaves[i].Services[serviceName], leaves[i].ID)
+			t.Logf("\t%s@%v", serviceName, leaves[i].Services[serviceName])
 		}
 
 		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].Services)), hb)
