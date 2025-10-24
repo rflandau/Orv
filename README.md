@@ -178,9 +178,13 @@ Rivers between two vaults where at least one peer is not root can cause ["basins
 
 Basins are a by-product of the limitations of rivering. Specifically, basins can form at non-root peers and are due to the rule that gossip cannot travel up the tree like normal service registration does.
 
-Consider the following diagram of two vaults:
+Consider the following diagram of two vaults with a gossip stream between the root of vault A and VK BC3:
 
 ![alt text](img/Gossip_basin.drawio.svg)
+
+Requests made against any vk in vault A (given a high enough hop count) will have access to the information learned from VK BC3.
+Requests made against VK BC3 will have access to all information in vault A and all information in vault B! Great!
+However, requests made against any other vk in vault B will see only the services available in vault B. While this is not negative (clients have guaranteed access to services in vault B, as normal), it could create confusion or the impression of unreliable services given the root is typically considered to be omnipotent about its own vault.
 
 ### Multi-hop Gossip
 
