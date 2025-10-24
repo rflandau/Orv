@@ -105,11 +105,26 @@ We assume each node can determine and utilize a unique identifier. This is a wei
 
 # Interaction Model
 
+There are two categories of interaction models: 1) child interaction, where a node wishes to join the tree in order to register its services and/or assist in routing information up the tree, and 2) client interaction, where a node just wishes to get information out of the tree.
+
+Any node may participate in client interactions, including nodes that are part of the tree!
+
+## Client Interactions
+
+Client interactions are simple. A client makes one of the following requests against any vault keeper. There is no need to join the vault or otherwise register itself.
+
+>[!IMPORTANT]
+> Requests can be made against any *vault keeper* in a tree!
+
+### STATUS Requests
+
+Status requests do as they it says on the tin: they return the status of the receiving vault keeper.
+
 ## Initiating and Joining a Vault
 
 
 
-## TODO (with suggested packet)
+## TODO (with suggested packets)
 
 # Tweaking Orv
 
@@ -119,7 +134,7 @@ To reduce ...
 
 ## Removing Root Omnipotence
 
-
+## Rivering (Redundancy or Breadth via Gossip)
 
 # Other Design Decisions and Tradeoffs
 
@@ -157,6 +172,16 @@ Another approach would be to force vks to request up the tree when a vk wants to
 
 The intention of rivers is to improve the robustness of a vault by duplicating information across nodes. By rivering two siblings, you dramatically reduce the fragmentation of services that would occur should the parent node die. By rivering the roots of two vaults, you can horizontally scale and thus widen the pool of services available to both trees.
 
+### Fickle Requests and River Basins
+
+Rivers between two vaults where at least one peer is not root can cause ["basins"](https://en.wikipedia.org/wiki/Endorheic_basin) to form. The presence of basins can make requests seem fickle, where requests against one branch of a vault will return many services while requests against another branch will turn up very little.
+
+Basins are a by-product of the limitations of rivering. Specifically, basins can form at non-root peers and are due to the rule that gossip cannot travel up the tree like normal service registration does.
+
+Consider the following diagram of two vaults:
+
+![alt text](img/Gossip_basin.drawio.svg)
+
 ### Multi-hop Gossip
 
 ...
@@ -179,6 +204,22 @@ Gossip could include a source field, enabling a node to not unduly propagate its
 This comes with substantial limitations, most notably that stale information may continue to propagate forever if the cycle does not include the source.
 
 To similar effect, an implementation could hash the record and use that as a unique identifier as long as the hash includes a timestamp. Hashing just the address will have the same problem noted above (identical addresses but referring to different service instances).
+
+### Processing Differentials
+
+Riverring is a parallel system; vault keepers that choose to support it are taking on an additional processing burden.
+
+...
+
+Vault keepers that choose to gossip should consider the height or service count of their peers as they are likely (but not guaranteed!) to have similar processing capabilities and therefore less likely to overwhelem their peer. For example, rivering two nodes with a height of 1 or 2 is likely safer than rivering a root vault keeper and a height 0 vault keeper.
+
+...
+
+Corrollary to this is that gossip has the possibility to dramatically increase in packet size (and thus, cycle and memory consumption) at a moment's notice. 
+
+## Gossip Groups (TODO could this be extending to vault categories/groups?)
+
+-- to check that gossip streams only form between related parties, we could introduce the concept of groups
 
 ## Token buckets, request fairness, and supernodes
 
