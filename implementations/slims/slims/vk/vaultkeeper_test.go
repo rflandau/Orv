@@ -1132,3 +1132,115 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 		})
 	}
 }
+
+// Tests both vk.Leave() and vk.serveLeave() handling.
+/*func Test_Leave(t *testing.T) {
+	const serviceStale time.Duration = 10 * time.Second
+	// Create a linear, 3-node topology
+	l0 := Leaf{
+		ID: rand.Uint64(),
+		Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{
+			"l0s1": {
+				Stale: serviceStale,
+				Addr:  RandomLocalhostAddrPort(),
+			},
+			"ssh": {
+				Stale: serviceStale,
+				Addr:  RandomLocalhostAddrPort(),
+			},
+		},
+	}
+	vk0 := spawnVK(t, 0, l0)
+	t.Cleanup(vk0.Stop)
+	l1 := Leaf{
+		ID: rand.Uint64(),
+		Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{
+			"ssh": {
+				Stale: serviceStale,
+				Addr:  RandomLocalhostAddrPort(),
+			},
+		},
+	}
+	vk1 := spawnVK(t, 1, l1)
+	t.Cleanup(vk1.Stop)
+	l2 := Leaf{
+		ID: rand.Uint64(),
+		Services: map[string]struct {
+			Stale time.Duration
+			Addr  netip.AddrPort
+		}{},
+	}
+	vk2 := spawnVK(t, 2, l2)
+	t.Cleanup(vk2.Stop)
+	{
+		if err := vk0.Join(t.Context(), vk1.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, _, err := client.Hello(t.Context(), vk1.ID(), vk2.Address()); err != nil {
+			t.Fatal(err)
+		}
+		if err := vk1.Join(t.Context(), vk2.Address()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	{ // check that leaf0's service exist on each vk
+		snap := vk0.Snapshot()
+		if services, found := snap.Children.Leaves[l0.ID]; !found {
+			t.Fatal("failed to find child 0")
+		} else if !maps.Equal(services, l0.Services) {
+			t.Fatal("service mismatch", ExpectedActual(l0.Services, services))
+		}
+		snap = vk1.Snapshot()
+		if inf, found := snap.Children.CVKs[vk0.ID()]; !found {
+			t.Fatal("failed to find vk0 as a child of vk1")
+		} else {
+			for svc, f := range l0.Services {
+				addr, found := inf.Services[svc]
+				if !found {
+					t.Fatalf("failed to find service %v (provided by vk0) on vk1", svc)
+				} else if f.Addr != addr {
+					t.Fatalf("bad address of service %v"+ExpectedActual(f.Addr, addr), svc)
+				}
+			}
+		}
+	}
+	// have vk0 leave and confirm that its services are no longer available on vk1 or vk2
+	//vk0.Leave()
+	// ensure other services have not been affected
+}*/
+
+// helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
+// Fatal on error.
+// Remember to defer vk.Stop().
+// Attaches a 500ms timeout to each operation.
+func spawnVK(t *testing.T, childID slims.NodeID, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
+	t.Helper()
+	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cnl()
+
+	vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(), vkOpts...)
+	if err != nil {
+		t.Fatal(err)
+	} else if err = vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := client.Hello(ctx, childID, vk.Address()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.Join(ctx, childID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
+		t.Fatal(err)
+	}
+	for service, info := range childLeaf.Services {
+		if _, _, err := client.Register(ctx, childID, vk.Address(), service, info.Addr, info.Stale); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return vk
+}
