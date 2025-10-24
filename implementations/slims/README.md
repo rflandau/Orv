@@ -37,9 +37,13 @@ See [DESIGN.md](implementations/slims/DESIGN.md) for more information.
 
 ## Lack of Graceful Shutdown
 
-Unlike how the logs read, vaultkeepers do not actually shutdown gracefully. The context is immediately cancelled, so all inflight operations will be thrown away.
+Unlike how the logs read, vault keepers do not actually shutdown gracefully. The context is immediately cancelled, so all inflight operations will be thrown away.
 
-Adding a timed waitgroup to vaultkeepers to ensure that all inflights actually complete would easily facilitate true graceful shutdown.
+Adding a timed waitgroup to vault keepers to ensure that all in-flights actually complete would easily facilitate true graceful shutdown.
+
+## Gossip Hops Limited to 1
+
+As it says in the title, gossip is implemented, but only supports a single hop. In other words, information learned via gossip will not propagate beyond the paired vks.
 
 # Contributing
 
