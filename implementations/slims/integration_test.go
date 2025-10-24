@@ -229,17 +229,6 @@ func TestTwoLayerVault(t *testing.T) {
 		wg.Add(1)
 		go func(cvk *vaultkeeper.VaultKeeper) {
 			defer wg.Done()
-			// hello
-			if pvk, ver, ack, err := client.Hello(t.Context(), cvk.ID(), parent.Address()); err != nil {
-				t.Errorf("cvk(%d) failed to HELLO: %v", cvk.ID(), err)
-			} else if pvk != parent.ID() {
-				t.Error("bad response parent ID", ExpectedActual(parent.ID(), pvk))
-			} else if ver != protocol.SupportedVersions().HighestSupported() {
-				t.Error("bad version", ExpectedActual(protocol.SupportedVersions().HighestSupported(), ver))
-			} else if ack.Height != 1 {
-				t.Error("bad response parent height", ExpectedActual(1, ack.Height))
-			}
-			// join
 			if err := cvk.Join(t.Context(), parent.Address()); err != nil {
 				t.Errorf("cvk(%d) failed to JOIN: %v", cvk.ID(), err)
 			}
@@ -259,16 +248,6 @@ func TestTwoLayerVault(t *testing.T) {
 	} else if err := badCVK.Start(); err != nil {
 		t.Fatal("failed to start bad cvk", err)
 	}
-	if pvk, ver, ack, err := client.Hello(t.Context(), badCVK.ID(), parent.Address()); err != nil {
-		t.Errorf("cvk(%d) failed to HELLO: %v", badCVK.ID(), err)
-	} else if pvk != parent.ID() {
-		t.Error("bad response parent ID", ExpectedActual(parent.ID(), pvk))
-	} else if ver != protocol.SupportedVersions().HighestSupported() {
-		t.Error("bad version", ExpectedActual(protocol.SupportedVersions().HighestSupported(), ver))
-	} else if ack.Height != 1 {
-		t.Error("bad response parent height", ExpectedActual(1, ack.Height))
-	}
-	// join
 	if err := badCVK.Join(t.Context(), parent.Address()); err != nil {
 		t.Errorf("badCVK(%d) failed to JOIN: %v", badCVK.ID(), err)
 	}

@@ -378,17 +378,7 @@ func Test_Join(t *testing.T) {
 		defer childVK.Stop()
 
 		// join the child under the parent
-		t.Logf("child (%d) sending HELLO to parent (%d)", childVK.ID(), parentVK.ID())
-		if id, ver, ack, err := client.Hello(t.Context(), childVK.ID(), parentVK.Address()); err != nil {
-			t.Fatal(err)
-		} else if id != parentVK.ID() {
-			t.Fatal(ExpectedActual(parentVK.ID(), id))
-		} else if ver != parentVK.versionSet.HighestSupported() || ver != childVK.versionSet.HighestSupported() {
-			t.Fatalf("versions mismatch.\n %v (response) != %v (parent) != %v (child)", ver, parentVK.versionSet.HighestSupported(), childVK.versionSet.HighestSupported())
-		} else if ack.Height != uint32(parentVK.Height()) {
-			t.Fatal(ExpectedActual(uint32(parentVK.Height()), ack.Height))
-		}
-		t.Logf("child (%d) sending JOIN to parent (%d)", childVK.ID(), parentVK.ID())
+		t.Logf("child (%d) JOINing parent (%d)", childVK.ID(), parentVK.ID())
 		if err := childVK.Join(t.Context(), parentVK.Address()); err != nil {
 			t.Fatal(err)
 		}
@@ -490,9 +480,7 @@ func Test_Join(t *testing.T) {
 			t.FailNow()
 		}
 		// join the cVK to the parent vk and check that services propagated upward
-		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), parentVK.Address()); err != nil {
-			t.Fatal(err)
-		} else if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
+		if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(bufferTime) // give a moment for the services to propagate
@@ -556,15 +544,6 @@ func Test_HeartBeatParent(t *testing.T) {
 	// note the lack of start on child at first
 
 	// join child to parent
-	if pVKID, ver, ack, err := client.Hello(t.Context(), child.ID(), parent.Address()); err != nil {
-		t.Fatal(err)
-	} else if pVKID != parent.ID() {
-		t.Error("bad id", ExpectedActual(parent.ID(), pVKID))
-	} else if ver != parent.versionSet.HighestSupported() {
-		t.Error("bad version", ExpectedActual(parent.versionSet.HighestSupported(), ver))
-	} else if ack.Height != uint32(parent.Height()) {
-		t.Error("bad height", ExpectedActual(uint32(parent.Height()), ack.Height))
-	}
 	if err := child.Join(t.Context(), parent.Address()); err != nil {
 		t.Fatal("failed to join child under parent:", err)
 	}
@@ -611,15 +590,6 @@ func Test_HeartBeatParent(t *testing.T) {
 	}{0, 0, netip.AddrPort{}})
 
 	// have the child rejoin, now that its heartbeater is active
-	if pVKID, ver, ack, err := client.Hello(t.Context(), child.ID(), parent.Address()); err != nil {
-		t.Fatal(err)
-	} else if pVKID != parent.ID() {
-		t.Error("bad id", ExpectedActual(parent.ID(), pVKID))
-	} else if ver != parent.versionSet.HighestSupported() {
-		t.Error("bad version", ExpectedActual(parent.versionSet.HighestSupported(), ver))
-	} else if ack.Height != uint32(parent.Height()) {
-		t.Error("bad height", ExpectedActual(uint32(parent.Height()), ack.Height))
-	}
 	if err := child.Join(t.Context(), parent.Address()); err != nil {
 		t.Fatal("failed to join child under parent:", err)
 	}
@@ -934,9 +904,6 @@ func Test_serveRegister(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		} else if err := pVK.Start(); err != nil {
-			t.Fatal(err)
-		}
-		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), pVK.Address()); err != nil {
 			t.Fatal(err)
 		}
 		if err := cVK.Join(t.Context(), pVK.Address()); err != nil {

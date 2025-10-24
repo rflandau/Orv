@@ -17,7 +17,7 @@ import (
 // File requests.go implements vk methods to wrap the client requests.
 
 // Join directs the vk to attempt to join the VK at target.
-// Expects a HELLO to have already been sent on this VK's behalf.
+// Sends a HELLO, followed by a JOIN.
 //
 // On success, the VK's parent info will be updated and the parent will be notified of all known services.
 // Returns nil on success.
@@ -26,8 +26,12 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		return slims.ErrNilCtx
 	}
 
+	// send the HELLO
+	if _, _, _, err := client.Hello(ctx, vk.ID(), target); err != nil {
+		return fmt.Errorf("HELLO: %w", err)
+	}
+	// send the JOIN
 	vk.structure.mu.Lock()
-
 	parentID, _, err := client.Join(ctx, vk.id, target, client.JoinInfo{IsVK: true, VKAddr: vk.addr, Height: vk.structure.height})
 	if err != nil {
 		vk.structure.mu.Unlock()

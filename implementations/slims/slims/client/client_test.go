@@ -160,9 +160,6 @@ func TestList(t *testing.T) {
 		t.Cleanup(parentVK.Stop)
 
 		// associate the childVK to the parent
-		if _, _, _, err := client.Hello(t.Context(), cVK.ID(), parentVK.Address()); err != nil {
-			t.Fatal(err)
-		}
 		if err := cVK.Join(t.Context(), parentVK.Address()); err != nil {
 			t.Fatal(err)
 		}
@@ -313,23 +310,14 @@ func TestGet(t *testing.T) {
 		// join all the VKs together
 		{
 			// vk0 -> vk1
-			if _, _, _, err := client.Hello(t.Context(), vk0.ID(), vk1.Address()); err != nil {
-				t.Fatal(err)
-			}
 			if err := vk0.Join(t.Context(), vk1.Address()); err != nil {
 				t.Fatal(err)
 			}
 			// vk0 -> vk1 -> vk2
-			if _, _, _, err := client.Hello(t.Context(), vk1.ID(), vk2.Address()); err != nil {
-				t.Fatal(err)
-			}
 			if err := vk1.Join(t.Context(), vk2.Address()); err != nil {
 				t.Fatal(err)
 			}
 			// vk0 -> vk1 -> vk2 -> vk3
-			if _, _, _, err := client.Hello(t.Context(), vk2.ID(), vk3.Address()); err != nil {
-				t.Fatal(err)
-			}
 			if err := vk2.Join(t.Context(), vk3.Address()); err != nil {
 				t.Fatal(err)
 			}
