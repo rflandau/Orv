@@ -361,6 +361,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 }
 
 // serveLeave handles incoming LEAVE packets.
+// If the ID matches a known child, that child will be removed from the list of known children and all its services deregistered up the tree.
 func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	if reqHdr.Shorthand {
 		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
