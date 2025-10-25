@@ -45,6 +45,10 @@ Adding a timed waitgroup to vault keepers to ensure that all in-flights actually
 
 As it says in the title, gossip is implemented, but only supports a single hop. In other words, information learned via gossip will not propagate beyond the paired vks.
 
+## VKs cannot directly register services
+
+TODO: enable services to be registered directly at a VK, with or without heartbeats.
+
 # Contributing
 
 Orv Slims is a pretty run-of-the-mill Go project, just make sure you utilize [staticcheck](staticcheck.dev).
