@@ -98,6 +98,8 @@ func (vk *VaultKeeper) HeartbeatParent() error {
 // Returns a client.ErrInvalidAddrPort if parentAddr is invalid (or empty).
 //
 // respHdr and body will not be of type FAULT; FAULTs will be returned as an error per FormatFault.
+//
+// Acquires a structure read lock just long enough to cache the parent's address.
 func (vk *VaultKeeper) messageParent(typ pb.MessageType, payload proto.Message) (respHdr protocol.Header, respBody []byte, _ error) {
 	vk.structure.mu.RLock()
 	UDPParentAddr := net.UDPAddrFromAddrPort(vk.structure.parentAddr)
