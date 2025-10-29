@@ -229,6 +229,7 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 
 // pruneProvider iterates the list of services, removing the ID as a provider of each (if found).
 // If a service isn't found in the list of allServices it is skipped.
+// If the last provider of a service is pruned, the service is removed from the list of services and this VK's parent notified via DEREGISTER.
 //
 // ! Expects the caller to hold the child lock.
 func (vk *VaultKeeper) pruneProvider(services iter.Seq[string], childID slims.NodeID) {
@@ -242,6 +243,22 @@ func (vk *VaultKeeper) pruneProvider(services iter.Seq[string], childID slims.No
 		delete(vk.children.allServices[svc], childID)
 		if len(vk.children.allServices[svc]) == 0 {
 			delete(vk.children.allServices, svc)
+			// notify parent
+			if respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil || respHdr.Type == pb.MessageType_FAULT {
+				ev := vk.log.Warn().Uint64("last provider's cID", childID).Str("service", svc)
+				if err != nil {
+					ev = ev.Err(err)
+				} else { // fault returned, unpack the body
+					var f pb.Fault
+					if err := pbun.Unmarshal(respBody, &f); err != nil {
+						vk.log.Error().Err(err).Msg("failed to unpack fault message from sending a register to parent")
+						ev = ev.Str("errno", "UNKNOWN")
+					} else {
+						ev = ev.Str("errno", f.Errno.String())
+					}
+				}
+				ev.Msg("failed to deregister service")
+			}
 		}
 	}
 }
