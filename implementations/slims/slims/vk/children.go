@@ -13,6 +13,10 @@ import (
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 )
 
+// This file covers subroutines related to VKs managing their children.
+// It is important to note that propagating deregisters is typically (logically) tied to the act of removing a provider from allServices and finding that no providers remain.
+// pruneProvider is the primary mechanism for this process.
+
 // addCVK installs the given information into the cvk table, failing if the ID is already registered to a leave and refreshing the timer if it is for a previously-known cvk.
 // Acquires the children lock.
 func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf bool) {
