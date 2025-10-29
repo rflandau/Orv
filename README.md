@@ -2,271 +2,94 @@
 
 # Decentralized, Hierarchical, Self-Organizing, Service Discovery Trees
 
-Orv is an algorithm for building self-organizing, decentralized service discovery networks. Nodes join the network as either a leaf or a *vault keeper* (the latter routes messages and supports child nodes, the former does not) and both offer and request services to/from the tree (referred to as the *vault*). If the service is found, the tree returns the address serving it.
+Orv is an algorithm for building self-organizing, repairable, decentralized service discovery networks. The general idea is to allow machines to assemble themselves into resilient, fault-tolerant systems so they can request services from one another (and find new providers when an existing one disappears). 
 
-Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource, from DNS, NAT, tunnel endpoints to files available for download to sensor values like temperature or barometer.
+Orv does not actually interact with services, it just finds other nodes that purport to provide the service (by direct string-match). Services can be any form of resource: from DNS, NAT, or tunnel endpoints to downloadable files to sensor values like temperature or barometer.
+
+Nodes join the network as either a leaf or a *Vaultkeeper* (the latter routes messages and supports child nodes, the former does neither) and both offer and request services to/from the tree (referred to as the *vault*). If a provider for the requested service is found, the tree returns the address it can be accessed at.
+
+Here is one example of a vault:
 
 ![a diagram of an Orv vault](img/Orv.drawio.svg)
 
-## The Name 
+Orv is highly flexible with the above example being just one of a myriad of paradigms.
 
-Honestly, we never really landed on a name. Orv came about as a temporary solution so I could stop calling it just "The Algorithm".
-
-By the end, we narrowed the name down to Orv (**O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults) or Izanami. Pick your favorite.
+The name means **O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults. Or just "Orv". Or, Shrivyas' preferred name: "Izanami". Pick your favorite.
 
 ## Authorship
 
-Shrivyas (shrivyas@andrew.cmu.edu) & R Landau (rlandau@andrew.cmu.edu/rflandau@pm.me) <-- the guy writing this README
+Designed by Shrivyas (shrivyas@andrew.cmu.edu) & [R Landau](https://rflandau.carrd.co/).
 
-Shrivyas and I originated, designed, and prototyped Orv in two, very long weeks for Professor Patrick Tague's Distributed Systems course at Carnegie Mellon University as part of our masters program.
+We originated, designed, and prototyped Orv (through the [proof variant](implementations/proof)) in two, very long weeks for [Professor Patrick Tague](https://www.cmu.edu/ini/about/team/tague.html)'s Distributed Systems course at Carnegie Mellon University as part of our masters program. The original version is tagged [1.0.1](https://github.com/rflandau/Orv/releases/tag/v1.0.1), if you are interested in the form we turned in for the course.
+
+R (the guy writing this README and the designer of the [slims variant](implementations/slims)) is the current maintainer.
 
 # Terminology
 
-*Leaf* (better name pending): A single node that can request or provide service, but cannot support children, route messages, or otherwise contribute to the Vault.
+*Orv Variant*: While any design that follows Orv's algorithm can be considered "Orv", there are many tweaks that can be made to better suit Orv to a scenario; these tweaks/decision define a variant. Variants are assumed to **not** be cross-compatible. 
 
-*Vault Keeper*: The counterpart to a leaf, a vault keeper is any node that can request or provide services, route messages, and support the growth of the tree by enabling children to join. This could be a Raft group or a similar, replicated collection of machines. It could be a single server. It could be a whole data center. As long as it can service Orv requests atomically, it can be a vk.
+*Orv Implementation*: To further narrow the scope of a variant, an Orv Implementation is a specific library or program built to the spec of an Orv variant. Unlike variants, implementations of the same variant **are** typically assumed to be cross-compatible.
 
-*Vault*: A vault is any, complete instance of the algorithm. A single vault keeper with any number of leaves (included 0) is a vault. A tree with 4 layers and hundreds of leaves is a vault. Any tree that supports Orv semantics is a vault.
+*Leaf*: A single node that provides at least one service, but cannot support children, route messages, or otherwise contribute to the Vault.
 
-*Sub-Vault*: Any vault that is a child to another vault. When two vaults join and one ascends to root vault keeper, the other becomes a sub-vault. The sub-vault moniker can be used recursively down a branch.
+*Vaultkeeper*: The counterpart to a leaf, a Vaultkeeper (VK) is any node that can request or provide services, route messages, and support the growth of the vault by enabling children to join. This could be a Raft group or a similar, replicated collection of machines. It could be a single server. It could be a whole data center. As long as it can service Orv requests atomically, it can be a VK.
 
-# Core Design Goals
+*Vault*: A vault is any, complete instance of the algorithm as a tree. A single Vaultkeeper with any number of leaves (included 0) is a vault. A tree with 4 layers and hundreds of leaves is a vault. Any tree that supports Orv semantics is a vault.
 
-## Bubble-Up Paradigm
+*Sub-Vault*: Any vault that is a child to another vault (in traditional parlance: a branch). When two vaults join and one ascends to root Vaultkeeper, the other becomes a sub-vault. The "sub-vault" moniker can be used recursively down a branch.
 
-Vaults are designed to only ferry information *up* the tree (with [one, key exception](#the-exception)); a message should never need to walk down a branch. Heartbeats are driven by children; service registrations propagate leaf -> vk -> vk parent -> ... -> vk root; service requests are processed as locally as possible, only walking up the tree if the service is not offered by a lower node, and so on.
+# Using this Repo
+
+This repo contains two variants (Proof and Slims), each with an implementation. Each variant contains a README describing its goal, trade-offs, and how to use the implementation. Each implementation also includes a prototype client, prototype Vaultkeeper, and a Go library that can be imported by other application looking to leverage the variant.
+
+## Proof
+
+[Proof](implementations/proof) was the original prototype and proof of concept for Orv. It is implemented as a REST API. No further work is planned for it.
+
+## Slims
+
+[Slims](implementations/slims) is the second prototype. It is designed as an L5 (application layer) protocol. This variant explores compressing Orv for use in constrained environments as well as some more advanced features Proof did not reach. The implementation contains a library for interfacing directly with these headers. Slims is under active development.
+
+# Core Design
+
+Orv is first-and-foremost an algorithm. It can be tweaked, altered, and played with so that it better suits a particular problem space. This is both a bane and a boon:
+
+1) Two machines speaking two Orv variants likely cannot interoperate due to design differences (let alone implementation differences).
+
+2) As long as a machine or service can speak a specific Orv variant and version, implementations of the variant *should* be interoperable. Orv has no requirements or allegiances to hardware, software, environment, etc.
+
+That being said, there are some key design principles that permeate all variants (even if certain variants stick to them better than others).
+
+## Principle: Bubble-Up Paradigm
+
+Vaults are designed to only ferry information *up* the tree (with [one, key exception](#merging-vaults)); a message should never need to walk down a branch. Heartbeats are driven by children; service registrations propagate leaf -> VK -> VK parent -> ... -> VK root; service requests are processed as locally as possible, only walking up the tree if the service is not offered by a lower node, and so on.
+
+### Root Omnipotence
 
 The root of the tree is expected to know all services offered by the vault.
 
 > [!TIP]
-> Orv is highly flexible and could be tweaked to alter the traffic pattern (for example, by making the root contain less information and allowing some requests to travel down the vault). See [Other Designs](#other-design-decisions) below for more information.
+> While the bubble-up paradigm attempts to keep requests as local as possible, root omnipotence can result in a north-south traffic pattern. Orv's traffic pattern can be sculpted via [Rivering](#rivering).
 
-### The Exception
+## Principle: Lower Height == Lower Power
 
-Precisely one case sends information *down* a branch: [merging](#merging-root-root-joins).
+The lower you are in a vault, relative to the length of your branch, the lower your assumed availability/capacity/power. This is primarily to support IoT networks: we must assume that the leaves are low-powered and therefore should have minimal requirements. They cannot be assumed to be always listening, always accessible, or even terribly reliable.
 
-## IoT Support
+This assumption goes both ways: to support ultra-low-power leaves, we shift the assumption of power to their parents. Orv assumes its architecture follows the mist < fog < cloud model.
 
-A major design influence was the desire to support IoT networks effectively. This provides strong boundaries to design within and led to the bubble-up paradigm early.
+## Assumption: Cooperative Nodes
 
-A multi-level vault will naturally begin to resemble a distributed cloud architecture (mist < fog < cloud), with more data, responsibility, and power being found at the top.
+Like [Raft](https://raft.github.io/), we are assuming that all peers are cooperative. This causes some cognitive dissonance with it being decentralized, but life goes on.
 
+## Assumption: Extrinsic Discovery
 
-# Core Assumptions
+While we have mechanisms for handling joins, we do not have a mechanism for node discovery, but assume one is available.
 
-- Nodes are cooperative
-    - Like [Raft](https://raft.github.io/), we are assuming that all peers are cooperative. This causes some cognitive dissonance with it being decentralized, but life goes on.
-- Discovery is extrinsic
-    - While we have mechanisms for handling joins, we do not have a mechanism for node discovery, but assume one is available. See [below](#extrinsic-neighbournode-discovery) for the rationale.
-- Low-powered leaves
-    - As we want to support IoT networks, we must assume that the leaves are low-powered and therefore should have minimal requirements. They cannot be assumed to be always listening, always accessible, or even terribly reliable.
-- Powered vault keepers
-    - To support ultra-low-power leaves, we shift the assumption of power to their parents.
-    - This is closely related to the mist < fog < cloud architecture and follows from power requirements rising with a node's height in the tree.
-- Built on an existing layer 3
-    - IP for the prototype, but MPLS or any other kind of Layer 3 protocol would work fine.
-    - This requirement is for the corollary assumption that responses can be independently routed to the requester (and do not necessarily walk the tree on response). See [below](#layer-5-vs-layer-4) for a discussion on implementing Orv at different layers of the network stack.
-- Unique identifiers
-    - We assume each node can determine and utilize a unique identifier. This is a weighty assumption in a decentralized system.
-    - If we receive a request from ID X on the opposite end of the tree than we last saw ID X, we assume that node has left its original sub-vault and rejoined a new sub-vault in this same vault.
+### Built on an Existing Layer 3
 
-# The Protocol
+While there is plenty of flexibility to build Orv at different levels, the extrinsic discovery assumption implies the existing of a layer 3 for routing. Orv could be implemented at later 3, but more significant structure changes would be both required and likely beneficial. See [Removing Root Omnipotence](#removing-root-omnipotence-with-vk-hop-tables) below.
 
-Orv is, fundamentally, a protocol. As long as a machine or language can speak Orv, Orv will work with it.
-
-This section covers Orv's interaction models but if you just want to read about the packet types, take a look at their implementation in the [Go VaultKeeper prototype](pkg/orv/packets.go).
-
-> [!TIP]
-> Orv is implemented as a Layer 5 protocol (in the form of a HTTP API) in the prototype contained within this repo.
-> While some tweaks have been made to support the Client-Server nature of a REST API, it can still be considered a representative Orv implementation.
-> You can view the API specs and interact with them directly in your web browser by following the instructions [below](#api-docs).
-
-## Initiating and Joining a Vault
-
-> [!IMPORTANT]
-> Nodes only need to join a vault if they wish to aid it by offering a service and/or becoming a vault keeper.
-> Node who just wish to find services do not need to HELLO or JOIN and can skip right down to [Making Requests](#making-requests-of-a-vault).
-
-Nodes who wish to join the vault must first introduce themselves with `HELLO` messages that includes their unique id. This always returns a `HELLO_ACK` message from a vault keeper. If it does not, something has gone horribly wrong and you will be turned into a [newt](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjA3c3IxZzFpZnBhdzc1aW0xOG1pbjM0ZmZhYnJmYzlrdnVuZXo2NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/mpxQs0MCqWJKo/giphy.gif).
-
-You must then join the vault via a `JOIN` message that includes your unique id and current height. You will receive a `JOIN_ACCEPT` or a `JOIN_DENY` in response, with the former meaning you have been successfully incorporated as a child of the vault keeper you contacted.
-
-After a receiving a `JOIN_ACCEPT`, the new child node is obligated to register its services. A leaf child *must* register a service or it will be pruned and have to re-join. See [Registering A Service](#registering-a-service) below. A VK child should register its known services as if it was bubbling up a REGISTER; without this the parent may never learn of pre-existing services.
-
-```mermaid
-sequenceDiagram
-    Child->>VaultKeeper: HELLO{Id:123}
-    VaultKeeper->>Child: HELLO_ACK{Id:456, Height:3, Root:False}
-    Child->>VaultKeeper: JOIN{Id:123, Height:2, is-vk:False}
-    VaultKeeper->>+Child: JOIN_ACCEPT{Id:456}
-    Child->>VaultKeeper: REGISTER{<br>Id:123,<br>Service:"ServiceA",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
-    VaultKeeper->>+Child: REGISTER_ACCEPT{Id:456,<br>Service:"ServiceA"}
-```
-
-HELLO Form: `HELLO{id:123}`
-JOINs have two forms:
-- Leaf -> VK: `JOIN{id:123, is-vk:false}`
-- VK -> VK: `JOIN{id:123, is-vk:false, height:0, address: "111.111.111.111:9000"}`
-
-### Merging (Root-Root joins)
-
-When two root VKs meet, they can join vaults by performing a MERGE. The VK who requested the merge (sent the original MERGE) packet, becomes the root of the new, conjoined vault. Once a VK receives the MERGE_ACCEPT, it can safely assume that it has acquired root status. It then sends INCREMENT down to its original child VKs (not down the branch of the recently merged VK!), to notify them that that their heights have increased by one step. *This represents the only instance of messages being sent **down** a vault*. 
-
-Without a dragon's hoard (below), MERGEs are the only way for a VK (and thus, a vault) to increase its height.
-
-```mermaid
-sequenceDiagram
-    participant Children
-    participant Node
-    participant VaultKeeper as Root VaultKeeper
-    Node->>+VaultKeeper: HELLO{Id:123}
-    VaultKeeper->>-Node: HELLO_ACK{Id:456, Height:3, Root:True}
-    Node->>+VaultKeeper: MERGE{Id:123, Height:3}
-    VaultKeeper->>-Node: MERGE_ACCEPT{Id:456}
-    Node->>Node: increment height
-    Node-->>Children: INCREMENT{Id:123}
-```
-
-Form: `MERGE{id:123, height:2}`
-
-#### Dragon's Hoard (Tree-Seeding)
-
-As height adjustments only happen when root-root joins occur, small trees can rapidly accrue a lot of leaves. This increases the possibility of localized, cascading failure for overloaded vks.
-
-If you know that your tree will grow quickly (at least initially), you can start it "with a hoard".
-Rather than starting a vault by creating a vk with height 0, start the node with an arbitrary height, thus allowing the vk to subsume other vks without vying for root control.
-
-## Registering a Service
-
-For the vault to actually be useful, it needs to know about which services are available. This is done by nodes (leaves or cVKs) REGISTERing their services. To register a service, the node must a part of the vault and then send a REGISTER packet to its parent. Assuming the registration is accepted, the parent will propagate the REGISTER up the tree.
-
-When registering a service, the provider must provide an address for how to access the service (this register is incidental to Orv, which does no real validation of the service itself; it takes the child node at its word) as well as a "staleness" time for the service. If a parent does not receive a [service heartbeat](#service-heartbeats) for that service within the staleness time, the service will be pruned and must re-register when it comes back online.
-
-It is important to note that only the direct parent cares about staleness; as REGISTERs are propagated up the tree, staleness is dropped (lest every Vk try to heartbeat the same service). When a service fails to heartbeat, the parent will send a DEREGISTER up the tree to notify other VKs not to offer that service any longer.
-
-```mermaid
-sequenceDiagram
-    participant C as Child<br>(55)
-    participant VK as Root VaultKeeper<br>(7)
-    participant P as VaultKeeper's Parent<br>(12)
-    participant GP as ...<br>(176)
-    VK->>C: JOIN_ACCEPT{Id:7}
-    C->>+VK: REGISTER{<br>Id:55,<br>Service:"Web Server",<br>Address:"111.111.111.111:80",<br>Stale:"5s"}
-    VK->>-C: REGISTER_ACCEPT{Id:7,<br>Service:"Web Server"}
-    VK->>P: REGISTER{<br>Id:7,<br>Service:"Web Server"}
-    C->>+VK: REGISTER{<br>Id:55,<br>Service:"SSH",<br>Address:"111.111.111.111:22",<br>Stale:"15s"}
-    P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"Web Server"}
-    P->>GP: REGISTER{<br>Id:12,<br>Service:"Web Server",<br>Address:"111.111.111.111:80"}
-    GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"Web Server"}
-    VK->>-C: REGISTER_ACCEPT{Id:7,<br>Service:"SSH"}
-    VK->>P: REGISTER{<br>Id:7,<br>Service:"SSH",<br>Address:"111.111.111.111:22"}
-    P->>VK: REGISTER_ACCEPT{<br>Id:12,<br>Service:"SSH"}
-    P->>GP: REGISTER{<br>Id:12,<br>Service:"SSH",<br>Address:"111.111.111.111:22"}
-    GP->>P: REGISTER_ACCEPT{<br>Id:176,<br>Service:"SSH"}
-```
-
-REGISTERs have two forms:
-- Leaf -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080", stale:"3s"}`
-- VK -> VK: `REGISTER{id:123, service:"CA", address:"[FE80::abcd:1234]:8080"}`
-
-### Registering Multiple Services at Once
-
-The spec should *eventually* support registering multiple services in a single REGISTER packet. While not a huge deal for most leaves, which will have service counts in the single or double digits, JOINing/MERGEing large vaults triggers a REGISTER for every service known to the now-child-root and can have hundreds of service providers.
-
-To alleviate the bursty messaging of large-scale join, Orv should support REGISTERs that hold many services to reduce overall message count.
-
-## Heartbeats
-
-There are two kinds of heartbeats: service heartbeats and vault heartbeats. They are detailed below.
-
-All heartbeats also receive an acknowledgement which child nodes can leverage the lack of to consider their parent AWOL.
-
-### Service Heartbeats
-
-Service heartbeats are sent from a leaf to its parent to refresh the staleness of the included services.
-Service heartbeats may encapsulate any number of services offered by the leaf; the ACK packet includes a list of services that were refreshed (so a client can determine which services were pruned and thus need to be re-registered).
-
-Leaves have the discretion to send one heartbeat for all services or a separate heartbeat for each service or any combination therein.
-
-For example:
-- An IoT device probably has a single driver program that handles all "services" (thermistor, barometer, etc) and therefore wants to send a single heartbeat that refreshes the staleness of each.
-- A server probably has a number of different programs running independently (DNS, NAT, etc) and wants each to be able to refresh its staleness individually (per interface). If all services from a single leaf had to be updated together, a developer would need to write a helper service to group each existing service (which we should not ask of a developer).
-
-Form: `SERVICE_HEARTBEAT{id:123, services:[ServiceA, ServiceB, ...]}`
-
-### Vault Heartbeats
-
-Vault heartbeats are sent from a child VK to its parent to ensure the parent does not prune its branch. They are the same basic concept as service heartbeats, but failing to send one in time will cause the parent to drop the child VK and all services registered by it (assuming there are no other providers of the same services on different branches).
-
-Form: `VK_HEARTBEAT{id:123}`.
-
-## Deregistering a Service
-
-A service may disconnect gracefully by sending a DEREGISTER packet to its parent. DEREGISTER packets are also provoked by a service or cVK being pruned due to a lack of heartbeats.
-
-When a VK receives a DEREGISTER, it removes the child as a provider of the specified service. If the VK has no other providers of the service, it propagates the DEREGISTER up the vault.
-
-DEREGISTERs are idempotent and a DEREGISTER for a service not known to be provided by the named child can be safely ignored.
-
-Form: `DEREGISTER{id:123, service:briar}`
-
-## Making Requests of a Vault
-
-Utilizing the service discovery functionality of the vault is done by sending STATUS, GET, or LIST packets to any VK. These are considered "client" interactions and do not require the client to HELLO/JOIN/REGISTER (though nodes within a vault can certainly make requests of the vault, too).
-
-### STATUS Requests
-
-As it says on the tin: STATUS packets ask for the current status of the target VK. What exactly is returned as part of a STATUS_RESPONSE is up to the discretion of the servicing VK.
-
-STATUS requests are not propagated up the tree.
-
-Form: `STATUS{}`
-
-### LIST Requests
-
-LIST packets are used to get the the list of services known to a VK. This will include all services offered by the VK's direct children as well as services that have propagated up the tree via the VK's child VKs.
-
-Form: `LIST{hop-count:3}`.
-
-Hop count limits the maximum height this request can traverse and is decremented on receipt by a VK. Hops are also limited by the height of the tree; if the request hits root, it will return no matter the number of hops remaining. Send a hop count of 1 (or 0, though this should be considered bad practice) to query only your immediate parent.
-
-### GET Requests
-
-GET requests make a request of the vault for a particular service.
-
-The request returns to the client as soon as a VK identifies a provider of the service, returning empty if the request exceeded its hop count or made it all the way too root without finding a provider.
-
-Form: `GET{hop-count:3, service:"DNS"}`.
-
-#### Blacklisting
-
-To prevent clients from routinely being served the same content (for instance, if a service is heartbeating the vault, not is not properly handling clients), GET requests *should* support blacklisting addressing to force the vault to return a different provider, even if it requires going further up the vault.
-
-The included prototype does not support this, but a future version would need to to improve usability.
-
-## "Rivering" VaultKeepers
-
-For partition resiliency and load balancing, Orv could support a lateral connection between VKs of the same height. We call this functionality "rivering", as it creates a gossip stream between VKs *of the same height*.
-Rivered VKs are VKs that duplicate information across one another. This allows a vault to not splinter completely at the loss of the root and potentially reduces the hotspot that forms around root.
-
-> [!WARNING]
-> Only VKs of the same height can be rivered and a VK that merges and therefore increases its height must leave the river.
-
-![Paired VKs](img/pairedVKs.drawio.svg)
-
-Rivered VKs do not query each other like children do of their parents; instead, they gossip information back and forth and act as if information from a paired node is always up to date (we cannot allow querying as it could create cycles and count-to-infinite problems). Recurrent heartbeats keep pairs up to date with one another, allowing them to know about services offered by their pairs' children without querying their root.
-
-This function would also allow multiple trees to share services without merging, easing the cost of sending INCREMENTs down a heavily populated branch.
-
-> [!WARNING]
-> This idea should be further explored prior to implementation.
-> It must not be allowed to create cycles or generate confusion about the route to a service.
-
-# Other Design Decisions
-
-This section details design trade-offs we considered as part of developing Orv. Some sections provide supporting thought for our design choices; others consider valid, alternative approaches/ways to tweak Orv to suit different needs; and other still discuss functionality that we believe is important, but did not make the initial cut.
-
-## Extrinsic Neighbour/Node Discovery
+### Why
 
 Orv assumes that a mechanism exists for nodes to find each other, but makes no assumptions about the mechanism or the network that services it. This is because neighbour discovery is a problem well-explored in the networking world and solutions are highly dependent on the problem space.
 
@@ -278,23 +101,190 @@ Some examples:
 
 For us to assume anything about this discovery mechanism would be to make assumptions about the use-case of Orv and potentially bloat the protocol.
 
-## Layer 5 vs Layer 4
+## Assumption: Unique Identifiers
 
-The prototype included in this repo is designed as an application layer implementation (in the form of a REST API) because it is easier for us to develop in a short time span. However, the protocol would probably make more sense as a layer 4 built on some kind of reliable UDP (or CoAP, just something less expensive than TCP). Instead of hitting endpoints like /HELLO, /JOIN, etc you send HELLO and JOIN packets. This would also alleviate some of the prickliness of implementing an iterative messages (such as propagating requests up the vault) in a client-server paradigm.
+We assume each node can determine and utilize a unique identifier. This is a weighty assumption in a decentralized system.
 
-A layer 3 implementation of Orv would requires some changes to how VKs store information and answer requests; see the option for [VK hop tables](#vk-hop-tables-and-removing-root-omnipotence).
+# Getting Information Out of a Vault
 
-### Sequence Numbers
+The primary mechanism for actually *making use of* Orv is the tuple of client requests: Status, Get, and List.
 
-Orv would likely benefit from sequence numbers. However, coordinating sequence numbers within a node will take some fine-grain efforts as we cannot assume that a single child has a single sequence number. If we did, multiple services on that child would have to coordinate the seqNum, which is unacceptable.
+In order to query information (for the sake of finding a service or for learning information about a vault), a client makes one of the following requests against any Vaultkeeper. There is no need to join the vault or otherwise register itself. Any node may make requests, including nodes that are part of the tree!
 
-For the prototype, we are omitting seqNums. This is aided by the fact that the prototype uses HTTP over TCP. This assumption would not hold if implemented at Layer 4 or in other network stacks.
+How requests move around the tree is variant-dependent. See [Client Request Propagation](#client-request-propagation) for details.
 
-### Versioning via HELLOs
+>[!IMPORTANT]
+> 1) Any machine with access to a Vaultkeeper may make requests of a vault, including those not a part of the vault. Variants may change this to enable rate limiting and/or incentivize assisting the vault, but the basic assumption is that any machine may make requests.
+> 2) Requests can be made against any *Vaultkeeper*!
 
-To ensure compatibility, HELLOs should be altered to send the highest supported Orv version, allowing nodes to agree on which version to use (a la OpenFlow).
+## Status Requests
 
-## VK Hop Tables and Removing Root Omnipotence
+Status requests do as they it says on the tin: they return the status of the receiving Vaultkeeper.
+The specific information returned is implementation-dependent; id, height, and versions are typically the bare minimum.
+
+Whether or not status requests can propagate up the vault (to return information about a different VK than the first hop) is variant-dependent.
+
+## Get Requests
+
+Get requests are the primary mechanism for finding a desired service using Orv.
+
+When a client makes a get request against a VK, that request bubbles up the tree until it reaches a VK that can knows how to access the requested service (or another limited factor occurs such as reaching root without finding the service or exhausting the request's hop limit). An answer is then sent back to the client, containing information on how to reach that service (or that there are no known services that satisfy the request).
+
+## List Request
+
+List requests are non-specific get requests: the VK that answer a list request returns a list of all known services. This can assist clients in identifying services to make get requests for.
+
+# Participating in or Constructing a Vault
+
+For the vault to grow and be useful, nodes must actually join it. As noted [above](#terminology), vaults consist of two kinds of nodes:
+- Leaves: nodes that provide information about services they offer.
+and
+- Vaultkeepers: nodes that route information, answer client requests, and otherwise maintain the vault. Vaultkeepers are also capable of providing information about services in the way leaves do.
+
+## Joining a Vault
+
+> [!TIP]
+> A vault can be a single Vaultkeeper, meaning that there is no special procedure for starting a new vault; a node simple declares that it is a VK and thus becomes the root of its vault. 
+
+Both kinds of nodes join the vault in the same way. First, a prospective child must send a hello message to its would-be parent and follow it up with a join request. Assuming this request is accepted, the node may consider itself part of the vault and update its parent information accordingly.
+
+```mermaid
+sequenceDiagram
+    Child->>Vaultkeeper: hello
+    Vaultkeeper->>Child: ack hello
+    Child->>Vaultkeeper: join
+    Vaultkeeper->>Child: accept join
+```
+
+In the join message, the child must indicate whether it is a leaf or a VK; this alters its handling at the parent.
+
+**VKs may only join as child of a VK with a height equal to their's +1.** It should *never* be the case that a child's height is *not* parent's height-1. If two nodes with the same height attempt to join, they should instead consider [merging](#merging-vaults).
+
+## Registering a Service
+
+After joining a vault, the child will typically want to register a service. If the child is a leaf, variants will typically *require* it to register at least once service lest it be pruned out.
+
+```mermaid
+sequenceDiagram
+    Child<<->>Vaultkeeper: ...
+    Vaultkeeper->>Child: accept join
+    Child->>Vaultkeeper: register:<br>Service:"xxx"<br>Address:"yyy"
+    Vaultkeeper->>Child: accept register
+```
+
+A service is registered by its identifier (ex: "RDP") and typically includes the address it can be reached at as well as a "stale time". The stale time enables services to declare their grace period between heartbeats, allowing always-on services and lazy services to coexist in a vault.
+
+## Merging Vaults
+
+ NYI
+
+(Merging Vaults is under active investigation in the slims variant)
+
+## Heartbeating
+
+Heartbeats are the sole mechanism for determining liveliness and always flow *up* a vault.
+
+There are two kinds of heartbeats: VK heartbeats and service heartbeats.
+
+### VK Heartbeats
+
+Vaultkeeper heartbeats are used by child VKs to alert their parent that they are still alive and viable. These must be sent more frequently than a "prune time" defined on the parent. If a heartbeat for a given child is not received with the prune duration, then the parent may prune it from its tables and require the child VK to go through the HELLO-JOIN handshake once more.
+
+When a VK is pruned, it is removed as a provider of each service formerly registered to it. If these services no longer have any providers, they are removed from the parent's tables entirely.
+
+VK heartbeats are considered a replacement for service heartbeats; if a VK is still alive and has not deregistered a service, it is typically safe to assume the service is still alive.
+
+### Service Heartbeats
+
+Service heartbeats are used by leaves to indicate that a service it offers is still alive. Every service listed in the service heartbeat message has its stale timer refreshed.
+
+If a service does not receive a heartbeat within its stated stale time, it is eligible to be pruned.
+
+A leaf with no services registered becomes eligible to be pruned after a short delay.
+
+# Optional Features
+
+## Rivering
+
+Trees are brittle. Vaults are glorified trees. Therefore, vaults are brittle. While this is not a major issue given Orv was designed with lossy networks and consumer-grade hardware in mind, some redundancy is better than no redundancy.
+To that end, "rivers" can be created between nodes to duplicate and share information outside of the standard parent-child hierarchy. Rivered VKs exchange heartbeats with one another containing the list of services they offer and how to reach that service. These rivers can serve several purposes, sometimes simultaneously.
+
+1) Load Balancing: rivers between siblings (and between cousins) can save requests from having to hop to parent (or several parents, in the case of cousins). Spatial locality like this reduces the load on higher-level nodes.
+2) Resiliency: intra-vault rivers duplicate information to other parts in the tree, enabling requests to continue to be handled even as parent nodes falter. For example, a river between siblings (on top of load balancing) enables them to continue to exchange service information after the death of their parent.
+3) Service Breadth: inter-vault rivers increase the scope of services offered without requiring joins or merges. A root-root river maintains the independence of each vault while providing each vault with all the services of the paired vault. However, inter-vault rivers do not improve resiliency and can cause [strange traffic patterns](#river-basins-and-the-fickle-nature-of-gossip).
+
+Unlike the carefully-matched heights in joins and merges, rivers can be formed between almost any two nodes, including nodes in entirely different trees. *The only river that is expressly disallowed is between parent and child*, as this is 1) pointless and 2) prone to cycles. Do note, however, that rivers require hop limits to avoid cycles and can only be guaranteed to be cycle free with a hop limit of 2 or fewer.
+
+### River Basins and The Fickle Nature of Gossip
+
+Rivers between two vaults where at least one peer is not root can cause ["basins"](https://en.wikipedia.org/wiki/Endorheic_basin) to form. The presence of basins can make requests seem fickle, where requests against one branch of a vault will return many services while requests against another branch will turn up very little.
+
+Basins are a by-product of the limitations of rivering. Specifically, basins can form at non-root peers and are due to the rule that gossip cannot travel up the tree like normal service registration does.
+
+Consider the following diagram of two vaults with a gossip stream between the root of vault A and VK BC3:
+
+![alt text](img/Gossip_basin.drawio.svg)
+
+Requests made against any VK in vault A (given a high enough hop count) will have access to the information learned from VK BC3.
+Requests made against VK BC3 will have access to all information in vault A and all information in vault B! Great!
+However, requests made against any other VK in vault B will see only the services available in vault B. While this is not negative (clients have guaranteed access to services in vault B, as normal), it could create confusion or the impression of unreliable services given the root is typically considered to be omnipotent about its own vault.
+
+## Blacklisting
+
+Due to services setting their own stale times, it is possible for a client to request a service, receive the address of the service, find the service dead, request again, and receive the same address. To alleviate scenarios like this (or reduce the impact of badly behaving services/providers), variants may allow addresses (or any piece of information available about a service, such as tags or last-heartbeat-time) to be blacklisted in the request.
+As it sounds, the tree will ignore services that match the blacklist but otherwise process the request normally.
+
+# Topic Grab Bag
+
+This section contains miscellany. Anything else Shrivyas and I discuss or explored, from consequences of design to heavy modifications to the above logic, goes here.
+
+## Client Request Propagation
+
+As stated above, how client requests move around the tree is variant-dependent. Each method has pros and cons and there are certainly other methods not discussed here.
+
+*For each method below, assume the request is valid; invalid requests would likely be dropped or faulted by the original receiver.*
+
+## Models
+
+### Recursive
+
+![diagram of how recursive requests work](img/client_requests_types-recursive.drawio.svg)
+
+When a VK receives a request that it cannot complete, it forwards the request to its parent and awaits a reply. This continues until: the request hits root, a VK *can* service the request, or the request runs out of hops. The response then travels back down the vault until it can be returned to the client.
+
+Proof implements recursive requests.
+
+### Hand-off
+
+![diagram of how hand-off requests work](img/client_requests_types-handoff.drawio.svg)
+
+When a VK receives a request that it cannot complete, it passes the request to its parent in the same way recursive does. Unlike recursive, however, the VK that passed off the request forgets about the request, only (optionally) awaiting an ACK. When the request find a VK that can answer it (or runs out of VKs to forward to), the final VK responds to the client directly.
+
+Slim implements hand-off requests.
+
+### Iterative
+
+![diagram of how iterative requests work](img/client_requests_types-iterative.drawio.svg)
+
+Iterative request handling draws inspiration (id est: shamelessly copies) from iterative DNS querying. When a VK receives a request that it cannot complete, it replies with the address of its parent. The client then asks the parent VK, continuing up the vault until it gets an answer or hits root.
+
+## Comparison
+
+Development-wise, iterative and recursive are the most straightforward. Iterative models place more emphasis on the 
+
+The hand-off approach reduces the strain on VKs, but introduces a number of additional complexities. First, it will be arduous to implement in a client-server paradigm on a connection-oriented protocol like TCP. So probably don't do that; this makes more sense with an L4 Orv. Second, it requires the client spin up a listener to watch for the response packet(s) from *any host*, which brings its own set of challenges. Finally, it requires the introduction of ACK packets for each request type so parent VKs can confirm the hand-off. 
+
+## Sequence Numbers Or Idempotence
+
+In order to support best-effort protocols like UDP (and prevent replay attacks (not that security is currently a focus of Orv's development)), Orv requires a methodology for handing duplicates. Functionally, this means Orv must have a mechanism for sequencing requests (aka sequence numbers) *or* a tolerance for duplicates (aka idempotent message handling).
+
+Slims follows the idempotence technique, enabling it to forgo sequence numbers. Proof also follows this technique, but is less strict (and thus, more prone to undefined behavior at the edge).
+
+How to coordinate sequence number within a node (let alone the full vault) is still an unknown.
+
+If a variant uses exactly-once semantics, this topic is irrelevant. Godspeed.
+
+## Removing Root Omnipotence with VK Hop Tables
 
 Our original design did not include VKs knowing the service addresses of grandchild and lower leaves; they only knew the next hop for a given service.
 
@@ -309,19 +299,16 @@ flowchart BT
 
 A knows how to access Service A directly and can respond to requests with LeafA's service address. In our current model, A would also know the address to Service B, so a request that reaches root can respond immediately. Our original design did not support this and, per the diagram, A would need to route a request for Service B down to B, which would know the service's actual address.
 
-This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered VaultKeepers](#rivering-vaultkeepers).
+This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered Vaultjeepers](#rivering-vaultkeepers).
 
-## Recursive Requests or Hand-Off Requests
+## Decrementing Height
 
-For the sake of simplicity (on both the client side and the VaultKeeper side), client requests are handled recursively in Orv. When a VK receives a request that it cannot complete (assume all other factors are valid, such as hop count > 2), it passes the request to its parent. This continues until the request hits root, a VK *can* service the request, or the request runs out of hops. The response travels back down the vault until it can be returned to the client.
+Orv has no mechanism for decrementing the height of a VK. Full support for decrementing branches would add another exceptional case (like INCREMENT) which we are trying to avoid and make keeping operations idempotent that much harder.
+As VK's know their height *but not their depth* (they know the height they operate at, but do not if there are actually children at each height beyond their immediate children), a VK could not safely decrement because it has no idea if it has children with a height of zero.
 
-This is how requests are handled in the included [prototype](#the-prototype).
+Due to only increasing height on merge, Orv *should* (*should* is bearing quite a bit of weight) naturally thin the number of VKs at each height, making hitting the maximum height quite rare.
 
-However, this is not particularly efficient and runs somewhat counter to the bubble-up paradigm. Another idea we discussed was allowing VKs to "hand-off" requests to their parent. When a request (ex: GET) hits a VK and still has more hops it can take (meaning the VK is unable to service the request directly, hop count >2, and the VK != root), the VK passes it to its parent and forgets about it. Once the request has reached its final destination, the final VK responds directly to the client.
-
-The hand-off approach reduces the strain on VKs, but introduces a number of additional complexities. First, it will be arduous to implement in a client-server paradigm on a connection-oriented protocol like TCP. So probably don't do that; this makes more sense with an L4 Orv. Second, it requires the client spin up a listener to watch for LIST_RESPONSE packets from *any host*, which brings its own set of challenges. Finally, it requires the introduction of ACK packets for each request type so parent VKs can confirm the hand-off. 
-
-Here is an example LIST request using the hand-off method: client -|LIST|-> VK, client <-|LIST_ACK|- VK, VK -|LIST|-> parentVK, VK <-|LIST_ACK|- parentVK, ..., VKi -|LIST|-> VKn, VKi <-|LIST_ACK|- VKn, VKn -|LIST_RESPONSE|-> client.
+For very long-running and/or truly decentralized vaults, it may be worthwhile to introduce a mechanism by which VKs can decrement their height. To spitball a solution: if a VK is solo (no children, no parent) for a pre-defined duration, it can reset its height to zero (or the original height of its horde, if given one). When a VK encounters a tree it wishes to join, it will naturally attempt to join at its height (zero). Should it be unable to join at that height (likely because the VKs at height 1 are at their child limits), it may increment its own height and try again. This enables VKs operating autonomously to place themselves within trees without restricting the trees to their with availability at the height the VK previously grew to.
 
 ## Depth-less Hierarchy and Cycles
 
@@ -331,7 +318,7 @@ There is a valid design in there somewhere, where the restriction of height numb
 
 ## Depth Versus Height
 
-A key trade-off was whether we measure a node's depth (its distance from the root) or we measure a node's height (its distance from the lowest vk in the vault). We decided to go with height, as it means that network partitions do not cause broadcast storms. When a parent is lost, its children become disconnect, but their heights do not change and the children's children are wholly unaffected.
+A key trade-off was whether we measure a node's depth (its distance from the root) or we measure a node's height (its distance from the lowest VK in the vault). We decided to go with height, as it means that network partitions do not cause broadcast storms. When a parent is lost, its children become disconnect, but their heights do not change and the children's children are wholly unaffected.
 Using depth would require nodes to echo down the tree to notify their children of their newly decremented depth.
 
 ### Asking To Increase The Height on VK Join
@@ -342,7 +329,50 @@ The current design disallows this due to the cost of echoing an INCREMENT down t
 
 #### Lazy Depth/Height Knowledge
 
-Another approach would be to force vks to request up the tree when a vk wants to join it. This would allow the root to approve new height changes and allow vk's lazily learn about their actual height. This shifts the burden around a bit, potentially increasing the already-likely hotspot on root. However, this method could support depth *or* height and increase the rate at which children learn about changes to their ancestry.
+Another approach would be to force VKs to request up the tree when a VK wants to join it. This would allow the root to approve new height changes and allow VK's lazily learn about their actual height. This shifts the burden around a bit, potentially increasing the already-likely hotspot on root. However, this method could support depth *or* height and increase the rate at which children learn about changes to their ancestry.
+
+## Multi-hop Gossip
+
+Enabling gossip to propagate through rivers beyond two hops (s.t. gossip from A could reach D via B & C (A <-> B <-> C <-> D)) improves knowledge within the river and thus further increases vault resiliency. However, this does not gel with the fact that node knowledge is spatially limited to a single hop, both in terms of river peers *and* parent/child relations (id est: a VK knows its parent, immediate children, and its river peers, but does not know its grandchildren, grandparent, or the river peers of its peers). Specifically, the issue comes from gossip recirculation: because rivers can have cycles, gossip that hops through the river can return to its source without the source being able to identify that the information was originally its own.
+
+Consider this perfectly valid (multi-hop) river: A <-> B <-> C <-> A.
+If gossip can propagate more than two hops, A can reach A. If A offers service X, this information will travel to B, then C, and finally back to A. A will not be able to identify that the source of service X was itself. It can see an identical record, but cannot confirm that it is, in fact, the same record as opposed to a different instance that happens to have the same information. Should service X expire on A, A will remove it from its known services, but continue to propagate the gossip version.
+
+### Potential Solutions
+
+#### Hop Limits
+
+As mentioned in the above section on [rivering](#rivering), the most straightforward solution is to limit hops. If limited to at most 2, we guarantee that no cycles can form.
+
+As long as a hop limit exists, cycles are acceptable; the hop limit guarantees that information *will* be taken out of circulation eventually. The higher the hop limit, the longer stale information can exist in the system (remember: no node beyond the originator can tell if information received via gossip is valid).
+
+#### Source Field
+
+Gossip could include a source field, enabling a node to not unduly propagate its own services.
+
+This comes with substantial limitations, most notably that stale information may continue to propagate forever if the cycle does not include the source.
+
+To similar effect, an implementation could hash the record and use that as a unique identifier as long as the hash includes a timestamp. Hashing just the address will have the same problem noted above (identical addresses but referring to different service instances).
+
+If anything, including source information could be tacked onto hop limits; it cannot stand on its own.
+
+## Processing Differentials in Rivers
+
+Rivering is a parallel system; Vaultkeepers that choose to support it are taking on an additional processing burden. Each pairing creates two new, recurrent heartbeats (one incoming, one outgoing). In a constrained environment, this may be prohibitive. 
+
+Vaultkeepers that choose to gossip should consider the height or service count of their peers as they are likely (but not guaranteed!) to have similar processing capabilities and therefore less likely to overwhelm their peer. For example, rivering two nodes with a height of 1 or 2 is likely safer than rivering a root Vaultkeeper and a height 0 Vaultkeeper.
+
+Do note, however, that gossip heartbeats have the possibility to dramatically increase in packet size (and thus, cycle and memory consumption) at a moment's notice. Without additional guardrails baked into the river peer to prevent a load of services being registered within a short time frame, there is nothing to stabilize the packet size this peer would send to the VK in question.
+
+## Rivers and Height Changes
+
+While the original design of Orv's rivers demanded they be dissolved when a paired node updates its height (likely by [merging](#merging-vaults)), that no longer seems mandatory. It is likely good practice as it will reduce the risks discussed [above](#processing-differentials-in-rivers).
+
+The only real requirement remains that rivers may not form between a parent and its children. As long as this remains false, it is theoretically possibly for rivers to survive merges.
+
+## Service Groups
+
+Though we have yet to explore it thoroughly, vaults could be classed into categories or associated with sets of tags to form groupings. This would facilitate better client-request targeting (to reduce the likelihood of ferrying a client request all the way to root only to return nothing) and simplify segregated scenarios like multi-tenant hosting platforms. Scope-wise, groups could be used at gossip-level to ensure rivers only form between tightly related nodes for better redundancy and robustness (at the cost of breadth) given the cost of rivering or at vault-level to improve vault cohesion.
 
 ## Token buckets, request fairness, and supernodes
 
@@ -350,84 +380,16 @@ While not an avenue we explored much, Orv could be tweaked to encourage request 
 
 This, of course, hinges on the assumption that nodes can be uniquely identified and reliably authenticated, lest a leecher be able to masquerade as a supernode.
 
+## Version Coordination
+
+As variants grow, they will inevitably be segmented into versions. Versioned, distributed software requires some kind of handshake to ensure all parties speak the same version. While not currently implemented in slims (or proof, of course), version negotiation can piggyback the hello handshake Orv requires and/or take inspiration from OpenFlow's version handshake.
+
+At the very least, VKs will need to include their variant so nodes running different variant can immediately end the interaction.
+
 ## A Note On Security
 
 One of our core assumptions is cooperation. This, of course, is wholly unrealistic. Modifying Orv to be resilient to byzantine fault would be another project entirely. As Orv is designed to be decentralized, it has both the boons of decentralization (reliance only on yourself (as a VK) or your parent) and the banes (no sense of global state, easy for bad actors to join and gain power).
 
-## PKI Use-Case
-
-A more unique use-case we wanted to draw attention to is the ability of Orv to act as a second source of truth for public key distribution. Orv could be tweaked to pass around public keys, providing a second source of possible "truth" against MitM attacks. When a service joins, it provides its public key. This public key is distributed around the vault in the same way the service registration propagates. When a client requests a service, the service's public key is provided as well. Clients could query multiple nodes to check that they are providing the same public key.
-
-When the client initiates contact with the fetched service, it now validate that the public key the service provides matches the public keys provided by Orv. These keys can be self-signed for fully decentralized or rely on a PKI if Orv is used internally or by the controlling interest.
-
-# The Prototype 
-
-To test and showcase the protocol, this repo comes with a [VaultKeeper library](pkg/orv/orv.go), an implementation of the [same](vk/main.go), a [leaf implementation](leaf/main.py), and simple implementations of [client requests](pkg/orv/requests.go).
-
-As noted [above](#layer-5-vs-layer-4-vs-layer-3), the prototypes included herein are implemented via a REST API. Not how we envision a production-level implementation, but it is... you know... a prototype. ¯\\_(ツ)_/¯
-
-## The VaultKeeper Library
-
-The meat of the prototype is the `orv` package and its VaultKeeper struct. This struct is a multithreaded, self-managing implementation of a VK. It contains the aforementioned HTTP server for processing packets, [packets.go](pkg/orv/packets.go) for declaring and describing packet types, a series of [tests](pkg/orv/orv_test.go) to ensure it meets the basic spec, and an internal [service](pkg/orv/children.go) for managing the VK's children.
-
-From a design standpoint, the VK class is not insignificant. While performance was not our goal, a protocol of this kind requires at least a baseline level of parallelism. As such, the class is a strange amalgamation of mutexes, self-destructing data (driven by `*time.Timers`), a pruner service for cleaning up what cannot self-destruct, and a heartbeater service so a VK can automatically track its parent. VKs are spun up via `NewVaultKeeper()` and can be driven in code by the exported subroutines. After `.Start()` is called, the VK's HTTP server is available for processing requests from external entities. Remember to kill the VK with `.Terminate()` when you are done.
-
-> [!WARNING]
-> The VK prototype is missing QoL features and few considerations have been made for efficiency. The bread and butter of the Orv package (the VaultKeeper struct) is not overly configurable and uses coarse-grained locks.
-> It should be considered a proof of concept and *nothing more*.
-
-### API Docs
-
-API docs can be accessed by running the server application (currently just `go run vk/main.go`) and then going to [http://localhost:8080/docs](http://localhost:8080/docs) (or whatever address and port your server is bound to). This API documentation is beautifully generated for us by Huma.
-
-### Notable Omissions
-
-As mentioned above, the prototype is just that: *a prototype*. The VaultKeeper proves Orv's viability, but no more. As such, some features are missing.
-
-- VaultKeeper-Local Services: The library does not support services local to a VK. Part of Orv's intention is allow services to register directly with a VKs on the same host so the VK becomes responsible for its heartbeats. Without this functionality, services must be registered under leaves.
-- [Root-Root Merging](#merging-root-root-joins): The VaultKeeper library does not include handling for the MERGE packet (and has no /merge endpoint to accept them). This means that vaults of equal height cannot join and vaults cannot increase their height after creation. As INCREMENTEMENT packets are only triggered by MERGE, they have also been omitted. We grant that this is a substantial feature to be wholly absent, but believe that the prototype proves Orv's viability nonetheless.
-- [Rivering](#rivering-vaultkeepers): Allowing VKs to pair laterally was a late-stage design decision and thus did not make the cut for inclusion in the prototype. We also believe that rivering is a 'nice-to-have' and not critical to the usefulness of Orv.
-- [Blacklisting](#blacklisting): While allowing clients to blacklist providers was always a part of Orv's design, client requests operate just fine without it. Thus we omitted it from the prototype so we could focus on more critical aspects.
-- [Deregistering](#deregistering-a-service): The VaultKeeper library does not support DEREGISTER packets and services can only be un-learned by being pruned (due to a lack of heartbeats).
-
-## The VaultKeeper Implementation
-
-The implementation in [vk/main.go](vk/main.go) is really just an invocation of the library and showcases how simple it is for users to incorporate Orv into their existing Go code.
-
-## The Leaf Implementation
-
-To show that Orv is language agnostic, Shrivyas wrote up a [simple Python script](leaf/main.py) that connects to a VK as a leaf and registers a single service. Again, as long as a device or program can speak Orv, it can join a vault.
-
-## Request Functions
-
-The Orv package includes functions in `requests.go` to perform requests on your behalf. These are requests that can be run without joining the vault and are intended to be directly incorporated into user libraries.
-
-## Making and Running The Prototype
-
-Being a Go project, it should manage all of its own dependencies.
-
-Each test contains a comment describing what it is testing and how, available in [orv_test.go](pkg/orv/orv_test.go).
-
-To build the example VaultKeeper, use `make build`.
-
-To run the testing code, use `make test` or `make test-race` (the latter tests with Go's race condition checker enabled).
-
-## Resources Used
-
-### Libraries
-
-Logging is serviced by [Zerolog](github.com/rs/zerolog).
-
-Our API endpoints are handled by [Huma](https://huma.rocks/). *NOTE:* We ran into some issues with humatest and are not relying it for the testing infrastructure.
-
-Requests (both within a VK and from the client side) as well as API requests made in tests are built on top of [Resty](https://resty.dev/).
-
-### Attribution
+# Attribution
 
 The Orv logo was created in [Photopea](https://www.photopea.com/) and uses the vault icon by [juicy_fish on Flaticon](https://www.flaticon.com/free-icons/vault).
-
-# Special Thanks
-
-- Professors Patrick Tague and Pedro Bustamante, for all of your assistance, advice, support, and just general pleasantness to be around.
-- My cats: Bee (the pretty tortie) and Coconut (the idiot stuck under a drawer), the rubber duck stand-ins
-![the babies](img/idiot_under_a_drawer.jpeg)

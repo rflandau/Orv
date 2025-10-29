@@ -1,4 +1,4 @@
-package orv
+package proof
 
 /*
 Details the packet types Orv uses and provides enumerated constants for them.

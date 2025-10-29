@@ -1,0 +1,243 @@
+syntax = "proto3";
+
+package orv;
+
+import "slims/pb/message_types.proto";
+
+option go_package = "github.com/rflandau/Orv/implementations/slims/orv/pb/";
+
+// generate with:
+// protoc --go_out=. --go_opt=paths=source_relative orv/pb/payloads.proto
+
+// Type #1
+// Negative response to any packet.
+message Fault {
+  // uint16 | echos the type number of the original packet
+  msg.MessageType original = 1;
+
+  enum Errnos {
+    // implementation-specific error, the equivalent of a 500 Internal
+    // Server Error. Should be used as sparingly as possible.
+    UNSPECIFIED = 0;
+    UNKNOWN_TYPE = 1; // sent when an unknown message type number is declared.
+    BODY_NOT_ACCEPTED = 2;
+    BODY_REQUIRED = 3;
+    SHORTHAND_NOT_ACCEPTED = 4;
+    VERSION_NOT_SUPPORTED = 5;
+    MALFORMED_BODY = 6;
+    MALFORMED_ADDRESS = 7;
+    UNKNOWN_CHILD_ID = 8;
+    BAD_TOKEN = 9;
+
+    // JOIN
+
+    HELLO_REQUIRED = 400;
+    BAD_HEIGHT = 401;
+    ID_IN_USE = 402;
+
+    // REGISTER
+
+    BAD_SERVICE_NAME = 600;
+    BAD_STALE_TIME = 601;
+
+    // DEREGISTER
+    UNKNOWN_SERVICE_ID = 800;
+
+    // SERVICE_HEARTBEAT
+    ALL_UNKNOWN = 1400;
+  }
+
+  // uint16 | the type of error, for automated testing.
+  // should be one of the above enums
+  Errnos errno = 2;
+  optional string additional_info = 3; // (OPTIONAL)
+}
+
+// Type #2
+// Initial greeting.
+// Requiring prior to other, non-client-request packet chains.
+message Hello {}
+
+// Type #3
+// Response to a HELLO request.
+message HelloAck {
+  uint32 height = 1; // uint16
+}
+
+// Type #4
+// Requesting to join a vault.
+message Join {
+  // is the node requesting to join the vault a VK?
+  bool is_vk = 1;
+  // required iff isVK | address at which the VK can receive requests/INCREMENTs
+  string vk_addr = 2;
+  // uint16 | required iff isVK | height of the requestor node
+  uint32 height = 3;
+}
+
+// Type #5
+// VK accepting the requestor to join underneath it.
+// Once received, requestor can safely mark the VK as its parent.
+message JoinAccept {
+  // uint16 | height of the accepting vk
+  uint32 height = 1;
+}
+
+// Type #6
+// Sent by children to register a service to their parent.
+message Register {
+  string service = 1; // name of the service to be registered
+  string address = 2; // the address at which the service can be accessed
+  // Go time string declaring how long
+  // (w/o a heartbeat) until this service is considered prune-able
+  string stale = 3;
+}
+
+// Type #7
+message RegisterAccept {
+  // name of the service that was registered
+  string service = 1;
+}
+
+// Type #8
+// Sent by a node to indicate that a service it offered is no longer available and should be delisted.
+message Deregister {
+  string service = 1;
+}
+
+// Type #9
+// Sent by VKs in response to a node's DEREGISTER to confirm that the node has been delisted as a provider of the named service.
+message DeregisterAck{
+  string service = 1;
+}
+
+// Type #10
+message Merge {
+  // unknown payload
+}
+
+// Type #11
+message MergeAccept {
+  // unknown payload
+}
+
+// Type #12
+message Increment {
+  uint32 new_height = 1;
+}
+
+// Type #13
+message IncrementAck {
+  uint32 new_height = 1;
+}
+
+// Type #14
+message ServiceHeartbeat {
+  // name of the service that was registered
+  repeated string services = 1;
+}
+
+// Type #15
+message ServiceHeartbeatAck {
+  // name of the services that were refreshed
+  repeated string refresheds = 1;
+  // name of services that were requested to be refreshed, but are unknown
+  repeated string unknowns = 2;
+}
+
+// Type #16
+message VKHeartbeat {
+  // no payload
+}
+
+// Type #17
+message VKHeartbeatAck {
+  // no payload
+}
+
+//#region client requests
+
+// Type #18
+message Status {
+  // no payload
+}
+
+// Type #19
+// Response to a STATUS request.
+// Closely resembles a VKSnapshot.
+message StatusResp {
+  uint64 id = 1;
+  string addr = 2;
+  // packed bytes; MSN is major, LSN is minor
+  bytes versions_supported = 4;
+  uint32 height = 5; // uint16
+  optional uint64 parent_id = 6;
+  optional string parent_addr = 7;
+  // Go time for pruning hellos that are not followed up on
+  optional string prune_times_hello = 8;
+  optional string prune_times_serviceless_leaf = 9;
+  optional string prune_times_child_vk = 10;
+  map<uint64, string> child_vks = 11; // nodeID -> address
+  repeated uint64 child_leaves = 12; // nodeID
+  map<string, uint32> services = 13; // service -> provider count
+  optional bool auto_hb_enabled = 14; // does this vk have an autoheartbeater running?
+  optional string auto_hb_frequency = 15; // Go time
+  optional uint32 auto_hb_bad_limit = 16;
+}
+
+// Type #20
+message List {
+  string token = 1;
+  // uint16 | number of nodes to traverse (limited by root height)
+  uint32 hop_count = 2;
+  string response_addr = 3;
+}
+
+// Type #21
+message ListAck {
+  string token = 1;
+}
+
+// Type #22
+// Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+message ListResp {
+  string token = 1;
+  // list of services known to the responding vk
+  repeated string services = 2;
+}
+
+// Type #23
+message Get {
+  string token = 1; // identifier created by the requestor so it can correlate a valid response
+  // uint16 | maximum number of nodes to traverse before giving up (limited by root height)
+  uint32 hop_limit = 2;
+  string response_addr = 3;
+  string service = 4; // the name of the desired service
+}
+
+// Type #24
+message GetAck {
+  string token = 1;
+}
+
+// Type #25
+message GetResp {
+  string token = 1; // echo of the token created by the requestor
+  string service = 2; // echo
+  string address = 3; // accessible-at address of the service (empty if not found)
+  //repeated string blacklisted_addresses = 4;
+}
+
+//#endregion client requests
+
+// Type #26
+// Used by a node to tell its parent that it is leaving the vault.
+// Somewhat unnecessary, given a child can simply stop heartbeating and allow itself to be pruned.
+message Leave {
+  // no payload
+}
+
+// Type #27
+message LeaveAck {
+  // no payload
+}

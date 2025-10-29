@@ -1,4 +1,4 @@
-package orv
+package proof
 
 /*
 Static errors for ease of use and consistency.

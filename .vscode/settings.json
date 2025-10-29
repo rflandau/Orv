@@ -1,13 +1,32 @@
 {
     "cSpell.words": [
+        "coap",
+        "cvks",
         "Hashset",
         "heartbeating",
         "huma",
         "humatest",
+        "pconn",
+        "plgd",
+        "randomdata",
         "Rivered",
+        "Rivering",
         "serviceless",
+        "Shrivyas",
+        "supernode",
+        "supernodes",
         "svcs",
+        "Tague's",
+        "testsupport",
+        "Vaultkeeper",
+        "Vaultkeepers",
         "vkid",
         "zerolog"
-    ]
+    ],
+    "protoc": {
+        "options": [
+            "--proto_path=slims/pb/",
+        ],
+        "clang-format.style": "{ IndentWidth: 4, BasedOnStyle: google, AlignConsecutiveAssignments: true }"
+    },
 }
