@@ -1,6 +1,6 @@
 # Slims Variant
 
-Slims is a an Orv variant using a custom layer 5 protocol. This Go implementation was created as part of an independent study during the last semester of my masters at Carnegie Mellon University.
+Slims is an Orv variant using a custom layer 5 protocol. This Go implementation was created as part of an independent study during the last semester of my masters at Carnegie Mellon University.
 
 # Message Types
 
@@ -21,19 +21,23 @@ Version negotiation between nodes is OpenFlow-ish. Versions are negotiated impli
 
 Of course, this is all theoretical as the implementation only supports one version at the moment.
 
+# Client Requests
+
+Slims uses the hand-off method for client requests, making handling requests reasonably efficient at a vault-level. Do, however, note the [caveat](#client-response-handling) below.
+
 # Caveats
-
-## Client Response Handling
-
-The functions in the `client` package, namely `Get` and `List`, spawn a new server on the given laddr in order to receive the response from the final hop. This address is included in the requested. This means, however, that NAT could mangle the addressing and cause responses to not be received.
-
-For a NAT-safe Orv implementation, consider the request mechanism used in [proof](implementations/proof). The Proof variant sends the request to a node that forwards it up the vault for us, like Slims' mechanism. Unlike Slims, however, Proof then rubber-bands the request back down the vault so the original target is also the answerer (thereby not requiring a response address to be included in the original request payload).
 
 ## Unreliable UDP and Retries
 
 Slims does not currently perform retries or even await ACKs in many cases to save on development/research time.
 
 See [DESIGN.md](implementations/slims/DESIGN.md) for more information.
+
+## Client Response Handling
+
+The functions in the `client` package, namely `Get` and `List`, spawn a new server on the given laddr in order to receive the response from the final hop. This address is included in the requested. This means, however, that NAT could mangle the addressing and cause responses to not be received.
+
+For a NAT-safe Orv implementation, consider the request mechanism used in [proof](implementations/proof). The Proof variant sends the request to a node that forwards it up the vault for us, like Slims' mechanism. Unlike Slims, however, Proof then rubber-bands the request back down the vault so the original target is also the answerer (thereby not requiring a response address to be included in the original request payload).
 
 ## Lack of Graceful Shutdown
 
