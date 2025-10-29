@@ -3,6 +3,8 @@ package vaultkeeper
 import (
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
 	"net/netip"
 	"time"
 
@@ -33,12 +35,7 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 		}) {
 			vk.children.mu.Lock()
 			defer vk.children.mu.Unlock()
-			// remove ourself as a provider for each service
-			for service := range s.services {
-				if providers, found := vk.children.allServices[service]; found {
-					delete(providers, id)
-				}
-			}
+			vk.pruneProvider(maps.Keys(s.services), cID)
 		},
 	)
 	return false
@@ -227,3 +224,50 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 		}
 	}
 }
+
+// pruneProvider iterates the list of services, removing the ID as a provider of each (if found).
+// If a service isn't found in the list of allServices it is skipped.
+//
+// ! Expects the caller to hold the child lock.
+func (vk *VaultKeeper) pruneProvider(services iter.Seq[string], childID slims.NodeID) {
+	for svc := range services {
+		if m, found := vk.children.allServices[svc]; !found {
+			continue
+		} else if _, found := m[childID]; !found {
+			continue
+		}
+		vk.log.Debug().Msgf("pruned provider %v from service %v", childID, svc)
+		delete(vk.children.allServices[svc], childID)
+		if len(vk.children.allServices[svc]) == 0 {
+			delete(vk.children.allServices, svc)
+		}
+	}
+}
+
+// RemoveCVK attempts to delete the cVK associated to the given ID
+// If the ID is found, the cVK is also removed as a provider of its services (potentially pruning those services).
+//
+// Acquires the children lock.
+func (vk *VaultKeeper) RemoveCVK(id slims.NodeID) (found bool) {
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+
+	v, found := vk.children.cvks.Load(id)
+	if !found {
+		return false
+	}
+	found = vk.children.cvks.Delete(id)
+	vk.pruneProvider(maps.Keys(v.services), id)
+	return found
+}
+
+/*func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID) (found bool) {
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+
+	l, found := vk.children.leaves[id]
+	if !found {
+		return false
+	}
+
+}*/
