@@ -71,7 +71,22 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 	}
 	// install the new leaf
 	vk.children.leaves[lID] = leaf{
-		servicelessPruner: vk.servicelessLeafPrune(lID),
+		// Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
+		// if it has not, trim the leaf out of the set of children.
+		servicelessPruner: time.AfterFunc(vk.pruneTime.ServicelessLeaf, func() {
+			// acquire lock
+			vk.children.mu.Lock()
+			defer vk.children.mu.Unlock()
+			// check if the ID still exists
+			l, found := vk.children.leaves[lID]
+			if !found {
+				return
+			}
+			if len(l.services) == 0 {
+				vk.log.Debug().Uint64("leaf", lID).Msg("no services found after prune time. Pruning...")
+				delete(vk.children.leaves, lID)
+			}
+		}),
 		services: make(map[string]struct {
 			pruner *time.Timer
 			stale  time.Duration
@@ -82,24 +97,6 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 }
 
 // helper function intended to be given to time.AfterFunc.
-// Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
-// if it has not, trim the leaf out of the set of children.
-func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
-	return time.AfterFunc(vk.pruneTime.ServicelessLeaf, func() {
-		// acquire lock
-		vk.children.mu.Lock()
-		defer vk.children.mu.Unlock()
-		// check if the ID still exists
-		l, found := vk.children.leaves[lID]
-		if !found {
-			return
-		}
-		if len(l.services) == 0 {
-			vk.log.Debug().Uint64("leaf", lID).Msg("no services found after prune time. Pruning...")
-			delete(vk.children.leaves, lID)
-		}
-	})
-}
 
 // Adds a new service under the child, be they a leaf or a vk.
 // Stale is only used for leaf services.
@@ -266,27 +263,44 @@ func (vk *VaultKeeper) pruneProvider(services iter.Seq[string], childID slims.No
 // RemoveCVK attempts to delete the cVK associated to the given ID
 // If the ID is found, the cVK is also removed as a provider of its services (potentially pruning those services).
 //
-// Acquires the children lock.
-func (vk *VaultKeeper) RemoveCVK(id slims.NodeID) (found bool) {
-	vk.children.mu.Lock()
-	defer vk.children.mu.Unlock()
+// Acquires the children lock iff lock is set.
+func (vk *VaultKeeper) RemoveCVK(id slims.NodeID, lock bool) (found bool) {
+	if lock {
+		vk.children.mu.Lock()
+		defer vk.children.mu.Unlock()
+	}
 
 	v, found := vk.children.cvks.Load(id)
+	defer vk.pruneProvider(maps.Keys(v.services), id)
 	if !found {
 		return false
 	}
 	found = vk.children.cvks.Delete(id)
-	vk.pruneProvider(maps.Keys(v.services), id)
+	vk.log.Info().Msgf("dropped cVK %d", id)
 	return found
 }
 
-/*func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID) (found bool) {
-	vk.children.mu.Lock()
-	defer vk.children.mu.Unlock()
+// RemoveLeaf deletes the leaf associated to the given ID,
+// stops its stale timer and the stale timer of each of its services, and prunes the leaf as a known provider.
+//
+// Acquires the children lock iff lock is set.
+func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID, lock bool) (found bool) {
+	if lock {
+		vk.children.mu.Lock()
+		defer vk.children.mu.Unlock()
+	}
 
 	l, found := vk.children.leaves[id]
+	defer vk.pruneProvider(maps.Keys(l.services), id) // ensure we prune these services, even if the leaf isn't found
 	if !found {
 		return false
 	}
-
-}*/
+	l.servicelessPruner.Stop()
+	// stop each service's timer
+	for _, inf := range l.services {
+		inf.pruner.Stop()
+	}
+	delete(vk.children.leaves, id)
+	vk.log.Info().Msgf("dropped leaf %d", id)
+	return true
+}
