@@ -1,15 +1,14 @@
 package vaultkeeper
 
 import (
-	"errors"
 	"fmt"
 	"iter"
 	"maps"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
-	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 )
 
@@ -135,7 +134,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 			pruner *time.Timer
 			stale  time.Duration
 			addr   netip.AddrPort
-		}{pruner: time.AfterFunc(stale, func() { pruneServiceFromLeaf(vk, childID, service) }),
+		}{pruner: time.AfterFunc(stale, func() { vk.pruneServiceFromLeaf(childID, service) }),
 			stale: stale,
 			addr:  addr}
 	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
@@ -173,15 +172,12 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 // pruneServiceFromLeaf is called whenever a service's stale timer is triggered (which can only occurs on leaves as cvk's services do not have stale timers).
 // The service is removed from the leaf's list of services and the leaf is removed from the list of providers of the service.
 // If this was the last service offered by the leaf, the leaf's serviceless prune timer is restarted.
-func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string) {
+func (vk *VaultKeeper) pruneServiceFromLeaf(childID slims.NodeID, service string) {
 	// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
-	if _, found := vk.children.allServices[service]; found {
-		// remove this leaf as a provider of the service
-		delete(vk.children.allServices[service], childID)
-	}
+	vk.pruneProvider(slices.Values([]string{service}), childID)
 
 	// remove this service from the leaf's list of services
 	if _, found := vk.children.leaves[childID]; !found {
@@ -203,27 +199,6 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 				Uint64("leaf ID", childID).
 				Str("pruned service", service).
 				Msg("restarted serviceless timer, but timer was already running")
-		}
-	}
-	// notify our parent
-	respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: service})
-	// log the result, but do not otherwise act on it (as we don't care about retries)
-	if err != nil && !errors.Is(err, client.ErrInvalidAddrPort) { // swallow invalid address errors as we are probably root
-		vk.log.Warn().Err(err).Msg("failed to deregister message to parent")
-		return
-	} else if respHdr.Type != pb.MessageType_DEREGISTER_ACK {
-		vk.log.Error().Msgf("unhandled message type ('%s') received in response to DEREGISTER", respHdr.Type.String())
-		return
-	}
-	vk.log.Info().Str("service", service).Msg("propagated deregister to parent")
-	// sanity check the body
-	if len(respBody) > 0 {
-		var b pb.DeregisterAck
-		if err := pbun.Unmarshal(respBody, &b); err != nil {
-			vk.log.Error().Err(err).Msg("failed to unmarshal DEREGISTER_ACK body")
-			return
-		} else if b.Service != service {
-			vk.log.Warn().Str("expected service", service).Str("deregistered service", b.Service).Msg("incorrect service acknowledged by DEREGISTER_ACK")
 		}
 	}
 }
