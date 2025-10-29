@@ -375,42 +375,25 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
-	if cvk, found := vk.children.cvks.Load(reqHdr.ID); found { // try cVK
-		// remove this child as a provider of all of its services
-		for svc := range cvk.services {
-			if providers, found := vk.children.allServices[svc]; found {
-				delete(providers, reqHdr.ID)
-				// notify parent
-				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
-					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
-				}
-			}
-		}
-		// delist this child
-		vk.children.cvks.Delete(reqHdr.ID)
-	} else if l, found := vk.children.leaves[reqHdr.ID]; found { // try leaf
-		// remove this child as a provider of all of its services
-		for svc, inf := range l.services {
-			inf.pruner.Stop()
-			if providers, found := vk.children.allServices[svc]; found {
-				delete(providers, reqHdr.ID)
-				// notify parent
-				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
-					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
-				}
-			}
-		}
-		// delist this child
-		delete(vk.children.leaves, reqHdr.ID)
-	} else { // not found
-		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
+	if found := vk.RemoveCVK(reqHdr.ID, false); found {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_LEAVE_ACK,
+			ID:      vk.id,
+		}, nil)
+		return
 	}
-	vk.respondSuccess(senderAddr, protocol.Header{
-		Version: vk.versionSet.HighestSupported(),
-		Type:    pb.MessageType_LEAVE_ACK,
-		ID:      vk.id,
-	}, nil)
-	return
+	if found := vk.RemoveLeaf(reqHdr.ID, false); found {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_LEAVE_ACK,
+			ID:      vk.id,
+		}, nil)
+		return
+	}
+
+	// not found
+	return true, pb.Fault_UNKNOWN_CHILD_ID, nil
 }
 
 func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
