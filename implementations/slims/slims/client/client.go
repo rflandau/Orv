@@ -354,6 +354,52 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 	}, nil
 }
 
+// Leave alerts the target (who is, assumedly, your parent VK) that you are departing the vault.
+// Future interactions (excluding client requests) will require going through the handshake again.
+func Leave(ctx context.Context, target netip.AddrPort, senderID slims.NodeID) error {
+	if !target.IsValid() {
+		return ErrInvalidAddrPort
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	if UDPAddr == nil {
+		return ErrInvalidAddrPort
+	}
+
+	// generate header
+	reqHdr := protocol.Header{
+		Version: protocol.SupportedVersions().HighestSupported(),
+		Type:    pb.MessageType_LIST,
+		ID:      senderID,
+	}
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return err
+	}
+	if _, err := protocol.WritePacket(ctx, conn, reqHdr, nil); err != nil {
+		return fmt.Errorf("failed to write LEAVE packet: %w", err)
+	}
+	// await a response
+	_, _, respHdr, bd, err := protocol.ReceivePacket(conn, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to receive response packet: %w", err)
+	}
+
+	// handle response
+	switch respHdr.Type {
+	case pb.MessageType_FAULT:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(bd, f); err != nil {
+			return fmt.Errorf("failed to unmarshal FAULT packet: %w", err)
+		}
+		return slims.FormatFault(f)
+	case pb.MessageType_LEAVE_ACK:
+		// LEAVE_ACK has no body
+		return nil
+	default:
+		return fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+}
+
 // #region client requests
 
 // Status sends a STATUS packet to the given address and returns its answer (or an error).
