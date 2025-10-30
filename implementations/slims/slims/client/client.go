@@ -372,7 +372,10 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	// generate a header
-	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: pb.MessageType_STATUS}
+	reqHdr := protocol.Header{
+		Version:   protocol.SupportedVersions().HighestSupported(),
+		Shorthand: true,
+		Type:      pb.MessageType_STATUS}
 	if len(senderID) > 0 {
 		reqHdr.Shorthand = false
 		reqHdr.ID = senderID[0]
@@ -384,25 +387,25 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	if _, err := protocol.WritePacket(ctx, conn, reqHdr, nil); err != nil {
-		return 0, sr, err
+		return 0, sr, fmt.Errorf("failed to write STATUS packet: %w", err)
 	}
 
 	// await a response
 	_, _, respHdr, bd, err := protocol.ReceivePacket(conn, ctx)
 	if err != nil {
-		return 0, sr, err
+		return 0, sr, fmt.Errorf("failed to receive response packet: %w", err)
 	}
 	switch respHdr.Type {
 	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(bd, f); err != nil {
-			return respHdr.ID, sr, err
+			return respHdr.ID, nil, fmt.Errorf("failed to unmarshal FAULT packet: %w", err)
 		}
 		return respHdr.ID, nil, slims.FormatFault(f)
 	case pb.MessageType_STATUS_RESP:
 		sr := &pb.StatusResp{}
 		if err := proto.Unmarshal(bd, sr); err != nil {
-			return respHdr.ID, nil, err
+			return respHdr.ID, nil, fmt.Errorf("failed to unmarshal STATUS_RESP packet: %w\n%v", err, bd)
 		}
 		return respHdr.ID, sr, nil
 	default:
