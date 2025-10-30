@@ -360,6 +360,8 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 // ID is optional; if given, the STATUS packet will be sent long-form.
 // If omitted, the STATUS packet will be sent shorthand.
 //
+// response struct will not be of type FAULT; FAULTs will be returned as an error per FormatFault.
+//
 // This subroutine can be invoked by any node.
 func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID) (vkID slims.NodeID, _ *pb.StatusResp, _ error) {
 	var sr *pb.StatusResp
