@@ -14,6 +14,7 @@ import (
 type VKOption func(*VaultKeeper)
 
 // WithLogger replaces the vk's default logger with the given logger.
+// TODO enable WithLogger to take the nil logger
 func WithLogger(l *zerolog.Logger) VKOption {
 	return func(vk *VaultKeeper) {
 		vk.log = l

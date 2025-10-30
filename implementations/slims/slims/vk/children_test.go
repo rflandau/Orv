@@ -1,7 +1,6 @@
 package vaultkeeper
 
 import (
-	"math/rand/v2"
 	"net/netip"
 	"testing"
 	"time"
@@ -11,14 +10,15 @@ import (
 )
 
 func Test_addLeaf(t *testing.T) {
+	pt := PruneTimes{ServicelessLeaf: 40 * time.Millisecond}
 	vk, err := New(1, RandomLocalhostAddrPort(),
-		WithPruneTimes(PruneTimes{ServicelessLeaf: 40 * time.Millisecond}))
+		WithPruneTimes(pt))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	{ // add a new leaf
-		leafID := rand.Uint64()
+		leafID := UniqueID()
 		if isCVK := vk.addLeaf(leafID); isCVK {
 			t.Fatal("conflicted with existing cvk, despite being only child")
 		}
@@ -40,7 +40,7 @@ func Test_addLeaf(t *testing.T) {
 	}
 
 	{ // add another new leaf
-		leafID := rand.Uint64()
+		leafID := UniqueID()
 		if isCVK := vk.addLeaf(leafID); isCVK {
 			t.Fatal("conflicted with existing cvk, but no cvks should exist")
 		}
@@ -51,7 +51,7 @@ func Test_addLeaf(t *testing.T) {
 		}
 		vk.children.mu.Unlock()
 		// let the leaf expire
-		time.Sleep(41 * time.Millisecond)
+		time.Sleep(pt.ServicelessLeaf + PruneBuffer)
 		// ensure the leaf does not exist
 		vk.children.mu.Lock()
 		if _, found := vk.children.leaves[leafID]; found {
@@ -61,7 +61,7 @@ func Test_addLeaf(t *testing.T) {
 	}
 	// add a cvk, then add a leaf with the same id
 	{
-		nodeID := rand.Uint64()
+		nodeID := UniqueID()
 		if isLeaf := vk.addCVK(nodeID, netip.MustParseAddrPort("127.0.0.1:1")); isLeaf {
 			t.Fatal("conflicted with existing leaf")
 		}
@@ -86,14 +86,14 @@ func Test_addCVK(t *testing.T) {
 		t.Fatal(err)
 	}
 	// add a cvk
-	cvkID := rand.Uint64()
+	cvkID := UniqueID()
 	if isLeaf := vk.addCVK(cvkID, netip.MustParseAddrPort("[::1]:1234")); isLeaf {
 		t.Fatal("conflicted with existing leaf, despite being only child")
 	} else if _, found := vk.children.cvks.Load(cvkID); !found {
 		t.Fatal("failed to find cvk after insertion")
 	}
 	{ // add a leaf and then try to add a conflicting cvk
-		nodeID := rand.Uint64()
+		nodeID := UniqueID()
 		if isCVK := vk.addLeaf(nodeID); isCVK {
 			t.Fatal("conflicted with existing cvk")
 		}
@@ -117,7 +117,7 @@ func Test_addService(t *testing.T) {
 	})
 	t.Run("service to cvk", func(t *testing.T) {
 		var (
-			cvkID       = rand.Uint64()
+			cvkID       = UniqueID()
 			serviceName = randomdata.Currency()
 			serviceAddr = netip.MustParseAddrPort("1.1.1.1:1")
 		)
@@ -156,7 +156,7 @@ func Test_addService(t *testing.T) {
 		}
 		vk.children.mu.Unlock()
 		// wait for the cvk to time out so we can ensure it is removed as a provider
-		time.Sleep(52 * time.Millisecond)
+		time.Sleep(50*time.Millisecond + PruneBuffer)
 		// check that the cvk is no longer found and not considered a provider
 		vk.children.mu.Lock()
 		if _, found := vk.children.cvks.Load(cvkID); found {
@@ -171,7 +171,7 @@ func Test_addService(t *testing.T) {
 	})
 	t.Run("service to leaf plus expiry", func(t *testing.T) {
 		var (
-			leafID       = rand.Uint64()
+			leafID       = UniqueID()
 			serviceName  = randomdata.Currency()
 			serviceAddr  = netip.MustParseAddrPort("1.1.1.1:1")
 			serviceStale = 30 * time.Millisecond
@@ -207,7 +207,7 @@ func Test_addService(t *testing.T) {
 		}
 		vk.children.mu.Unlock()
 		// wait for the service to get pruned from the leaf
-		time.Sleep(serviceStale + 1*time.Millisecond)
+		time.Sleep(serviceStale + PruneBuffer)
 		vk.children.mu.Lock()
 		if leaf, found := vk.children.leaves[leafID]; !found {
 			t.Fatal("leaf was pruned out")
