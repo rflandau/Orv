@@ -12,6 +12,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -66,7 +67,7 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		}
 	}
 
-	var st = pb.StatusResp{
+	var st = &pb.StatusResp{
 		Id:                        snap.ID,
 		Addr:                      snap.Addr.String(),
 		VersionsSupported:         snap.Versions.AsBytes(),
@@ -83,11 +84,31 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		AutoHbFrequency:           &hbFreq,
 		AutoHbBadLimit:            &hbLimit,
 	}
+	// try to keep the message size below max size
+	// (-10 to account for the size of the Orv header)
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming services out of status message to reduce size")
+		st.Services = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // first, drop leaves
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming leaves out of status message to reduce size")
+		st.ChildLeaves = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming cVKs out of status message to reduce size")
+		st.ChildVks = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming parent info out of status message to reduce size")
+		st.ParentId = nil
+		st.ParentAddr = nil
+	}
+	// we'll readdress this later if need be
 
 	// send data to client
 	vk.respondSuccess(senderAddr,
 		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: pb.MessageType_STATUS_RESP, ID: vk.id},
-		&st)
+		st)
 	return
 }
 
