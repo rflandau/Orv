@@ -16,7 +16,6 @@ import (
 	. "github.com/rflandau/Orv/implementations/slims/internal/testsupport"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	vaultkeeper "github.com/rflandau/Orv/implementations/slims/slims/vk"
-	"github.com/rs/zerolog"
 )
 
 // HeaderSerialization tests are serviced by implementations/slims/slims/protocol/protocol_test.go (and most thoroughly by TestFullSend()).
@@ -32,77 +31,53 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	const (
 		maxLeaves          uint32        = 25
 		maxServicesPerLeaf uint32        = 3
-		staleTime          time.Duration = 10 * time.Minute // disable
+		staleTime          time.Duration = 10 * time.Minute // disable service stale times
 
-		leafHBFreq time.Duration = 20 * time.Millisecond
+		leafHBFreq time.Duration = 100 * time.Millisecond // how often the leaves actually heartbeat
 	)
-	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
-		vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{
-			Hello:           10 * time.Second,       // functionally disabled
-			ServicelessLeaf: 300 * time.Millisecond, // to prove that heartbeats actually work
-			ChildVK:         10 * time.Second,       // irrelevant for this test
-		}), vaultkeeper.WithLogger(&zerolog.Logger{}))
+	var pt = vaultkeeper.PruneTimes{
+		Hello:           10 * time.Second,       // irrelevant for this test
+		ServicelessLeaf: 300 * time.Millisecond, // to prove that heartbeats actually work
+		ChildVK:         10 * time.Second,       // irrelevant for this test
+	}
+
+	vk, err := vaultkeeper.New(UniqueID(), RandomLocalhostAddrPort(),
+		vaultkeeper.WithPruneTimes(pt), vaultkeeper.WithLogger(nil))
 	if err != nil {
 		t.Fatal(err)
 	} else if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("vk %d established @ %v", vk.ID(), vk.Address())
-	// spawn a bunch of (at least 2) leaves and channels to catch heartbeat errors from them.
+	// spawn a bunch of (at least 2) leaves and a channel to catch heartbeat errors from them.
 	var (
 		leaves = make([]Leaf, rand.Uint32N(maxLeaves)+2)
 		hb     = make(chan error, 10)
 	)
 
 	for i := range leaves {
-		serviceCount := rand.Uint32N(maxServicesPerLeaf + 1)
+		// spawn at least 1 service per leaf
+		serviceCount := rand.Uint32N(maxServicesPerLeaf) + 1
 		leaves[i] = Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: make(map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
 			}, serviceCount),
 		}
-
-		// attach it to the vk
-		parentID, _, ack, err := client.Hello(t.Context(), leaves[i].ID, vk.Address())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if parentID != vk.ID() {
-			t.Error(ExpectedActual(vk.ID(), parentID))
-		}
-		if ack.Height != uint32(vk.Height()) {
-			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
-		}
-		parentID, accept, err := client.Join(t.Context(), leaves[i].ID, vk.Address(), client.JoinInfo{IsVK: false, VKAddr: netip.AddrPort{}, Height: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if parentID != vk.ID() {
-			t.Error(ExpectedActual(vk.ID(), parentID))
-		}
-		if accept.Height != uint32(vk.Height()) {
-			t.Error(ExpectedActual(uint32(vk.Height()), ack.Height))
-		}
-		t.Logf("Established leaf %d with services:", leaves[i].ID)
-		// attach services to the leaf and register them with the VK
 		for range serviceCount {
-			serviceName := randomdata.SillyName()
-			leaves[i].Services[serviceName] = struct {
+			leaves[i].Services[randomdata.Alphanumeric(48)] = struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
 			}{staleTime, RandomLocalhostAddrPort()}
-			parentID, accept, err := client.Register(t.Context(), leaves[i].ID, vk.Address(), serviceName, leaves[i].Services[serviceName].Addr, leaves[i].Services[serviceName].Stale)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if parentID != vk.ID() {
-				t.Error(ExpectedActual(vk.ID(), parentID))
-			} else if serviceName != accept.Service {
-				t.Error(ExpectedActual(accept.Service, serviceName))
-			}
-			t.Logf("\t%s@%v", serviceName, leaves[i].Services[serviceName])
+		}
+		expectedRegistered := slices.Collect(maps.Keys(leaves[i].Services))
+
+		// attach it to the vk
+		if actuallyRegistered, err := client.RegisterNewLeaf(t.Context(), leaves[i].ID, vk.Address(), leaves[i].Services); err != nil {
+			t.Fatal(err)
+		} else if !SlicesUnorderedEqual(actuallyRegistered, expectedRegistered) {
+			t.Fatal("services registered does not match services associated to a leaf", ExpectedActual(expectedRegistered, actuallyRegistered))
 		}
 
 		cancel, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[i].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[i].Services)), hb)
@@ -115,37 +90,37 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	}
 	t.Logf("%d leaves established", len(leaves))
 	// wait for a brief period to see if leaf heartbeats fail
-	checkAutoHBErrs(t, hb, leafHBFreq*4)
+	checkAutoHBErrs(t, hb, leafHBFreq*3)
 
 	// now that our leaves are running and heartbeating, add "ssh" to a couple leaves to ensure we have multiple providers
 	sharedService := "ssh"
-	sshOwner1 := rand.UintN(uint(len(leaves)))
-	sshOwner2 := rand.UintN(uint(len(leaves)))
-	for sshOwner1 == sshOwner2 {
-		sshOwner2 = rand.UintN(uint(len(leaves)))
+	sshOwnerIdx1 := rand.UintN(uint(len(leaves)))
+	sshOwnerIdx2 := rand.UintN(uint(len(leaves)))
+	for sshOwnerIdx1 == sshOwnerIdx2 {
+		sshOwnerIdx2 = rand.UintN(uint(len(leaves)))
 	}
-	leaves[sshOwner1].Services["ssh"] = struct {
+	leaves[sshOwnerIdx1].Services["ssh"] = struct {
 		Stale time.Duration
 		Addr  netip.AddrPort
 	}{10 * time.Second, RandomLocalhostAddrPort()}
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner1].ID, vk.Address(), sharedService, leaves[sshOwner1].Services[sharedService].Addr, 3*time.Minute); err != nil {
+	if _, _, err := client.Register(t.Context(), leaves[sshOwnerIdx1].ID, vk.Address(), sharedService, leaves[sshOwnerIdx1].Services[sharedService].Addr, 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner1].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner1].Services)), hb)
+	cancel1, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwnerIdx1].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwnerIdx1].Services)), hb)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel1()
 	}()
-	leaves[sshOwner2].Services["ssh"] = struct {
+	leaves[sshOwnerIdx2].Services["ssh"] = struct {
 		Stale time.Duration
 		Addr  netip.AddrPort
 	}{10 * time.Second, RandomLocalhostAddrPort()}
-	if _, _, err := client.Register(t.Context(), leaves[sshOwner2].ID, vk.Address(), sharedService, leaves[sshOwner2].Services[sharedService].Addr, 3*time.Minute); err != nil {
+	if _, _, err := client.Register(t.Context(), leaves[sshOwnerIdx2].ID, vk.Address(), sharedService, leaves[sshOwnerIdx2].Services[sharedService].Addr, 3*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwner2].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwner2].Services)), hb)
+	cancel2, err := client.AutoServiceHeartbeat(leafHBFreq*2, leafHBFreq, leaves[sshOwnerIdx2].ID, client.ParentInfo{ID: vk.ID(), Addr: vk.Address()}, slices.Collect(maps.Keys(leaves[sshOwnerIdx2].Services)), hb)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,26 +129,26 @@ func TestMultiServiceMultiLeaf(t *testing.T) {
 	}()
 	checkAutoHBErrs(t, hb, leafHBFreq*4)
 
-	// make a status request to check that the vk recognizes all its children and services
-	if parentID, s, err := client.Status(vk.Address(), t.Context()); err != nil {
-		t.Fatal(err)
-	} else if parentID != vk.ID() {
-		t.Fatal(ExpectedActual(vk.ID(), parentID))
-	} else if s == nil {
-		t.Fatal("nil status")
-	} else { // test the values in status
+	// check that the vk recognizes all of its children
+	{
+		snap := vk.Snapshot()
 		// collect all the services each leaf owns
-		leafServices := map[string]uint32{} // service name -> provider count
+		expectedLeafServices := map[string]uint32{} // service name -> provider count
 		for _, l := range leaves {
 			for service := range l.Services {
-				leafServices[service] += 1
+				expectedLeafServices[service] += 1
 			}
 		}
-		if !maps.Equal(s.Services, leafServices) {
-			t.Fatal("status reported different services and provider counts",
-				ExpectedActual(leafServices, s.Services))
+		actualLeafServices := map[string]uint32{}
+		for _, l := range snap.Children.Leaves {
+			for service := range l {
+				actualLeafServices[service] += 1
+			}
 		}
-
+		if !maps.Equal(expectedLeafServices, actualLeafServices) {
+			t.Fatal("status reported different services and provider counts",
+				ExpectedActual(expectedLeafServices, actualLeafServices))
+		}
 	}
 
 	// make a list request
@@ -206,7 +181,7 @@ func TestTwoLayerVault(t *testing.T) {
 		childHeartbeatFreq = 20 * time.Millisecond
 		badHBLimit         = 2
 	)
-	parent, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+	parent, err := vaultkeeper.New(UniqueID(), RandomLocalhostAddrPort(),
 		vaultkeeper.WithDragonsHoard(1),
 		vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{ChildVK: parentCVKPruneTime}))
 	if err != nil {
@@ -218,13 +193,14 @@ func TestTwoLayerVault(t *testing.T) {
 	var goodCVKs = make([]*vaultkeeper.VaultKeeper, rand.UintN(10))
 	var wg sync.WaitGroup
 	for i := range goodCVKs {
-		goodCVKs[i], err = vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+		goodCVKs[i], err = vaultkeeper.New(UniqueID(), RandomLocalhostAddrPort(),
 			vaultkeeper.WithCustomHeartbeats(true, childHeartbeatFreq, badHBLimit))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := goodCVKs[i].Start(); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(goodCVKs[i].Stop)
 		wg.Add(1)
 		go func(cvk *vaultkeeper.VaultKeeper) {
 			defer wg.Done()
@@ -240,7 +216,7 @@ func TestTwoLayerVault(t *testing.T) {
 	// check that the parent recognizes all good cvks
 	allGoodChildrenValid(t, parent.Snapshot(), goodCVKs)
 	// add a cvk that does not heartbeat and ensure it (and it alone) is pruned
-	badCVK, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(),
+	badCVK, err := vaultkeeper.New(UniqueID(), RandomLocalhostAddrPort(),
 		vaultkeeper.WithCustomHeartbeats(false, 0, 0))
 	if err != nil {
 		t.Fatal("failed to create bad (heartbeat-less) CVK: ", err)
