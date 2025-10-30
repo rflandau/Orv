@@ -407,11 +407,11 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 			return
 		default:
 			n, senderAddr, hdr, body, err := protocol.ReceivePacket(vk.net.pconn, vk.net.ctx)
-			if n == 0 {
-				vk.log.Debug().Msg("zero byte message received")
-				continue
-			} else if err != nil {
+			if err != nil {
 				vk.log.Warn().Err(err).Msg("receive packet error")
+				continue
+			} else if n == 0 {
+				vk.log.Debug().Msg("zero byte message received")
 				continue
 			}
 			go func() {
