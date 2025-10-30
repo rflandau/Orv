@@ -27,6 +27,12 @@ Slims uses the hand-off method for client requests, making handling requests rea
 
 # Caveats
 
+## Payloads Limited to 1KB
+
+To make UDP handling simpler, packets are kept below 1KB. This is not really an issue for Orv, given the data being moved around it typically pretty small. However, this can cause strange, inconsistent behavior when packets grow in size (such as STATUS_RESP packets).
+
+To fix this, the protocol library should break up larger bodies into several packets. **This is not implemented and the Orv header does not currently contain a total packet size.**
+
 ## Unreliable UDP and Retries
 
 Slims does not currently perform retries or even await ACKs in many cases to save on development/research time.
