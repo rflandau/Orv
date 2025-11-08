@@ -392,10 +392,10 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
 	}
 
-	// check if this is from a known child
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
+	// check if this child is a VK
 	if found := vk.RemoveCVK(reqHdr.ID, false); found {
 		vk.respondSuccess(senderAddr, protocol.Header{
 			Version: vk.versionSet.HighestSupported(),
@@ -404,6 +404,7 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 		}, nil)
 		return
 	}
+	// check if this child is a leaf
 	if found := vk.RemoveLeaf(reqHdr.ID, false); found {
 		vk.respondSuccess(senderAddr, protocol.Header{
 			Version: vk.versionSet.HighestSupported(),
