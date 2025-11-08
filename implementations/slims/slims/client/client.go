@@ -356,6 +356,8 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 
 // Leave alerts the target (who is, assumedly, your parent VK) that you are departing the vault.
 // Future interactions (excluding client requests) will require going through the handshake again.
+//
+// If a fault occurs, it is transformed into an error via slims.FormatFault().
 func Leave(ctx context.Context, target netip.AddrPort, senderID slims.NodeID) error {
 	if !target.IsValid() {
 		return ErrInvalidAddrPort
