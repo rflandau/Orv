@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
@@ -61,20 +62,44 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	return nil
 }
 
-// Leave makes the vaultkeeper leave its current parent.
+// Leave makes the vaultkeeper leave (and notify) its current parent.
 // No-op if this vaultkeeper does not have a parent.
-func (vk *VaultKeeper) Leave() {
+//
+// If an errors occurs (which can only occur while notifying parent), it is logged and swallowed.
+func (vk *VaultKeeper) Leave(timeout time.Duration) {
+	var (
+		pAddr    netip.AddrPort
+		pID      slims.NodeID
+		leaveCtx context.Context
+		cnl      func()
+	)
 	vk.structure.mu.Lock()
-	defer vk.structure.mu.Unlock()
-	if !vk.structure.parentAddr.IsValid() {
+	{
+		// cache and clear
+		pAddr = vk.structure.parentAddr
+		pID = vk.structure.parentID
+		vk.structure.parentAddr = netip.AddrPort{}
+		vk.structure.parentID = 0
+
+		// derive child context
+		vk.net.mu.RLock()
+		pCtx := vk.net.ctx
+		if vk.net.ctx == nil { // edge case: vk is not active and therefore does not have a context
+			pCtx = context.Background()
+		}
+		leaveCtx, cnl = context.WithTimeout(pCtx, timeout)
+		vk.net.mu.RUnlock()
+		defer cnl()
+	}
+	vk.structure.mu.Unlock()
+	if !pAddr.IsValid() {
 		return
 	}
-	vk.log.Info().Str("former parent address", vk.structure.parentAddr.String()).Uint64("former parent address", vk.structure.parentID).Msg("leaving parent...")
-	if _, _, err := vk.messageParent(pb.MessageType_LEAVE, nil); err != nil {
+
+	vk.log.Info().Str("former parent address", pAddr.String()).Uint64("former parent address", pID).Msg("leaving parent...")
+	if err := client.Leave(leaveCtx, pAddr, vk.id); err != nil {
 		vk.log.Warn().Err(err).Msg("failed to tell parent we are leaving")
 	}
-	vk.structure.parentAddr = netip.AddrPort{}
-	vk.structure.parentID = 0
 }
 
 // HeartbeatParent sends a VK_HEARTBEAT to the parent of this vk.
