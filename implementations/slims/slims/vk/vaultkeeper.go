@@ -413,6 +413,9 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 			} else if n == 0 {
 				vk.log.Debug().Msg("zero byte message received")
 				continue
+			} else if hdr.ID == vk.id {
+				vk.log.Warn().Str("header", hdr.String()).Msg("message has our ID; ignoring.")
+				continue
 			}
 			go func() {
 				mh, found := handlers[hdr.Type]
