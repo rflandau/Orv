@@ -62,6 +62,116 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	return nil
 }
 
+// Merge requests to merge with the target vk.
+// If agreed to, this vk will become the new root and will notify all pre-existing children.
+//
+// Returns errors that occur during the initial merge stage.
+// Logs and swallows errors that occur during the increment stage.
+func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+	// send the HELLO
+	targetVKID, _, _, err := client.Hello(vk.net.ctx, vk.ID(), target)
+	if err != nil {
+		return fmt.Errorf("HELLO: %w", err)
+	}
+	// send the MERGE request
+	reqHdr := protocol.Header{
+		Version: protocol.SupportedVersions().HighestSupported(),
+		Type:    pb.MessageType_MERGE,
+		ID:      vk.id,
+	}
+	reqBody := pb.Merge{}
+	vk.net.mu.RLock()
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	vk.net.mu.RUnlock()
+
+	// generate a dialer
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return err
+	}
+
+	if _, err := protocol.WritePacket(vk.net.ctx, conn, reqHdr, &reqBody); err != nil {
+		return err
+	}
+	// receive
+	_, _, respHdr, respBody, err := protocol.ReceivePacket(conn, vk.net.ctx)
+	if err != nil {
+		return err
+	}
+	if respHdr.Type == pb.MessageType_FAULT {
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(respBody, f); err != nil {
+			return err
+		}
+		return err
+	}
+	// add child, update height, notify all other children
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	vk.structure.height += 1
+
+	// add the target as a childVK
+	if !vk.addCVK(targetVKID, target) {
+		return fmt.Errorf("merge target @ %v (ID: %v) could not be added as a child: it is already a leaf",
+			target, targetVKID)
+	}
+	// message INCREMENT down all other branches.
+	// If an error occurs, it is logged and processing moves onto the next cVK.
+	vk.children.cvks.RangeLocked(func(id slims.NodeID, s struct {
+		services map[string]netip.AddrPort
+		addr     netip.AddrPort
+	}) (next bool) {
+		next = true // in all cases, we want to continue to the next child
+		// pre-prepare a warning log message to ensure it has all the fields we want
+		eLog := vk.log.Warn().Uint64("cVK ID", id).Str("origin", "notifying child to INCREMENT")
+
+		if id == targetVKID {
+			return
+		}
+		UDPAddr := net.UDPAddrFromAddrPort(s.addr)
+		conn, err := net.DialUDP("udp", nil, UDPAddr)
+		if err != nil {
+			eLog.Err(err).Msg("failed to generate UDP dialer")
+			return
+		}
+
+		if _, err := protocol.WritePacket(vk.net.ctx, conn, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_INCREMENT,
+			ID:      vk.id,
+		}, &pb.Increment{NewHeight: uint32(vk.structure.height) - 1}); err != nil {
+			eLog.Err(err).Msg("failed to INCREMENT child")
+			return
+		}
+		// await an INCREMENT_ACK
+		_, _, hdr, bd, err := protocol.ReceivePacket(conn, vk.net.ctx)
+		if err != nil {
+			eLog.Err(err).Msg("failed to receive INCREMENT_ACK")
+			return
+		} else if hdr.Type == pb.MessageType_FAULT {
+			var f *pb.Fault
+			if err := pbun.Unmarshal(bd, f); err != nil {
+				eLog.Err(err).Msg("failed to receive INCREMENT_ACK: failed to unmarshal fault")
+				return
+			}
+			eLog.Err(slims.FormatFault(f)).Msg("failed to receive INCREMENT_ACK")
+		} else if hdr.Type != pb.MessageType_INCREMENT_ACK {
+			eLog.Str("response message type", hdr.Type.String()).Msg("failed to receive INCREMENT_ACK: bad response message type")
+		} else if bd != nil { // it isn't strictly necessary for the child to echo its new height
+			// unpack the body and sanity check it
+			var ack pb.IncrementAck
+			if err := pbun.Unmarshal(bd, &ack); err != nil {
+				eLog.Err(err).Msg("failed to sanity check INCREMENT_ACK: failed to unmarshal as such")
+				return
+			} else if ack.NewHeight != uint32(vk.structure.height)-1 {
+				eLog.Uint32("expected height", uint32(vk.structure.height)-1).Uint32("response height", ack.NewHeight).Msg("INCREMENT_ACK returned back response height")
+			}
+		}
+		return
+	})
+	return nil
+}
+
 // Leave makes the vaultkeeper leave (and notify) its current parent.
 // No-op if this vaultkeeper does not have a parent.
 //
