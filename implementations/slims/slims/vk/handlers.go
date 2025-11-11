@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -378,6 +380,95 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 			ID:   vk.ID(),
 		}, &pb.JoinAccept{Height: uint32(vk.structure.height)})
 
+	return
+}
+
+// serveMerge handles incoming merge requests.
+// Handling mostly revolves around ensuring the requestor's height is equal to ours.
+func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, nil
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	if vk.structure.parentID == reqHdr.ID { // if this request is coming from our parent, we can assume our prior acceptance never arrived
+		// sanity check the height
+		var m pb.Merge
+		if err := pbun.Unmarshal(reqBody, &m); err != nil {
+			return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
+		}
+		// if this is a duplicate request, our parent's height should be equal to ours (as they would not have increment yet and we don't need to).
+		if m.Height != uint32(vk.structure.height) {
+			vk.log.Warn().Uint16("current height", vk.structure.height).
+				Uint32("received height", m.Height).
+				Msg("received MERGE with mismatching height from pre-existing parent. Dropping parent...")
+			vk.structure.parentAddr = netip.AddrPort{}
+			vk.structure.parentID = 0
+			return true, pb.Fault_BAD_HEIGHT, []string{
+				fmt.Sprintf("duplicate merge request from existing parent has bad height. Expected %v, got %v.", vk.structure.height, m.Height),
+				"Dropped as parent.",
+			}
+		}
+		// re-send acceptance
+		vk.respondSuccess(senderAddr,
+			protocol.Header{
+				Version: vk.versionSet.HighestSupported(),
+				Type:    pb.MessageType_MERGE_ACCEPT,
+				ID:      vk.id,
+			},
+			&pb.MergeAccept{
+				Height: uint32(vk.structure.height), // no need to re-increment
+			},
+		)
+		return
+	} else if vk.structure.parentAddr.IsValid() { // we already have a different parent!
+		return true, pb.Fault_NOT_ROOT, nil
+	}
+
+	// check that this VK is in our hello table
+	if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
+		return true, pb.Fault_HELLO_REQUIRED, nil
+	}
+
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+	// check that we do not have a child with this ID already
+	if _, found := vk.children.leaves[reqHdr.ID]; found {
+		return true, pb.Fault_ID_IN_USE, []string{"given ID is already claimed by a known leaf"}
+	}
+	if _, found := vk.children.cvks.Load(reqHdr.ID); found {
+		return true, pb.Fault_ID_IN_USE, []string{"given ID is already claimed by a known child VK"}
+	}
+
+	// check the height of the requestor
+	var m pb.Merge
+	if err := pbun.Unmarshal(reqBody, &m); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
+	} else if m.Height != uint32(vk.structure.height) {
+		return true, pb.Fault_BAD_HEIGHT, []string{"merges can only occur between equal height nodes. My height is " + strconv.FormatUint(uint64(vk.structure.height), 10)}
+	} else if m.Height > math.MaxUint16-1 { // bounds check
+		return true, pb.Fault_BAD_HEIGHT, []string{"height must be less than 65535"}
+	}
+
+	// update our parent
+	if ap, err := netip.ParseAddrPort(senderAddr.String()); err != nil {
+		vk.log.Info().Err(err).Str("senderAddr", senderAddr.String()).Msg("failed to accept merge: failed to parse new parent address from senderAddr")
+		return true, pb.Fault_MALFORMED_ADDRESS, nil
+	} else {
+		vk.structure.parentAddr = ap
+	}
+	vk.structure.parentID = reqHdr.ID
+	// accept the request
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    pb.MessageType_MERGE_ACCEPT,
+		ID:      vk.id},
+		&pb.MergeAccept{Height: uint32(vk.structure.height)},
+	)
 	return
 }
 
