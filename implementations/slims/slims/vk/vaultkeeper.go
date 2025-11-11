@@ -301,8 +301,21 @@ func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno 
 		Original: origMT,
 		Errno:    pb.Fault_Errnos(errno),
 	}
+	baseLen := proto.Size(fault)
 	if len(extraInfo) > 0 {
 		ai := strings.Join(extraInfo, "\n")
+		// length-check the additional info before attaching it
+		if total := baseLen + len(ai); total > int(slims.MaxPacketSize) {
+			// truncate until it fits
+			vk.log.Warn().
+				Str("original message type", origMT.String()).
+				Str("errno", fault.Errno.String()).
+				Str("extra info", ai).
+				Uint16("max packet size", slims.MaxPacketSize).
+				Int("number of bytes truncated", total-int(slims.MaxPacketSize)).
+				Msg("fault message is greater than the max packet size; extra info will be truncated.")
+			ai = ai[:total-int(slims.MaxPacketSize)]
+		}
 		fault.AdditionalInfo = &ai
 	}
 	// compose the response
