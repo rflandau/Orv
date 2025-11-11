@@ -43,6 +43,9 @@ message Fault {
     // DEREGISTER
     UNKNOWN_SERVICE_ID = 800;
 
+    // MERGE
+    NOT_ROOT = 1000; // sent by a VK who receives a MERGE request but already has a different parent
+
     // SERVICE_HEARTBEAT
     ALL_UNKNOWN = 1400;
   }
@@ -55,7 +58,7 @@ message Fault {
 
 // Type #2
 // Initial greeting.
-// Requiring prior to other, non-client-request packet chains.
+// Required prior to other, non-client-request packet chains.
 message Hello {}
 
 // Type #3
@@ -113,12 +116,12 @@ message DeregisterAck{
 
 // Type #10
 message Merge {
-  // unknown payload
+    uint32 height = 1; // current height of the requestor
 }
 
 // Type #11
 message MergeAccept {
-  // unknown payload
+    uint32 height = 1; // echo height from Merge message
 }
 
 // Type #12

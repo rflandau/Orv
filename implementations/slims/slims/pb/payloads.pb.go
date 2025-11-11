@@ -43,6 +43,8 @@ const (
 	Fault_BAD_STALE_TIME         Fault_Errnos = 601
 	// DEREGISTER
 	Fault_UNKNOWN_SERVICE_ID Fault_Errnos = 800
+	// MERGE
+	Fault_NOT_ROOT Fault_Errnos = 1000 // sent by a VK who receives a MERGE request but already has a different parent
 	// SERVICE_HEARTBEAT
 	Fault_ALL_UNKNOWN Fault_Errnos = 1400
 )
@@ -66,6 +68,7 @@ var (
 		600:  "BAD_SERVICE_NAME",
 		601:  "BAD_STALE_TIME",
 		800:  "UNKNOWN_SERVICE_ID",
+		1000: "NOT_ROOT",
 		1400: "ALL_UNKNOWN",
 	}
 	Fault_Errnos_value = map[string]int32{
@@ -85,6 +88,7 @@ var (
 		"BAD_SERVICE_NAME":       600,
 		"BAD_STALE_TIME":         601,
 		"UNKNOWN_SERVICE_ID":     800,
+		"NOT_ROOT":               1000,
 		"ALL_UNKNOWN":            1400,
 	}
 )
@@ -183,7 +187,7 @@ func (x *Fault) GetAdditionalInfo() string {
 
 // Type #2
 // Initial greeting.
-// Requiring prior to other, non-client-request packet chains.
+// Required prior to other, non-client-request packet chains.
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -584,6 +588,7 @@ func (x *DeregisterAck) GetService() string {
 // Type #10
 type Merge struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // current height of the requestor
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -618,9 +623,17 @@ func (*Merge) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{9}
 }
 
+func (x *Merge) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
 // Type #11
 type MergeAccept struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // echo height from Merge message
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -653,6 +666,13 @@ func (x *MergeAccept) ProtoReflect() protoreflect.Message {
 // Deprecated: Use MergeAccept.ProtoReflect.Descriptor instead.
 func (*MergeAccept) Descriptor() ([]byte, []int) {
 	return file_slims_pb_payloads_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *MergeAccept) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
 }
 
 // Type #12
@@ -1536,11 +1556,11 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x8c\x04\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x9b\x04\n" +
 	"\x05Fault\x12,\n" +
 	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
 	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xe9\x02\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xf8\x02\n" +
 	"\x06Errnos\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x01\x12\x15\n" +
@@ -1558,7 +1578,8 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\tID_IN_USE\x10\x92\x03\x12\x15\n" +
 	"\x10BAD_SERVICE_NAME\x10\xd8\x04\x12\x13\n" +
 	"\x0eBAD_STALE_TIME\x10\xd9\x04\x12\x17\n" +
-	"\x12UNKNOWN_SERVICE_ID\x10\xa0\x06\x12\x10\n" +
+	"\x12UNKNOWN_SERVICE_ID\x10\xa0\x06\x12\r\n" +
+	"\bNOT_ROOT\x10\xe8\a\x12\x10\n" +
 	"\vALL_UNKNOWN\x10\xf8\n" +
 	"B\x12\n" +
 	"\x10_additional_info\"\a\n" +
@@ -1582,9 +1603,11 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"Deregister\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\")\n" +
 	"\rDeregisterAck\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\"\a\n" +
-	"\x05Merge\"\r\n" +
-	"\vMergeAccept\"*\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"\x1f\n" +
+	"\x05Merge\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\"%\n" +
+	"\vMergeAccept\x12\x16\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\"*\n" +
 	"\tIncrement\x12\x1d\n" +
 	"\n" +
 	"new_height\x18\x01 \x01(\rR\tnewHeight\"-\n" +
