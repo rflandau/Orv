@@ -472,6 +472,39 @@ func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, sender
 	return
 }
 
+func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, nil
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_Errnos(pb.Fault_VERSION_NOT_SUPPORTED), nil
+	}
+	{ // ensure this request is coming from our parent
+		vk.structure.mu.RLock()
+		match := vk.structure.parentAddr.Addr().String() != senderAddr.String()
+		vk.structure.mu.RUnlock()
+		if !match {
+			vk.log.Warn().Msg("INCREMENT request received from non-parent")
+			return true, 0, nil // TODO errno
+		}
+	}
+	// unpack the body
+	var inc pb.Increment
+	if err := pbun.Unmarshal(reqBody, &inc); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, nil
+	}
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	// ensure parent hasn't changed between critical sections
+	// TODO
+
+	// ensure the new height is exactly curHeight+1
+	// TODO
+	// propagate the INCREMENT down our branches
+	// TODO
+}
+
 // serveLeave handles incoming LEAVE packets.
 // If the ID matches a known child, that child will be removed from the list of known children and all its services deregistered up the tree.
 func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
