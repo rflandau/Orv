@@ -486,7 +486,7 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 	cParentAddr := vk.structure.parentAddr.Addr().String()
 	cParentID := vk.structure.parentID
 	vk.structure.mu.RUnlock()
-	if !(cParentAddr != senderAddr.String()) {
+	if cParentAddr != senderAddr.String() {
 		vk.log.Warn().Msg("INCREMENT request received from non-parent")
 		return true, pb.Fault_NOT_PARENT, nil
 	}
