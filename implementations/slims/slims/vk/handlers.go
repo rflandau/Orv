@@ -488,7 +488,7 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 	vk.structure.mu.RUnlock()
 	if !(cParentAddr != senderAddr.String()) {
 		vk.log.Warn().Msg("INCREMENT request received from non-parent")
-		return true, 0, nil // TODO bad errno
+		return true, pb.Fault_NOT_PARENT, nil
 	}
 
 	// unpack the body
@@ -503,7 +503,7 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 		vk.log.Info().
 			Str("cached parent address", cParentAddr).Uint64("cached parent ID", cParentID).
 			Str("parent address", vk.structure.parentAddr.String()).Uint64("parent ID", vk.structure.parentID).Msg("parent changed between INCREMENT critical sections")
-		return true, 0, nil // TODO bad parent errno
+		return true, pb.Fault_NOT_PARENT, nil
 	}
 	// ensure the new height is exactly curHeight+1
 	switch inc.NewHeight {

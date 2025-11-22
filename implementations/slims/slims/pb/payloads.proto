@@ -46,6 +46,9 @@ message Fault {
     // MERGE
     NOT_ROOT = 1000; // sent by a VK who receives a MERGE request but already has a different parent
 
+    // INCREMENT
+    NOT_PARENT = 1200;
+
     // SERVICE_HEARTBEAT
     ALL_UNKNOWN = 1400;
   }

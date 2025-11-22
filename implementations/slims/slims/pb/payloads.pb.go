@@ -45,6 +45,8 @@ const (
 	Fault_UNKNOWN_SERVICE_ID Fault_Errnos = 800
 	// MERGE
 	Fault_NOT_ROOT Fault_Errnos = 1000 // sent by a VK who receives a MERGE request but already has a different parent
+	// INCREMENT
+	Fault_NOT_PARENT Fault_Errnos = 1200
 	// SERVICE_HEARTBEAT
 	Fault_ALL_UNKNOWN Fault_Errnos = 1400
 )
@@ -69,6 +71,7 @@ var (
 		601:  "BAD_STALE_TIME",
 		800:  "UNKNOWN_SERVICE_ID",
 		1000: "NOT_ROOT",
+		1200: "NOT_PARENT",
 		1400: "ALL_UNKNOWN",
 	}
 	Fault_Errnos_value = map[string]int32{
@@ -89,6 +92,7 @@ var (
 		"BAD_STALE_TIME":         601,
 		"UNKNOWN_SERVICE_ID":     800,
 		"NOT_ROOT":               1000,
+		"NOT_PARENT":             1200,
 		"ALL_UNKNOWN":            1400,
 	}
 )
@@ -1556,11 +1560,11 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x9b\x04\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xac\x04\n" +
 	"\x05Fault\x12,\n" +
 	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
 	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xf8\x02\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\x89\x03\n" +
 	"\x06Errnos\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x01\x12\x15\n" +
@@ -1579,7 +1583,9 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x10BAD_SERVICE_NAME\x10\xd8\x04\x12\x13\n" +
 	"\x0eBAD_STALE_TIME\x10\xd9\x04\x12\x17\n" +
 	"\x12UNKNOWN_SERVICE_ID\x10\xa0\x06\x12\r\n" +
-	"\bNOT_ROOT\x10\xe8\a\x12\x10\n" +
+	"\bNOT_ROOT\x10\xe8\a\x12\x0f\n" +
+	"\n" +
+	"NOT_PARENT\x10\xb0\t\x12\x10\n" +
 	"\vALL_UNKNOWN\x10\xf8\n" +
 	"B\x12\n" +
 	"\x10_additional_info\"\a\n" +
