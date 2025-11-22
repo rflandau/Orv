@@ -121,54 +121,55 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 		services map[string]netip.AddrPort
 		addr     netip.AddrPort
 	}) (next bool) {
-		next = true // in all cases, we want to continue to the next child
-		// pre-prepare a warning log message to ensure it has all the fields we want
-		eLog := vk.log.Warn().Uint64("cVK ID", id).Str("origin", "notifying child to INCREMENT")
-
-		if id == targetVKID {
+		next = true           // in all cases, we want to continue to the next child
+		if id == targetVKID { // do not notify the new child
 			return
 		}
 		UDPAddr := net.UDPAddrFromAddrPort(s.addr)
-		conn, err := net.DialUDP("udp", nil, UDPAddr)
-		if err != nil {
-			eLog.Err(err).Msg("failed to generate UDP dialer")
-			return
-		}
-
-		if _, err := protocol.WritePacket(vk.net.ctx, conn, protocol.Header{
-			Version: vk.versionSet.HighestSupported(),
-			Type:    pb.MessageType_INCREMENT,
-			ID:      vk.id,
-		}, &pb.Increment{NewHeight: uint32(vk.structure.height) - 1}); err != nil {
-			eLog.Err(err).Msg("failed to INCREMENT child")
-			return
-		}
-		// await an INCREMENT_ACK
-		_, _, hdr, bd, err := protocol.ReceivePacket(conn, vk.net.ctx)
-		if err != nil {
-			eLog.Err(err).Msg("failed to receive INCREMENT_ACK")
-			return
-		} else if hdr.Type == pb.MessageType_FAULT {
-			var f *pb.Fault
-			if err := pbun.Unmarshal(bd, f); err != nil {
-				eLog.Err(err).Msg("failed to receive INCREMENT_ACK: failed to unmarshal fault")
-				return
-			}
-			eLog.Err(slims.FormatFault(f)).Msg("failed to receive INCREMENT_ACK")
-		} else if hdr.Type != pb.MessageType_INCREMENT_ACK {
-			eLog.Str("response message type", hdr.Type.String()).Msg("failed to receive INCREMENT_ACK: bad response message type")
-		} else if bd != nil { // it isn't strictly necessary for the child to echo its new height
-			// unpack the body and sanity check it
-			var ack pb.IncrementAck
-			if err := pbun.Unmarshal(bd, &ack); err != nil {
-				eLog.Err(err).Msg("failed to sanity check INCREMENT_ACK: failed to unmarshal as such")
-				return
-			} else if ack.NewHeight != uint32(vk.structure.height)-1 {
-				eLog.Uint32("expected height", uint32(vk.structure.height)-1).Uint32("response height", ack.NewHeight).Msg("INCREMENT_ACK returned back response height")
-			}
+		if err := vk.increment(UDPAddr); err != nil {
+			vk.log.Warn().Uint64("cVK ID", vk.id).Str("origin", "notifying child to INCREMENT").Msgf("%s", err.Error())
 		}
 		return
 	})
+	return nil
+}
+
+// increment does as it says on the tin: sending a single INCREMENT message to the target and awaiting its reply.
+// Does not acquire any locks.
+// Liberally returns errors (i.e. an returned error may represent a failure to sanity check the ack, which does not mean the increment itself failed).
+func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return fmt.Errorf("failed to generate UDP dialer: %w", err)
+	}
+	if _, err := protocol.WritePacket(vk.net.ctx, conn, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    pb.MessageType_INCREMENT,
+		ID:      vk.id,
+	}, &pb.Increment{NewHeight: uint32(vk.structure.height) - 1}); err != nil {
+		return fmt.Errorf("failed to INCREMENT child: %w", err)
+	}
+	// await an INCREMENT_ACK
+	_, _, hdr, bd, err := protocol.ReceivePacket(conn, vk.net.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", err)
+	} else if hdr.Type == pb.MessageType_FAULT {
+		var f *pb.Fault
+		if err := pbun.Unmarshal(bd, f); err != nil {
+			return fmt.Errorf("failed to receive INCREMENT_ACK: failed to unmarshal fault: %w", err)
+		}
+		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", slims.FormatFault(f))
+	} else if hdr.Type != pb.MessageType_INCREMENT_ACK {
+		return fmt.Errorf("failed to receive INCREMENT_ACK: bad response message type (%s)", hdr.Type.String())
+	} else if bd != nil { // it isn't strictly necessary for the child to echo its new height
+		// unpack the body and sanity check it
+		var ack pb.IncrementAck
+		if err := pbun.Unmarshal(bd, &ack); err != nil {
+			return fmt.Errorf("failed to sanity check INCREMENT_ACK: failed to unmarshal as such")
+		} else if ack.NewHeight != uint32(vk.structure.height)-1 {
+			return fmt.Errorf("INCREMENT_ACK returned bad response height (expected %d, actual %d)", uint32(vk.structure.height)-1, ack.NewHeight)
+		}
+	}
 	return nil
 }
 
