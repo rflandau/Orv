@@ -620,6 +620,77 @@ func Test_HeartBeatParent(t *testing.T) {
 	}{0, parent.ID(), parent.Address()})
 }
 
+// As it says on the tin, Test_MergeIncrement checks thats vks can merge and increment their children.
+func Test_MergeIncrement(t *testing.T) {
+	t.Run("0-0 merge", func(t *testing.T) {
+		t.Parallel()
+
+		const cVKPrune = 500 * time.Millisecond
+		// spawn two vks
+		vkNewRoot, err := New(UniqueID(), RandomLocalhostAddrPort(),
+			WithPruneTimes(PruneTimes{
+				Hello:           300 * time.Millisecond,
+				ServicelessLeaf: 10 * time.Minute,
+				ChildVK:         cVKPrune,
+			}))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vkNewRoot.Start(); err != nil {
+			t.Fatal(err)
+		}
+		vkOldRoot, err := New(UniqueID(), RandomLocalhostAddrPort(), WithCustomHeartbeats(true, 300*time.Millisecond, 3))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vkOldRoot.Start(); err != nil {
+			t.Fatal(err)
+		}
+		// merge them
+		if err := vkNewRoot.Merge(vkOldRoot.Address()); err != nil {
+			t.Fatal(err)
+		}
+		{ // check that the new child is recognized
+			vkNewRoot.children.mu.Lock()
+			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
+				vkNewRoot.children.mu.Unlock()
+				t.Fatal("new root does not recognize old root as a child")
+			}
+			vkNewRoot.children.mu.Unlock()
+
+			vkOldRoot.structure.mu.RLock()
+			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
+				vkOldRoot.structure.mu.RUnlock()
+				t.Fatalf("old root does not recognize new root as its parent.\n New root info: %d@%v | Old root's parent info: %d@%v",
+					vkNewRoot.id, vkNewRoot.addr,
+					vkOldRoot.structure.parentID,
+					vkOldRoot.structure.parentAddr,
+				)
+			}
+			vkOldRoot.structure.mu.RUnlock()
+		}
+		// wait to ensure heartbeating works
+		time.Sleep(cVKPrune + PruneBuffer)
+		{ // check that the new child is still recognized
+			vkNewRoot.children.mu.Lock()
+			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
+				vkNewRoot.children.mu.Unlock()
+				t.Fatal("new root does not recognize old root as a child")
+			}
+			vkNewRoot.children.mu.Unlock()
+
+			vkOldRoot.structure.mu.RLock()
+			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
+				vkOldRoot.structure.mu.RUnlock()
+				t.Fatalf("old root does not recognize new root as its parent.\n New root info: %d@%v | Old root's parent info: %d@%v",
+					vkNewRoot.id, vkNewRoot.addr,
+					vkOldRoot.structure.parentID,
+					vkOldRoot.structure.parentAddr,
+				)
+			}
+			vkOldRoot.structure.mu.RUnlock()
+		}
+	})
+}
+
 // checkParent tests that that the values in vk match the values in expected.
 //
 // ! Acquires and releases vk's structure lock.
