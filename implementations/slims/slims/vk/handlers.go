@@ -7,12 +7,9 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"math"
 	"net"
 	"net/netip"
 	"slices"
-	"strconv"
-	"sync"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -386,7 +383,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 
 // serveMerge handles incoming merge requests.
 // Handling mostly revolves around ensuring the requestor's height is equal to ours.
-func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+/*func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	// NOTE: because we are using protobufs, a zero-height request will cause an empty body.
 	// Hence, we cannot check for an empty body here even though we require a height.
 	// If no body is given, use zero height.
@@ -482,9 +479,9 @@ func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, sender
 		&pb.MergeAccept{Height: uint32(vk.structure.height)},
 	)
 	return
-}
+}*/
 
-func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+/*func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	if reqHdr.Shorthand {
 		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
 	} else if len(reqBody) == 0 {
@@ -565,7 +562,7 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 		vk.log.Warn().Msg("unexpected INCREMENT height")
 		return true, pb.Fault_BAD_HEIGHT, nil
 	}
-}
+}*/
 
 // serveLeave handles incoming LEAVE packets.
 // If the ID matches a known child, that child will be removed from the list of known children and all its services deregistered up the tree.
