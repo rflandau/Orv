@@ -70,18 +70,15 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 // Returns errors that occur during the initial merge stage.
 // Logs and swallows errors that occur during the increment stage.
 func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+	if !target.IsValid() {
+		return client.ErrInvalidAddrPort
+	}
 	// send the HELLO
 	targetVKID, _, _, err := client.Hello(vk.net.ctx, vk.ID(), target)
 	if err != nil {
 		return fmt.Errorf("HELLO: %w", err)
 	}
-	// send the MERGE request
-	reqHdr := protocol.Header{
-		Version: protocol.SupportedVersions().HighestSupported(),
-		Type:    pb.MessageType_MERGE,
-		ID:      vk.id,
-	}
-	reqBody := pb.Merge{}
+
 	vk.net.mu.RLock()
 	UDPAddr := net.UDPAddrFromAddrPort(target)
 	vk.net.mu.RUnlock()
@@ -92,7 +89,13 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 		return err
 	}
 
-	if _, err := protocol.WritePacket(vk.net.ctx, conn, reqHdr, &reqBody); err != nil {
+	// send the MERGE request
+	if _, err := protocol.WritePacket(vk.net.ctx, conn,
+		protocol.Header{
+			Version: protocol.SupportedVersions().HighestSupported(),
+			Type:    pb.MessageType_MERGE,
+			ID:      vk.id,
+		}, &pb.Merge{Height: uint32(vk.Height())}); err != nil {
 		return err
 	}
 	// receive
