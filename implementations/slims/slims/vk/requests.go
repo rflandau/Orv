@@ -65,6 +65,8 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 // Merge requests to merge with the target vk.
 // If agreed to, this vk will become the new root and will notify all pre-existing children.
 //
+// Sends a HELLO first.
+//
 // Returns errors that occur during the initial merge stage.
 // Logs and swallows errors that occur during the increment stage.
 func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
@@ -103,13 +105,13 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 		if err := proto.Unmarshal(respBody, f); err != nil {
 			return err
 		}
-		return err
+		return slims.FormatFault(f)
 	}
 	// add child, update height, notify all other children
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	vk.structure.height += 1
-
+	vk.log.Info().Uint16("new height", vk.structure.height).Msg("incremented height")
 	// add the target as a childVK
 	if !vk.addCVK(targetVKID, target) {
 		return fmt.Errorf("merge target @ %v (ID: %v) could not be added as a child: it is already a leaf",
