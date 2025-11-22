@@ -47,6 +47,22 @@ The Slims prototype does *not* do much in the way of automatic retries (such as 
 
 These were omitted from the current version of Slims due to time-constraints; they are an obvious addition and thus do little to explore the finer points of Orv (as was one of the goals in building Slims).
 
+## Multi-Packet Messages
+
+Slims aims to fit each message into a single UDP packet; this approach means it does not need to deal with out-of-order packets or incomplete messages or stall for/await additional fragments. Either a message arrives and can be handled properly or it goes missing and does not need to be handled at all.
+
+For most message types, this works great. The Orv header is quite small at 2 or 10 bytes and most payloads are relatively static in size (discounting unbounded string fields in the payload, which are trivial to trim down).
+Even messages that do not have upper limits on payload size typically have easy ways to trim them down to fit an MTU. For instance:
+
+- REGISTER: Slims does not allow registering services in batches. Even if it did, however, a batched register could be broken into as many as 1 message per service to ensure each message fits a single packet. 
+- FAULT: extra info and/or the string representation of errno can be dropped.
+
+STATUS messages, however, require a little more care. If left alone, they will quickly become too large for a single packet. If allowed to trim themselves, they may trim out required/desired information. To solve this, we have two approaches: packet streams and targeted requests.
+
+The simpler of the two is targeted requests: allow the requestor to request which fields it wants, enabling the handler to trim out other fields to shrink the packet. This only goes so far, however, as long-running trees may have exceptionally large single fields (such as information on children). Here is where the second approach shines: splitting a message over multiple packets and identifying them with START and END markers.
+
+[TODO packet streams are WIP and NYI]
+
 # Compressing Payloads Further
 
 Protocol buffers already compress pretty far, but use-cases with stringent memory requirements may prefer flatbuffers or, in the most extreme case, hand-packed bits with a custom schema (like the header).
