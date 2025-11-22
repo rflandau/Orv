@@ -174,6 +174,8 @@ sequenceDiagram
 
 A service is registered by its identifier (ex: "RDP") and typically includes the address it can be reached at as well as a "stale time". The stale time enables services to declare their grace period between heartbeats, allowing always-on services and lazy services to coexist in a vault.
 
+Variants *may* allow children to register services in batches, taking an array of pairs instead of a single pair.
+
 ## Merging Vaults
 
 When two roots with equal height wish to join, they must instead **merge**. Merging is the key mechanism for increasing vault height and enables the requestor to retain root in the new vault.
