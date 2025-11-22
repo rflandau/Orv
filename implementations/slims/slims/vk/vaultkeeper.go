@@ -402,6 +402,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 		pb.MessageType_HELLO:             vk.serveHello,
 		pb.MessageType_JOIN:              vk.serveJoin,
 		pb.MessageType_MERGE:             vk.serveMerge,
+		pb.MessageType_INCREMENT:         vk.serveIncrement,
 		pb.MessageType_LEAVE:             vk.serveLeave,
 		pb.MessageType_REGISTER:          vk.serveRegister,
 		pb.MessageType_DEREGISTER:        vk.serveDeregister,

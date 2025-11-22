@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -480,15 +481,16 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
 		return true, pb.Fault_Errnos(pb.Fault_VERSION_NOT_SUPPORTED), nil
 	}
-	{ // ensure this request is coming from our parent
-		vk.structure.mu.RLock()
-		match := vk.structure.parentAddr.Addr().String() != senderAddr.String()
-		vk.structure.mu.RUnlock()
-		if !match {
-			vk.log.Warn().Msg("INCREMENT request received from non-parent")
-			return true, 0, nil // TODO errno
-		}
+	// ensure this request is coming from our parent
+	vk.structure.mu.RLock()
+	cParentAddr := vk.structure.parentAddr.Addr().String()
+	cParentID := vk.structure.parentID
+	vk.structure.mu.RUnlock()
+	if !(cParentAddr != senderAddr.String()) {
+		vk.log.Warn().Msg("INCREMENT request received from non-parent")
+		return true, 0, nil // TODO bad errno
 	}
+
 	// unpack the body
 	var inc pb.Increment
 	if err := pbun.Unmarshal(reqBody, &inc); err != nil {
@@ -497,12 +499,61 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	// ensure parent hasn't changed between critical sections
-	// TODO
-
+	if cParentAddr != vk.structure.parentAddr.Addr().String() || cParentID != vk.structure.parentID {
+		vk.log.Info().
+			Str("cached parent address", cParentAddr).Uint64("cached parent ID", cParentID).
+			Str("parent address", vk.structure.parentAddr.String()).Uint64("parent ID", vk.structure.parentID).Msg("parent changed between INCREMENT critical sections")
+		return true, 0, nil // TODO bad parent errno
+	}
 	// ensure the new height is exactly curHeight+1
-	// TODO
-	// propagate the INCREMENT down our branches
-	// TODO
+	switch inc.NewHeight {
+	case uint32(vk.structure.height): // duplicate
+		// if our heights already match, we can consider this a duplicate and thus a no-op.
+		// (given we have already validated that the sender is our parent).
+		vk.respondSuccess(senderAddr,
+			protocol.Header{
+				Version: vk.versionSet.HighestSupported(),
+				Type:    pb.MessageType_INCREMENT_ACK,
+				ID:      vk.id,
+			}, &pb.IncrementAck{NewHeight: uint32(vk.structure.height)})
+		// NOTE(rlandau): as we already incremented our height, we assume we have already noticed our children as well
+		return
+	case uint32(vk.structure.height) + 1: // success
+		wg := sync.WaitGroup{}
+
+		// confirm the increment
+		wg.Go(func() {
+			vk.respondSuccess(senderAddr,
+				protocol.Header{
+					Version: vk.versionSet.HighestSupported(),
+					Type:    pb.MessageType_INCREMENT_ACK,
+					ID:      vk.id,
+				}, &pb.IncrementAck{NewHeight: uint32(vk.structure.height)})
+		})
+		// propagate the INCREMENT down our branches
+		vk.children.cvks.RangeLocked(func(id slims.NodeID, cvk struct {
+			services map[string]netip.AddrPort
+			addr     netip.AddrPort
+		}) bool {
+			wg.Go(func() {
+				UDPAddr := net.UDPAddrFromAddrPort(cvk.addr)
+				if UDPAddr == nil {
+					vk.log.Error().Msgf("failed to convert netip.AddrPort (%v) to net.UDPAddr", cvk.addr)
+					return
+				}
+				if err := vk.increment(UDPAddr); err != nil {
+					vk.log.Warn().Msgf("%s", err)
+				}
+			})
+			return true
+		})
+		// await
+		wg.Wait()
+		return // all done!
+	default: // bad height
+		vk.log.Warn().Msg("unexpected INCREMENT height")
+		return true, pb.Fault_BAD_HEIGHT, nil
+	}
 }
 
 // serveLeave handles incoming LEAVE packets.
