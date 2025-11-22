@@ -176,9 +176,24 @@ A service is registered by its identifier (ex: "RDP") and typically includes the
 
 ## Merging Vaults
 
- NYI
+When two roots with equal height wish to join, they must instead **merge**. Merging is the key mechanism for increasing vault height and enables the requestor to retain root in the new vault.
 
-(Merging Vaults is under active investigation in the slims variant)
+Because a failed joined is *not* a pre-requisite for merging, merges require the standard HELLO/HELLO_ACK handshake. 
+
+Once a merge completes, the new root *must* notify all pre-existing children that their height has increased by one. This is typically done by sending an **increment** message to each pre-existing child; these children then propagate the increment to their children and so on until all branches have been fully informed.
+
+```mermaid
+sequenceDiagram
+    Root1->>Root2: hello
+    Root2->>Root1: ack hello
+    Root1->>Root2: merge
+    Root2->>Root1: accept merge
+    Root1->>ChildVKA: increment
+    ChildVKA->>grandchildrenA: increment
+    Root1->>ChildVKB: increment
+    ChildVKB->>grandchildrenB: increment
+    grandchildrenB->>great-granchildrenB: increment
+```
 
 ## Heartbeating
 
