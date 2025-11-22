@@ -116,7 +116,7 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 	vk.structure.height += 1
 	vk.log.Info().Uint16("new height", vk.structure.height).Msg("incremented height")
 	// add the target as a childVK
-	if !vk.addCVK(targetVKID, target) {
+	if vk.addCVK(targetVKID, target) {
 		return fmt.Errorf("merge target @ %v (ID: %v) could not be added as a child: it is already a leaf",
 			target, targetVKID)
 	}
