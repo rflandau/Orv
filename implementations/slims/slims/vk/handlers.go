@@ -342,7 +342,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	if j.IsVk {
 		// validate rest of body
 		if j.Height != uint32(vk.structure.height)-1 {
-			return true, pb.Fault_BAD_HEIGHT, []string{fmt.Sprintf("to join as a child VK to this VK, height (%d) must equal parent VK height (%d)-1", j.Height, vk.Height())}
+			return true, pb.Fault_BAD_HEIGHT, nil //[]string{fmt.Sprintf("to join as a child VK to this VK, height (%d) must equal parent VK height (%d)-1", j.Height, vk.Height())}
 		}
 		addr, err := netip.ParseAddrPort(j.VkAddr)
 		if err != nil {
