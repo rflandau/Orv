@@ -567,6 +567,7 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 	}
 }
 
+// TODO annotate
 func Get(ctx context.Context, service string, target netip.AddrPort, token string, hopLimit uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, serviceAddr string, err error) {
 	if token == "" {
 		return nil, "", errors.New("token must not be empty")
