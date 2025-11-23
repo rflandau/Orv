@@ -1307,6 +1307,17 @@ func Test_Leave(t *testing.T) {
 	} else if serviceAddr == "" {
 		t.Fatal("failed to find the 'l2s1' service at root (vk2)")
 	}
+	// ensure vk0's unique service is gone on both nodes
+	if _, serviceAddr, err := client.Get(t.Context(), "l0s1", vk1.Address(), "KnockKnock", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr != "" {
+		t.Fatal("found the no-longer-active 'l0s1' service at mid (vk1)")
+	}
+	if _, serviceAddr, err := client.Get(t.Context(), "l0s1", vk2.Address(), "WhosThere", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr != "" {
+		t.Fatal("found the no-longer-active 'l0s1' service at root (vk2)")
+	}
 }
 
 // helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
