@@ -444,6 +444,10 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 					Func(hdr.Zerolog).
 					Msg("packet received")
 				if erred, errno, ei := mh(hdr, body, senderAddr); erred {
+					vk.log.Debug().
+						Str("sender address", senderAddr.String()).
+						Str("errno", errno.String()).
+						Msg("responding negatively")
 					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
 			}()
