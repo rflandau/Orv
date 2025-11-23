@@ -1203,11 +1203,16 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 }
 
 // Tests both vk.Leave() and vk.serveLeave() handling.
-/*func Test_Leave(t *testing.T) {
-	const serviceStale time.Duration = 10 * time.Second
-	// Create a linear, 3-node topology
+func Test_Leave(t *testing.T) {
+	const (
+		serviceStale time.Duration = 30 * time.Second // disable service stale times
+		leafPrune    time.Duration = 30 * time.Second // disable leaves being pruned
+	)
+	ctx, cnl := context.WithTimeout(t.Context(), 5*time.Second) // ensure most single operations occur within a reasonable timeframe
+	t.Cleanup(cnl)
+	// Create a linear, 3-node topology (vk0 -> vk1 -> vk2)
 	l0 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
@@ -1222,10 +1227,10 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 		},
 	}
-	vk0 := spawnVK(t, 0, l0)
+	vk0 := spawnVK(t, l0, WithDragonsHoard(0), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk0.Stop)
 	l1 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
@@ -1236,28 +1241,32 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 		},
 	}
-	vk1 := spawnVK(t, 1, l1)
+	vk1 := spawnVK(t, l1, WithDragonsHoard(1), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk1.Stop)
 	l2 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
-		}{},
+		}{
+			"l2s1": {
+				Stale: serviceStale,
+				Addr:  RandomLocalhostAddrPort(),
+			},
+		},
 	}
-	vk2 := spawnVK(t, 2, l2)
+	vk2 := spawnVK(t, l2, WithDragonsHoard(2), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune})) // TODO set height
 	t.Cleanup(vk2.Stop)
 	{
-		if err := vk0.Join(t.Context(), vk1.Address()); err != nil {
+		if err := vk0.Join(ctx, vk1.Address()); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, _, err := client.Hello(t.Context(), vk1.ID(), vk2.Address()); err != nil {
-			t.Fatal(err)
-		}
-		if err := vk1.Join(t.Context(), vk2.Address()); err != nil {
+		if err := vk1.Join(ctx, vk2.Address()); err != nil {
 			t.Fatal(err)
 		}
 	}
+	t.Log("topology generated")
+
 	{ // check that leaf0's service exist on each vk
 		snap := vk0.Snapshot()
 		if services, found := snap.Children.Leaves[l0.ID]; !found {
@@ -1280,6 +1289,53 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 		}
 	}
 	// have vk0 leave and confirm that its services are no longer available on vk1 or vk2
-	//vk0.Leave()
+	vk0.Leave(300 * time.Millisecond)
+	// check that vk0 has updated its parent correctly
+	snap := vk0.Snapshot()
+	if snap.ParentAddr.IsValid() || snap.ParentID != 0 {
+		t.Error("vk0 did not update its parent information after leaving!")
+	}
+	time.Sleep(PruneBuffer)
 	// ensure other services have not been affected
-}*/
+	if _, serviceAddr, err := client.Get(t.Context(), "ssh", vk2.Address(), "WhaleWhaleWhale", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr == "" {
+		t.Fatal("failed to find the 'ssh' service at root (vk2)")
+	}
+	if _, serviceAddr, err := client.Get(t.Context(), "l2s1", vk2.Address(), "WaterWeHaveHere", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr == "" {
+		t.Fatal("failed to find the 'l2s1' service at root (vk2)")
+	}
+}
+
+// helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
+// Fatal on error.
+// Remember to defer vk.Stop().
+// Attaches a 500ms timeout to each operation.
+func spawnVK(t *testing.T, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
+	t.Helper()
+	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cnl()
+
+	vk, err := New(UniqueID(), RandomLocalhostAddrPort(), vkOpts...)
+	if err != nil {
+		t.Fatal(err)
+	} else if err = vk.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := client.Hello(ctx, childLeaf.ID, vk.Address()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.Join(ctx, childLeaf.ID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
+		t.Fatal(err)
+	}
+	for service, info := range childLeaf.Services {
+		if _, _, err := client.Register(ctx, childLeaf.ID, vk.Address(), service, info.Addr, info.Stale); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("registered service %s from leaf %d on vk %d", service, childLeaf.ID, vk.ID())
+	}
+
+	return vk
+}
