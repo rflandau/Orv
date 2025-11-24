@@ -674,29 +674,31 @@ func (vk *VaultKeeper) serveDeregister(reqHdr protocol.Header, reqBody []byte, s
 	// check that this is a known service
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
-	providers, found := vk.children.allServices[msg.Service]
-	if !found {
-		return true, pb.Fault_UNKNOWN_SERVICE_ID, nil
+
+	// remove this service from the list of providers
+	if eno := vk.removeProvider(msg.Service, reqHdr.ID); eno != 0 {
+		// set return states
+		errored = true
+		errno = eno
 	}
-	if _, found := providers[reqHdr.ID]; !found { // this ID is not a provider of the service
-		return true, pb.Fault_UNKNOWN_CHILD_ID, []string{fmt.Sprintf("child ID '%v' is not a known provider of service '%s'", reqHdr.ID, msg.Service)}
-	}
-	// also remove this service from the ID
+	// also remove this service from the child
 	if inf, found := vk.children.cvks.Load(reqHdr.ID); found { // check cvks
 		delete(inf.services, msg.Service)
 	} else if inf, found := vk.children.leaves[reqHdr.ID]; found { // check leaf
 		delete(inf.services, msg.Service)
 	} else {
-		// we found the service in the provider's view, but its owner does not exist.
+		// we found the service in the providers view, but its owner does not exist.
 		// Could be a timing thing, could be an indication of a broader issue
 		vk.log.Warn().Str("service", msg.Service).Msg("failed to prune service from child view; child is not a known leaf or vk")
 	}
-	vk.respondSuccess(senderAddr, protocol.Header{
-		Version: vk.versionSet.HighestSupported(),
-		Type:    pb.MessageType_DEREGISTER_ACK,
-		ID:      vk.id,
-	}, &pb.DeregisterAck{Service: msg.Service})
-	return
+	if !errored {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_DEREGISTER_ACK,
+			ID:      vk.id,
+		}, &pb.DeregisterAck{Service: msg.Service})
+	}
+	return errored, errno, nil
 }
 
 // serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.
