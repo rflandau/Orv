@@ -2,8 +2,6 @@ package vaultkeeper
 
 import (
 	"fmt"
-	"iter"
-	"maps"
 	"net/netip"
 	"time"
 
@@ -32,7 +30,9 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 	}) {
 		vk.children.mu.Lock()
 		defer vk.children.mu.Unlock()
-		vk.removeChildFromProviders(maps.Keys(s.services), cID)
+		for svc := range s.services {
+			vk.removeProvider(svc, cID)
+		}
 	}
 
 	vk.children.cvks.Store(cID, struct {
@@ -202,15 +202,6 @@ func (vk *VaultKeeper) pruneServiceFromLeaf(childID slims.NodeID, service string
 	}
 }
 
-// removeChildFromProviders calls removeProvider() over the iterable.
-//
-// ! Expects the caller to hold the child lock.
-func (vk *VaultKeeper) removeChildFromProviders(services iter.Seq[string], childID slims.NodeID) {
-	for svc := range services {
-		vk.removeProvider(svc, childID)
-	}
-}
-
 // removeProvider removes the childID as a provider of the given service (if found).
 // If the service or id is not found, this is a no-op.
 // If the pruned provider was the last provider of the service,
@@ -258,7 +249,11 @@ func (vk *VaultKeeper) RemoveCVK(id slims.NodeID, lock bool) (found bool) {
 	}
 
 	v, found := vk.children.cvks.Load(id)
-	defer vk.removeChildFromProviders(maps.Keys(v.services), id)
+	defer func() {
+		for svc := range v.services {
+			vk.removeProvider(svc, id)
+		}
+	}() // ensure we prune these services, even if the cvk isn't found
 	if !found {
 		return false
 	}
@@ -279,7 +274,11 @@ func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID, lock bool) (found bool) {
 	}
 
 	l, found := vk.children.leaves[id]
-	defer vk.removeChildFromProviders(maps.Keys(l.services), id) // ensure we prune these services, even if the leaf isn't found
+	defer func() {
+		for svc := range l.services {
+			vk.removeProvider(svc, id)
+		}
+	}() // ensure we prune these services, even if the leaf isn't found
 	if !found {
 		return false
 	}
