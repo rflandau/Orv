@@ -75,8 +75,10 @@ func RandomLocalhostAddrPort() netip.AddrPort {
 	return netip.MustParseAddrPort("[::1]:" + strconv.FormatUint(uint64(port), 10))
 }
 
-// struct to represent a leaf child.
-// Kept in TestSupport (as opposed to being exported) so users don't think it is necessary to use the library.
+// Leaf struct to represent a leaf child.
+// Kept in TestSupport so users don't think it is necessary to use the library.
+//
+// Do not use this struct.
 type Leaf struct {
 	ID       slims.NodeID
 	Services map[string]struct {
@@ -84,3 +86,21 @@ type Leaf struct {
 		Addr  netip.AddrPort
 	} // service name -> info
 }
+
+var inUseIDs sync.Map
+
+// UniqueID returns a random uint64 not currently in use.
+func UniqueID() slims.NodeID {
+	var v slims.NodeID
+	for {
+		v = rand.Uint64()
+		if _, loaded := inUseIDs.LoadOrStore(v, true); !loaded { // if the value was stored, it was not in use
+			break
+		}
+	}
+	return v
+}
+
+// PruneBuffer is the additional time to give after prune times have elapsed before checking that the target was actually pruned.
+// Sets the leniency of the tests.
+const PruneBuffer time.Duration = 10 * time.Millisecond

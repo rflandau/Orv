@@ -12,6 +12,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/rflandau/Orv/implementations/slims/slims"
 	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 	"github.com/rflandau/Orv/implementations/slims/slims/protocol"
@@ -66,7 +67,7 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		}
 	}
 
-	var st = pb.StatusResp{
+	var st = &pb.StatusResp{
 		Id:                        snap.ID,
 		Addr:                      snap.Addr.String(),
 		VersionsSupported:         snap.Versions.AsBytes(),
@@ -83,11 +84,31 @@ func (vk *VaultKeeper) serveStatus(_ protocol.Header, reqBody []byte, senderAddr
 		AutoHbFrequency:           &hbFreq,
 		AutoHbBadLimit:            &hbLimit,
 	}
+	// try to keep the message size below max size
+	// (-10 to account for the size of the Orv header)
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming services out of status message to reduce size")
+		st.Services = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // first, drop leaves
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming leaves out of status message to reduce size")
+		st.ChildLeaves = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming cVKs out of status message to reduce size")
+		st.ChildVks = nil
+	}
+	if uint(proto.Size(st)) > uint(slims.MaxPacketSize)-10 { // second, drop cvks
+		vk.log.Info().Uint("max body size", uint(slims.MaxPacketSize)-10).Uint("body size prior to reduction", uint(proto.Size(st))).Msg("trimming parent info out of status message to reduce size")
+		st.ParentId = nil
+		st.ParentAddr = nil
+	}
+	// we'll readdress this later if need be
 
 	// send data to client
 	vk.respondSuccess(senderAddr,
 		protocol.Header{Version: vk.versionSet.HighestSupported(), Type: pb.MessageType_STATUS_RESP, ID: vk.id},
-		&st)
+		st)
 	return
 }
 
@@ -321,7 +342,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	if j.IsVk {
 		// validate rest of body
 		if j.Height != uint32(vk.structure.height)-1 {
-			return true, pb.Fault_BAD_HEIGHT, []string{fmt.Sprintf("to join as a child VK to this VK, height (%d) must equal parent VK height (%d)-1", j.Height, vk.Height())}
+			return true, pb.Fault_BAD_HEIGHT, nil //[]string{fmt.Sprintf("to join as a child VK to this VK, height (%d) must equal parent VK height (%d)-1", j.Height, vk.Height())}
 		}
 		addr, err := netip.ParseAddrPort(j.VkAddr)
 		if err != nil {
@@ -360,6 +381,189 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	return
 }
 
+// serveMerge handles incoming merge requests.
+// Handling mostly revolves around ensuring the requestor's height is equal to ours.
+/*func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	// NOTE: because we are using protobufs, a zero-height request will cause an empty body.
+	// Hence, we cannot check for an empty body here even though we require a height.
+	// If no body is given, use zero height.
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
+	}
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	if vk.structure.parentID == reqHdr.ID { // if this request is coming from our parent, we can assume our prior acceptance never arrived
+		// sanity check the height
+		var reqHeight uint32
+		if len(reqBody) != 0 {
+			var m pb.Merge
+			if err := pbun.Unmarshal(reqBody, &m); err != nil {
+				return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
+			}
+			reqHeight = m.Height
+		}
+
+		// if this is a duplicate request, our parent's height should be equal to ours (as they would not have increment yet and we don't need to).
+		if reqHeight != uint32(vk.structure.height) {
+			vk.log.Warn().Uint16("current height", vk.structure.height).
+				Uint32("received height", reqHeight).
+				Msg("received MERGE with mismatching height from pre-existing parent. Dropping parent...")
+			vk.structure.parentAddr = netip.AddrPort{}
+			vk.structure.parentID = 0
+			return true, pb.Fault_BAD_HEIGHT, []string{
+				fmt.Sprintf("duplicate merge request from existing parent has bad height. Expected %v, got %v.", vk.structure.height, reqHeight),
+				"Dropped as parent.",
+			}
+		}
+		// re-send acceptance
+		vk.respondSuccess(senderAddr,
+			protocol.Header{
+				Version: vk.versionSet.HighestSupported(),
+				Type:    pb.MessageType_MERGE_ACCEPT,
+				ID:      vk.id,
+			},
+			&pb.MergeAccept{
+				Height: uint32(vk.structure.height), // no need to re-increment
+			},
+		)
+		return
+	} else if vk.structure.parentAddr.IsValid() { // we already have a different parent!
+		return true, pb.Fault_NOT_ROOT, nil
+	}
+
+	// check that this VK is in our hello table
+	if found := vk.pendingHellos.Delete(reqHdr.ID); !found {
+		return true, pb.Fault_HELLO_REQUIRED, nil
+	}
+
+	vk.children.mu.Lock()
+	defer vk.children.mu.Unlock()
+	// check that we do not have a child with this ID already
+	if _, found := vk.children.leaves[reqHdr.ID]; found {
+		return true, pb.Fault_ID_IN_USE, []string{"given ID is already claimed by a known leaf"}
+	}
+	if _, found := vk.children.cvks.Load(reqHdr.ID); found {
+		return true, pb.Fault_ID_IN_USE, []string{"given ID is already claimed by a known child VK"}
+	}
+
+	// check the height of the requestor
+	var reqHeight uint32
+	if len(reqBody) != 0 {
+		var m pb.Merge
+		if err := pbun.Unmarshal(reqBody, &m); err != nil {
+			return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
+		}
+		reqHeight = m.Height
+	}
+	if reqHeight != uint32(vk.structure.height) {
+		return true, pb.Fault_BAD_HEIGHT, []string{"merges can only occur between equal height nodes. My height is " + strconv.FormatUint(uint64(vk.structure.height), 10)}
+	} else if reqHeight > math.MaxUint16-1 { // bounds check
+		return true, pb.Fault_BAD_HEIGHT, []string{"height must be less than 65535"}
+	}
+
+	// update our parent
+	if ap, err := netip.ParseAddrPort(senderAddr.String()); err != nil {
+		vk.log.Info().Err(err).Str("senderAddr", senderAddr.String()).Msg("failed to accept merge: failed to parse new parent address from senderAddr")
+		return true, pb.Fault_MALFORMED_ADDRESS, nil
+	} else {
+		vk.structure.parentAddr = ap
+	}
+	vk.structure.parentID = reqHdr.ID
+	// accept the request
+	vk.respondSuccess(senderAddr, protocol.Header{
+		Version: vk.versionSet.HighestSupported(),
+		Type:    pb.MessageType_MERGE_ACCEPT,
+		ID:      vk.id},
+		&pb.MergeAccept{Height: uint32(vk.structure.height)},
+	)
+	return
+}*/
+
+/*func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+	if reqHdr.Shorthand {
+		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
+	} else if len(reqBody) == 0 {
+		return true, pb.Fault_BODY_REQUIRED, nil
+	} else if !vk.versionSet.Supports(reqHdr.Version) {
+		return true, pb.Fault_Errnos(pb.Fault_VERSION_NOT_SUPPORTED), nil
+	}
+	// ensure this request is coming from our parent
+	vk.structure.mu.RLock()
+	cParentAddr := vk.structure.parentAddr.Addr().String()
+	cParentID := vk.structure.parentID
+	vk.structure.mu.RUnlock()
+	if cParentAddr != senderAddr.String() {
+		vk.log.Warn().Msg("INCREMENT request received from non-parent")
+		return true, pb.Fault_NOT_PARENT, nil
+	}
+
+	// unpack the body
+	var inc pb.Increment
+	if err := pbun.Unmarshal(reqBody, &inc); err != nil {
+		return true, pb.Fault_MALFORMED_BODY, nil
+	}
+	vk.structure.mu.Lock()
+	defer vk.structure.mu.Unlock()
+	// ensure parent hasn't changed between critical sections
+	if cParentAddr != vk.structure.parentAddr.Addr().String() || cParentID != vk.structure.parentID {
+		vk.log.Info().
+			Str("cached parent address", cParentAddr).Uint64("cached parent ID", cParentID).
+			Str("parent address", vk.structure.parentAddr.String()).Uint64("parent ID", vk.structure.parentID).Msg("parent changed between INCREMENT critical sections")
+		return true, pb.Fault_NOT_PARENT, nil
+	}
+	// ensure the new height is exactly curHeight+1
+	switch inc.NewHeight {
+	case uint32(vk.structure.height): // duplicate
+		// if our heights already match, we can consider this a duplicate and thus a no-op.
+		// (given we have already validated that the sender is our parent).
+		vk.respondSuccess(senderAddr,
+			protocol.Header{
+				Version: vk.versionSet.HighestSupported(),
+				Type:    pb.MessageType_INCREMENT_ACK,
+				ID:      vk.id,
+			}, &pb.IncrementAck{NewHeight: uint32(vk.structure.height)})
+		// NOTE(rlandau): as we already incremented our height, we assume we have already noticed our children as well
+		return
+	case uint32(vk.structure.height) + 1: // success
+		wg := sync.WaitGroup{}
+
+		// confirm the increment
+		wg.Go(func() {
+			vk.respondSuccess(senderAddr,
+				protocol.Header{
+					Version: vk.versionSet.HighestSupported(),
+					Type:    pb.MessageType_INCREMENT_ACK,
+					ID:      vk.id,
+				}, &pb.IncrementAck{NewHeight: uint32(vk.structure.height)})
+		})
+		// propagate the INCREMENT down our branches
+		vk.children.cvks.RangeLocked(func(id slims.NodeID, cvk struct {
+			services map[string]netip.AddrPort
+			addr     netip.AddrPort
+		}) bool {
+			wg.Go(func() {
+				UDPAddr := net.UDPAddrFromAddrPort(cvk.addr)
+				if UDPAddr == nil {
+					vk.log.Error().Msgf("failed to convert netip.AddrPort (%v) to net.UDPAddr", cvk.addr)
+					return
+				}
+				if err := vk.increment(UDPAddr); err != nil {
+					vk.log.Warn().Msgf("%s", err)
+				}
+			})
+			return true
+		})
+		// await
+		wg.Wait()
+		return // all done!
+	default: // bad height
+		vk.log.Warn().Msg("unexpected INCREMENT height")
+		return true, pb.Fault_BAD_HEIGHT, nil
+	}
+}*/
+
 // serveLeave handles incoming LEAVE packets.
 // If the ID matches a known child, that child will be removed from the list of known children and all its services deregistered up the tree.
 func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
@@ -371,46 +575,30 @@ func (vk *VaultKeeper) serveLeave(reqHdr protocol.Header, reqBody []byte, sender
 		return true, pb.Fault_VERSION_NOT_SUPPORTED, nil
 	}
 
-	// check if this is from a known child
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
-	if cvk, found := vk.children.cvks.Load(reqHdr.ID); found { // try cVK
-		// remove this child as a provider of all of its services
-		for svc := range cvk.services {
-			if providers, found := vk.children.allServices[svc]; found {
-				delete(providers, reqHdr.ID)
-				// notify parent
-				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
-					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
-				}
-			}
-		}
-		// delist this child
-		vk.children.cvks.Delete(reqHdr.ID)
-	} else if l, found := vk.children.leaves[reqHdr.ID]; found { // try leaf
-		// remove this child as a provider of all of its services
-		for svc, inf := range l.services {
-			inf.pruner.Stop()
-			if providers, found := vk.children.allServices[svc]; found {
-				delete(providers, reqHdr.ID)
-				// notify parent
-				if _, _, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil {
-					vk.log.Warn().Str("service", svc).Err(err).Msg("failed to deregister service on leaving parent")
-				}
-			}
-		}
-		// delist this child
-		delete(vk.children.leaves, reqHdr.ID)
-	} else { // not found
-		return true, pb.Fault_UNKNOWN_CHILD_ID, nil
+	// check if this child is a VK
+	if found := vk.RemoveCVK(reqHdr.ID, false); found {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_LEAVE_ACK,
+			ID:      vk.id,
+		}, nil)
+		return
 	}
-	vk.respondSuccess(senderAddr, protocol.Header{
-		Version: vk.versionSet.HighestSupported(),
-		Type:    pb.MessageType_LEAVE_ACK,
-		ID:      vk.id,
-	}, nil)
-	return
+	// check if this child is a leaf
+	if found := vk.RemoveLeaf(reqHdr.ID, false); found {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_LEAVE_ACK,
+			ID:      vk.id,
+		}, nil)
+		return
+	}
+
+	// not found
+	return true, pb.Fault_UNKNOWN_CHILD_ID, nil
 }
 
 func (vk *VaultKeeper) serveRegister(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
@@ -486,29 +674,31 @@ func (vk *VaultKeeper) serveDeregister(reqHdr protocol.Header, reqBody []byte, s
 	// check that this is a known service
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
-	providers, found := vk.children.allServices[msg.Service]
-	if !found {
-		return true, pb.Fault_UNKNOWN_SERVICE_ID, nil
+
+	// remove this service from the list of providers
+	if eno := vk.removeProvider(msg.Service, reqHdr.ID); eno != 0 {
+		// set return states
+		errored = true
+		errno = eno
 	}
-	if _, found := providers[reqHdr.ID]; !found { // this ID is not a provider of the service
-		return true, pb.Fault_UNKNOWN_CHILD_ID, []string{fmt.Sprintf("child ID '%v' is not a known provider of service '%s'", reqHdr.ID, msg.Service)}
-	}
-	// also remove this service from the ID
+	// also remove this service from the child
 	if inf, found := vk.children.cvks.Load(reqHdr.ID); found { // check cvks
 		delete(inf.services, msg.Service)
 	} else if inf, found := vk.children.leaves[reqHdr.ID]; found { // check leaf
 		delete(inf.services, msg.Service)
 	} else {
-		// we found the service in the provider's view, but its owner does not exist.
+		// we found the service in the providers view, but its owner does not exist.
 		// Could be a timing thing, could be an indication of a broader issue
 		vk.log.Warn().Str("service", msg.Service).Msg("failed to prune service from child view; child is not a known leaf or vk")
 	}
-	vk.respondSuccess(senderAddr, protocol.Header{
-		Version: vk.versionSet.HighestSupported(),
-		Type:    pb.MessageType_DEREGISTER_ACK,
-		ID:      vk.id,
-	}, &pb.DeregisterAck{Service: msg.Service})
-	return
+	if !errored {
+		vk.respondSuccess(senderAddr, protocol.Header{
+			Version: vk.versionSet.HighestSupported(),
+			Type:    pb.MessageType_DEREGISTER_ACK,
+			ID:      vk.id,
+		}, &pb.DeregisterAck{Service: msg.Service})
+	}
+	return errored, errno, nil
 }
 
 // serveServiceHeartbeat answers SERVICE_HEARTBEATs, refreshing all attached (known) services associated to the requestor's ID.

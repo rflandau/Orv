@@ -1,15 +1,17 @@
 package vaultkeeper
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
-	"github.com/rflandau/Orv/implementations/slims/slims/client"
 	"github.com/rflandau/Orv/implementations/slims/slims/pb"
 )
+
+// This file covers subroutines related to VKs managing their children.
+// It is important to note that propagating deregisters is typically (logically) tied to the act of removing a provider from allServices and finding that no providers remain.
+// pruneProvider is the primary mechanism for this process.
 
 // addCVK installs the given information into the cvk table, failing if the ID is already registered to a leave and refreshing the timer if it is for a previously-known cvk.
 // Acquires the children lock.
@@ -20,26 +22,25 @@ func (vk *VaultKeeper) addCVK(cID slims.NodeID, addr netip.AddrPort) (isLeaf boo
 	if _, found := vk.children.leaves[cID]; found {
 		return true
 	}
+
+	// on timeout/cleanup, also remove this cVK as a provider
+	cleanup := func(id slims.NodeID, s struct {
+		services map[string]netip.AddrPort
+		addr     netip.AddrPort
+	}) {
+		vk.children.mu.Lock()
+		defer vk.children.mu.Unlock()
+		for svc := range s.services {
+			vk.removeProvider(svc, cID)
+		}
+	}
+
 	vk.children.cvks.Store(cID, struct {
 		services map[string]netip.AddrPort
 		addr     netip.AddrPort
-	}{
-		services: make(map[string]netip.AddrPort),
-		addr:     addr},
+	}{services: make(map[string]netip.AddrPort), addr: addr},
 		vk.pruneTime.ChildVK,
-		func(id slims.NodeID, s struct {
-			services map[string]netip.AddrPort
-			addr     netip.AddrPort
-		}) {
-			vk.children.mu.Lock()
-			defer vk.children.mu.Unlock()
-			// remove ourself as a provider for each service
-			for service := range s.services {
-				if providers, found := vk.children.allServices[service]; found {
-					delete(providers, id)
-				}
-			}
-		},
+		cleanup,
 	)
 	return false
 }
@@ -72,7 +73,22 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 	}
 	// install the new leaf
 	vk.children.leaves[lID] = leaf{
-		servicelessPruner: vk.servicelessLeafPrune(lID),
+		// Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
+		// if it has not, trim the leaf out of the set of children.
+		servicelessPruner: time.AfterFunc(vk.pruneTime.ServicelessLeaf, func() {
+			// acquire lock
+			vk.children.mu.Lock()
+			defer vk.children.mu.Unlock()
+			// check if the ID still exists
+			l, found := vk.children.leaves[lID]
+			if !found {
+				return
+			}
+			if len(l.services) == 0 {
+				vk.log.Debug().Uint64("leaf", lID).Msg("no services found after prune time. Pruning...")
+				delete(vk.children.leaves, lID)
+			}
+		}),
 		services: make(map[string]struct {
 			pruner *time.Timer
 			stale  time.Duration
@@ -83,24 +99,6 @@ func (vk *VaultKeeper) addLeaf(lID slims.NodeID) (isCVK bool) {
 }
 
 // helper function intended to be given to time.AfterFunc.
-// Tests the leaf after servicelessPruneTime has elapsed to check that it has registered at least one service;
-// if it has not, trim the leaf out of the set of children.
-func (vk *VaultKeeper) servicelessLeafPrune(lID slims.NodeID) *time.Timer {
-	return time.AfterFunc(vk.pruneTime.ServicelessLeaf, func() {
-		// acquire lock
-		vk.children.mu.Lock()
-		defer vk.children.mu.Unlock()
-		// check if the ID still exists
-		l, found := vk.children.leaves[lID]
-		if !found {
-			return
-		}
-		if len(l.services) == 0 {
-			vk.log.Debug().Uint64("leaf", lID).Msg("no services found after prune time. Pruning...")
-			delete(vk.children.leaves, lID)
-		}
-	})
-}
 
 // Adds a new service under the child, be they a leaf or a vk.
 // Stale is only used for leaf services.
@@ -135,7 +133,7 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 			pruner *time.Timer
 			stale  time.Duration
 			addr   netip.AddrPort
-		}{pruner: time.AfterFunc(stale, func() { pruneServiceFromLeaf(vk, childID, service) }),
+		}{pruner: time.AfterFunc(stale, func() { vk.pruneServiceFromLeaf(childID, service) }),
 			stale: stale,
 			addr:  addr}
 	} else if cvk, found := vk.children.cvks.Load(childID); found { // add service to cvk
@@ -173,15 +171,12 @@ func (vk *VaultKeeper) addService(childID slims.NodeID, service string, addr net
 // pruneServiceFromLeaf is called whenever a service's stale timer is triggered (which can only occurs on leaves as cvk's services do not have stale timers).
 // The service is removed from the leaf's list of services and the leaf is removed from the list of providers of the service.
 // If this was the last service offered by the leaf, the leaf's serviceless prune timer is restarted.
-func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string) {
+func (vk *VaultKeeper) pruneServiceFromLeaf(childID slims.NodeID, service string) {
 	// if this timer ever fires, it means the service was not refreshed quickly enough and thus this service is considered stale (and can be removed)
 	vk.children.mu.Lock()
 	defer vk.children.mu.Unlock()
 
-	if _, found := vk.children.allServices[service]; found {
-		// remove this leaf as a provider of the service
-		delete(vk.children.allServices[service], childID)
-	}
+	vk.removeProvider(service, childID)
 
 	// remove this service from the leaf's list of services
 	if _, found := vk.children.leaves[childID]; !found {
@@ -205,25 +200,98 @@ func pruneServiceFromLeaf(vk *VaultKeeper, childID slims.NodeID, service string)
 				Msg("restarted serviceless timer, but timer was already running")
 		}
 	}
-	// notify our parent
-	respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: service})
-	// log the result, but do not otherwise act on it (as we don't care about retries)
-	if err != nil && !errors.Is(err, client.ErrInvalidAddrPort) { // swallow invalid address errors as we are probably root
-		vk.log.Warn().Err(err).Msg("failed to deregister message to parent")
-		return
-	} else if respHdr.Type != pb.MessageType_DEREGISTER_ACK {
-		vk.log.Error().Msgf("unhandled message type ('%s') received in response to DEREGISTER", respHdr.Type.String())
-		return
+}
+
+// removeProvider removes the childID as a provider of the given service (if found).
+// If the service or id is not found, this is a no-op.
+// If the pruned provider was the last provider of the service,
+// the service is removed from the list of services and this VK's parent is notified via DEREGISTER.
+//
+// Returns UNKNOWN_SERVICE_ID (800), UNKNOWN_CHILD_ID (8), or 0 if okay.
+//
+// ! Expects the caller to hold the child lock.
+func (vk *VaultKeeper) removeProvider(service string, childID slims.NodeID) (errno pb.Fault_Errnos) {
+	if m, found := vk.children.allServices[service]; !found {
+		return pb.Fault_UNKNOWN_SERVICE_ID
+	} else if _, found := m[childID]; !found {
+		return pb.Fault_UNKNOWN_CHILD_ID
 	}
-	vk.log.Info().Str("service", service).Msg("propagated deregister to parent")
-	// sanity check the body
-	if len(respBody) > 0 {
-		var b pb.DeregisterAck
-		if err := pbun.Unmarshal(respBody, &b); err != nil {
-			vk.log.Error().Err(err).Msg("failed to unmarshal DEREGISTER_ACK body")
-			return
-		} else if b.Service != service {
-			vk.log.Warn().Str("expected service", service).Str("deregistered service", b.Service).Msg("incorrect service acknowledged by DEREGISTER_ACK")
+	delete(vk.children.allServices[service], childID)
+	vk.log.Debug().Msgf("pruned provider %v from service %v", childID, service)
+	if len(vk.children.allServices[service]) == 0 {
+		delete(vk.children.allServices, service)
+		vk.log.Info().Uint64("final provider ID", childID).Str("service name", service).Msgf("no providers remaining, service pruned")
+		// notify parent
+		if respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: service}); err != nil || respHdr.Type == pb.MessageType_FAULT {
+			ev := vk.log.Warn().Uint64("last provider's cID", childID).Str("service", service)
+			if err != nil {
+				ev = ev.Err(err)
+			} else { // fault returned, unpack the body
+				var f pb.Fault
+				if err := pbun.Unmarshal(respBody, &f); err != nil {
+					vk.log.Error().Err(err).Msg("failed to unpack fault message from sending a register to parent")
+					ev = ev.Str("errno", "UNKNOWN")
+				} else {
+					ev = ev.Str("errno", f.Errno.String())
+				}
+			}
+			ev.Msg("failed to deregister service")
 		}
 	}
+	return 0
+}
+
+// RemoveCVK attempts to delete the cVK associated to the given ID
+// If the ID is found, the cVK is also removed as a provider of its services (potentially pruning those services).
+//
+// Acquires the children lock iff lock is set.
+func (vk *VaultKeeper) RemoveCVK(id slims.NodeID, lock bool) (found bool) {
+	if lock {
+		vk.children.mu.Lock()
+		defer vk.children.mu.Unlock()
+	}
+
+	v, found := vk.children.cvks.Load(id)
+	defer func() {
+		for svc := range v.services {
+			vk.removeProvider(svc, id)
+		}
+	}() // ensure we prune these services, even if the cvk isn't found
+	if !found {
+		return false
+	}
+	found = vk.children.cvks.Delete(id)
+	vk.log.Info().Msgf("dropped cVK %d", id)
+
+	return found
+}
+
+// RemoveLeaf deletes the leaf associated to the given ID,
+// stops its stale timer and the stale timer of each of its services, and prunes the leaf as a known provider.
+//
+// Acquires the children lock iff lock is set.
+func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID, lock bool) (found bool) {
+	if lock {
+		vk.children.mu.Lock()
+		defer vk.children.mu.Unlock()
+	}
+
+	l, found := vk.children.leaves[id]
+	defer func() {
+		for svc := range l.services {
+			vk.removeProvider(svc, id)
+		}
+	}() // ensure we prune these services, even if the leaf isn't found
+	if !found {
+		return false
+	}
+	l.servicelessPruner.Stop()
+	// stop each service's timer
+	for _, inf := range l.services {
+		inf.pruner.Stop()
+	}
+	delete(vk.children.leaves, id)
+	vk.log.Info().Msgf("dropped leaf %d", id)
+
+	return true
 }

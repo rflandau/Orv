@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"maps"
-	"math"
-	"math/rand/v2"
 	"net"
 	"net/netip"
 	"slices"
@@ -127,7 +125,7 @@ func TestList(t *testing.T) {
 	var (
 		cVK, parentVK       *vaultkeeper.VaultKeeper
 		cVKLeaf, parentLeaf = Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -136,7 +134,7 @@ func TestList(t *testing.T) {
 				randomdata.Month():     {staleTime, RandomLocalhostAddrPort()},
 			},
 		}, Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -148,11 +146,11 @@ func TestList(t *testing.T) {
 	)
 	{
 		// spawn the child VK and associate services to it
-		cVK = spawnVK(t, rand.Uint64(), cVKLeaf, vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}), // disable pruning
+		cVK = spawnVK(t, UniqueID(), cVKLeaf, vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}), // disable pruning
 			vaultkeeper.WithLogger(nil)) // disable logging
 		t.Cleanup(cVK.Stop)
 		// spawn the parent VK and associate services to it
-		parentVK = spawnVK(t, rand.Uint64(), parentLeaf,
+		parentVK = spawnVK(t, UniqueID(), parentLeaf,
 			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: pruneTO, ServicelessLeaf: pruneTO, ChildVK: pruneTO}),
 			vaultkeeper.WithLogger(nil),
 			vaultkeeper.WithDragonsHoard(1),
@@ -187,8 +185,8 @@ func TestList(t *testing.T) {
 	}{
 		{name: "no token error", hopCount: 0, token: "", expectedError: true, expectedServices: nil, expectedResponder: cVK.Address()},
 		{name: "shorthand request", hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services)), expectedResponder: cVK.Address()},
-		{name: "longform request", clientID: rand.Uint64(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services)), expectedResponder: cVK.Address()},
-		{name: "forward to parent", clientID: rand.Uint64(), hopCount: 2, token: randomdata.Address(), expectedError: false, expectedServices: append(slices.Collect(maps.Keys(cVKLeaf.Services)), slices.Collect(maps.Keys(parentLeaf.Services))...), expectedResponder: parentVK.Address()},
+		{name: "longform request", clientID: UniqueID(), hopCount: 0, token: randomdata.Address(), expectedError: false, expectedServices: slices.Collect(maps.Keys(cVKLeaf.Services)), expectedResponder: cVK.Address()},
+		{name: "forward to parent", clientID: UniqueID(), hopCount: 2, token: randomdata.Address(), expectedError: false, expectedServices: append(slices.Collect(maps.Keys(cVKLeaf.Services)), slices.Collect(maps.Keys(parentLeaf.Services))...), expectedResponder: parentVK.Address()},
 	}
 
 	for _, tt := range tests {
@@ -228,12 +226,12 @@ func TestList(t *testing.T) {
 func TestGet(t *testing.T) {
 	serviceStale := 10 * time.Second
 	t.Run("Simple", func(t *testing.T) { // Get request direct to VK with some leaf and two services
-		l := Leaf{ID: rand.Uint64(), Services: map[string]struct {
+		l := Leaf{ID: UniqueID(), Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
 		}{"ssh": {Stale: serviceStale, Addr: RandomLocalhostAddrPort()}},
 		}
-		vk := spawnVK(t, rand.Uint64(), l)
+		vk := spawnVK(t, UniqueID(), l)
 		defer vk.Stop()
 		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil); err != nil {
 			t.Fatal(err)
@@ -243,7 +241,7 @@ func TestGet(t *testing.T) {
 			t.Fatal("bad service address", ExpectedActual(l.Services["ssh"].Addr.String(), svcAddr))
 		}
 		// try again with an ID included, should be the same result
-		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil, rand.Uint64()); err != nil {
+		if respAddr, svcAddr, err := client.Get(t.Context(), "ssh", vk.Address(), randomdata.Month(), 1, nil, UniqueID()); err != nil {
 			t.Fatal(err)
 		} else if respAddr.String() != vk.Address().String() {
 			t.Fatal("bad responder address", ExpectedActual(vk.Address().String(), respAddr.String()))
@@ -262,7 +260,7 @@ func TestGet(t *testing.T) {
 	t.Run("4-node linear topology", func(t *testing.T) { // GET requests propagate up a 4-node, linear "tree"
 		// for ease-of-use: ID == height
 		l0 := Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -271,7 +269,7 @@ func TestGet(t *testing.T) {
 		vk0 := spawnVK(t, 0, l0)
 		t.Cleanup(vk0.Stop)
 		l1 := Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -283,7 +281,7 @@ func TestGet(t *testing.T) {
 		vk1 := spawnVK(t, 1, l1, vaultkeeper.WithDragonsHoard(1))
 		t.Cleanup(vk1.Stop)
 		l2 := Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -295,7 +293,7 @@ func TestGet(t *testing.T) {
 		vk2 := spawnVK(t, 2, l2, vaultkeeper.WithDragonsHoard(2))
 		t.Cleanup(vk2.Stop)
 		l3 := Leaf{
-			ID: rand.Uint64(),
+			ID: UniqueID(),
 			Services: map[string]struct {
 				Stale time.Duration
 				Addr  netip.AddrPort
@@ -389,7 +387,7 @@ func TestGet(t *testing.T) {
 // Companion to vaultkeeper's Test_serveHello()
 func TestHello(t *testing.T) {
 	var (
-		vkid, nodeID = rand.Uint64(), rand.Uint64()
+		vkid, nodeID = UniqueID(), UniqueID()
 		ap           = RandomLocalhostAddrPort()
 		repeat       = 5 // number of HELLOs to send
 	)
@@ -400,11 +398,12 @@ func TestHello(t *testing.T) {
 	} else if err := vk.Start(); err != nil {
 		t.Fatal(err)
 	}
+	defer vk.Stop()
 	// generate node IDs
 	nodeIDs := make([]slims.NodeID, repeat)
 	var wg sync.WaitGroup
 	for i := range repeat {
-		nodeIDs[i] = rand.Uint64() // while it is theoretically possible for these to overlap, its incredibly unlikely so ¯\_(ツ)_/¯
+		nodeIDs[i] = UniqueID()
 		wg.Add(1)
 		go func(nID slims.NodeID) { // kick off a hello for each
 			defer wg.Done()
@@ -429,12 +428,12 @@ func TestHello(t *testing.T) {
 // NOTE(rlandau): does not test vk-joins; those are tested in the vaultkeeper package.
 func TestJoin(t *testing.T) {
 	var (
-		nodeID       = rand.Uint64()
+		nodeID       = UniqueID()
 		VKAP         = RandomLocalhostAddrPort()
 		repeat uint8 = 3 // for tests that run multiple times, the # of times to run
 	)
 	// spawn a VK
-	vk, err := vaultkeeper.New(rand.Uint64(), VKAP)
+	vk, err := vaultkeeper.New(UniqueID(), VKAP)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := vk.Start(); err != nil {
@@ -459,7 +458,7 @@ func TestJoin(t *testing.T) {
 	t.Run("join after mismatch hello", func(t *testing.T) {
 		for range repeat {
 			// send a hello, but for a different ID
-			if vkID, _, ack, err := client.Hello(t.Context(), nodeID-uint64(rand.Uint()), VKAP); err != nil {
+			if vkID, _, ack, err := client.Hello(t.Context(), UniqueID(), VKAP); err != nil {
 				t.Fatal(err)
 			} else if vkID != vk.ID() {
 				t.Fatal(ExpectedActual(vk.ID(), vkID))
@@ -511,9 +510,9 @@ func TestJoin(t *testing.T) {
 	// tests that join fails if too much time passes after a successfully HELLO.
 	// !spawns a new VK, rather than using the parent tests's vk.
 	t.Run("join after hello expires", func(t *testing.T) {
-		nodeID := rand.Uint64N(math.MaxUint16)
+		nodeID := UniqueID()
 		vkB, err := vaultkeeper.New(
-			rand.Uint64(),
+			UniqueID(),
 			RandomLocalhostAddrPort(),
 			vaultkeeper.WithPruneTimes(vaultkeeper.PruneTimes{Hello: 30 * time.Millisecond}),
 		)
@@ -561,7 +560,7 @@ func spawnVK(t *testing.T, childID slims.NodeID, childLeaf Leaf, vkOpts ...vault
 	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cnl()
 
-	vk, err := vaultkeeper.New(rand.Uint64(), RandomLocalhostAddrPort(), vkOpts...)
+	vk, err := vaultkeeper.New(UniqueID(), RandomLocalhostAddrPort(), vkOpts...)
 	if err != nil {
 		t.Fatal(err)
 	} else if err = vk.Start(); err != nil {

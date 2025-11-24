@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
-	"math/rand/v2"
 	"net"
 	"strconv"
 	"strings"
@@ -519,8 +518,8 @@ func TestReceivePacket(t *testing.T) {
 	tests := []struct {
 		hdr protocol.Header
 	}{
-		{protocol.Header{Version: curVer, Shorthand: false, Type: pb.MessageType_HELLO, ID: rand.Uint64()}},
-		{protocol.Header{Version: version.FromByte(0b01100001), Shorthand: false, Type: pb.MessageType_HELLO, ID: rand.Uint64()}},
+		{protocol.Header{Version: curVer, Shorthand: false, Type: pb.MessageType_HELLO, ID: UniqueID()}},
+		{protocol.Header{Version: version.FromByte(0b01100001), Shorthand: false, Type: pb.MessageType_HELLO, ID: UniqueID()}},
 		{protocol.Header{Version: version.FromByte(0b01100011), Shorthand: true, Type: pb.MessageType_GET}},
 	}
 
@@ -596,7 +595,7 @@ func TestReceivePacket(t *testing.T) {
 			}{n, addr, respHdr, respBody, err}
 		}()
 
-		hdr := protocol.Header{ID: rand.Uint64()}
+		hdr := protocol.Header{ID: UniqueID()}
 		hdrB, err := hdr.Serialize()
 		if err != nil {
 			t.Fatal(err)
@@ -659,7 +658,7 @@ func TestReceivePacket(t *testing.T) {
 		sentVersion := version.FromByte(0b00001000)
 		sentShorthand := false
 		sentType := pb.MessageType_HELLO_ACK
-		sentID := rand.Uint64()
+		sentID := UniqueID()
 		payload := &pb.HelloAck{Height: 5}
 		hdrB, err := protocol.Serialize(sentVersion, sentShorthand, sentType, sentID, payload)
 		if err != nil {

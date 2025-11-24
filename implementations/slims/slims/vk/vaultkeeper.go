@@ -301,8 +301,21 @@ func (vk *VaultKeeper) respondError(addr net.Addr, origMT pb.MessageType, errno 
 		Original: origMT,
 		Errno:    pb.Fault_Errnos(errno),
 	}
+	baseLen := proto.Size(fault)
 	if len(extraInfo) > 0 {
 		ai := strings.Join(extraInfo, "\n")
+		// length-check the additional info before attaching it
+		if total := baseLen + len(ai); total > int(slims.MaxPacketSize) {
+			// truncate until it fits
+			vk.log.Warn().
+				Str("original message type", origMT.String()).
+				Str("errno", fault.Errno.String()).
+				Str("extra info", ai).
+				Uint16("max packet size", slims.MaxPacketSize).
+				Int("number of bytes truncated", total-int(slims.MaxPacketSize)).
+				Msg("fault message is greater than the max packet size; extra info will be truncated.")
+			ai = ai[:total-int(slims.MaxPacketSize)]
+		}
 		fault.AdditionalInfo = &ai
 	}
 	// compose the response
@@ -386,8 +399,10 @@ type MessageHandler func(reqHdr protocol.Header, reqBody []byte, senderAddr net.
 func (vk *VaultKeeper) dispatch(ctx context.Context) {
 	// generate the list of handlers
 	var handlers = map[pb.MessageType]MessageHandler{
-		pb.MessageType_HELLO:             vk.serveHello,
-		pb.MessageType_JOIN:              vk.serveJoin,
+		pb.MessageType_HELLO: vk.serveHello,
+		pb.MessageType_JOIN:  vk.serveJoin,
+		//pb.MessageType_MERGE:             vk.serveMerge,
+		//pb.MessageType_INCREMENT:         vk.serveIncrement,
 		pb.MessageType_LEAVE:             vk.serveLeave,
 		pb.MessageType_REGISTER:          vk.serveRegister,
 		pb.MessageType_DEREGISTER:        vk.serveDeregister,
@@ -407,11 +422,14 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 			return
 		default:
 			n, senderAddr, hdr, body, err := protocol.ReceivePacket(vk.net.pconn, vk.net.ctx)
-			if n == 0 {
+			if err != nil {
+				vk.log.Warn().Err(err).Msg("receive packet error")
+				continue
+			} else if n == 0 {
 				vk.log.Debug().Msg("zero byte message received")
 				continue
-			} else if err != nil {
-				vk.log.Warn().Err(err).Msg("receive packet error")
+			} else if hdr.ID == vk.id {
+				vk.log.Warn().Str("header", hdr.String()).Msg("message has our ID; ignoring.")
 				continue
 			}
 			go func() {
@@ -426,6 +444,11 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 					Func(hdr.Zerolog).
 					Msg("packet received")
 				if erred, errno, ei := mh(hdr, body, senderAddr); erred {
+					vk.log.Debug().
+						Str("sender address", senderAddr.String()).
+						Str("errno", errno.String()).
+						Str("message type", hdr.Type.String()).
+						Msg("responding negatively")
 					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
 			}()

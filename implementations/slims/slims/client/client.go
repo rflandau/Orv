@@ -354,11 +354,61 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 	}, nil
 }
 
+// Leave alerts the target (who is, assumedly, your parent VK) that you are departing the vault.
+// Future interactions (excluding client requests) will require going through the handshake again.
+//
+// If a fault occurs, it is transformed into an error via slims.FormatFault().
+func Leave(ctx context.Context, target netip.AddrPort, senderID slims.NodeID) error {
+	if !target.IsValid() {
+		return ErrInvalidAddrPort
+	}
+	UDPAddr := net.UDPAddrFromAddrPort(target)
+	if UDPAddr == nil {
+		return ErrInvalidAddrPort
+	}
+
+	// generate header
+	reqHdr := protocol.Header{
+		Version: protocol.SupportedVersions().HighestSupported(),
+		Type:    pb.MessageType_LEAVE,
+		ID:      senderID,
+	}
+	conn, err := net.DialUDP("udp", nil, UDPAddr)
+	if err != nil {
+		return err
+	}
+	if _, err := protocol.WritePacket(ctx, conn, reqHdr, nil); err != nil {
+		return fmt.Errorf("failed to write LEAVE packet: %w", err)
+	}
+	// await a response
+	_, _, respHdr, bd, err := protocol.ReceivePacket(conn, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to receive response packet: %w", err)
+	}
+
+	// handle response
+	switch respHdr.Type {
+	case pb.MessageType_FAULT:
+		f := &pb.Fault{}
+		if err := proto.Unmarshal(bd, f); err != nil {
+			return fmt.Errorf("failed to unmarshal FAULT packet: %w", err)
+		}
+		return slims.FormatFault(f)
+	case pb.MessageType_LEAVE_ACK:
+		// LEAVE_ACK has no body
+		return nil
+	default:
+		return fmt.Errorf("unhandled message type from response: %s", respHdr.Type.String())
+	}
+}
+
 // #region client requests
 
 // Status sends a STATUS packet to the given address and returns its answer (or an error).
 // ID is optional; if given, the STATUS packet will be sent long-form.
 // If omitted, the STATUS packet will be sent shorthand.
+//
+// response struct will not be of type FAULT; FAULTs will be returned as an error per FormatFault.
 //
 // This subroutine can be invoked by any node.
 func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID) (vkID slims.NodeID, _ *pb.StatusResp, _ error) {
@@ -372,7 +422,10 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	// generate a header
-	reqHdr := protocol.Header{Version: protocol.SupportedVersions().HighestSupported(), Shorthand: true, Type: pb.MessageType_STATUS}
+	reqHdr := protocol.Header{
+		Version:   protocol.SupportedVersions().HighestSupported(),
+		Shorthand: true,
+		Type:      pb.MessageType_STATUS}
 	if len(senderID) > 0 {
 		reqHdr.Shorthand = false
 		reqHdr.ID = senderID[0]
@@ -384,25 +437,25 @@ func Status(target netip.AddrPort, ctx context.Context, senderID ...slims.NodeID
 	}
 
 	if _, err := protocol.WritePacket(ctx, conn, reqHdr, nil); err != nil {
-		return 0, sr, err
+		return 0, sr, fmt.Errorf("failed to write STATUS packet: %w", err)
 	}
 
 	// await a response
 	_, _, respHdr, bd, err := protocol.ReceivePacket(conn, ctx)
 	if err != nil {
-		return 0, sr, err
+		return 0, sr, fmt.Errorf("failed to receive response packet: %w", err)
 	}
 	switch respHdr.Type {
 	case pb.MessageType_FAULT:
 		f := &pb.Fault{}
 		if err := proto.Unmarshal(bd, f); err != nil {
-			return respHdr.ID, sr, err
+			return respHdr.ID, nil, fmt.Errorf("failed to unmarshal FAULT packet: %w", err)
 		}
 		return respHdr.ID, nil, slims.FormatFault(f)
 	case pb.MessageType_STATUS_RESP:
 		sr := &pb.StatusResp{}
 		if err := proto.Unmarshal(bd, sr); err != nil {
-			return respHdr.ID, nil, err
+			return respHdr.ID, nil, fmt.Errorf("failed to unmarshal STATUS_RESP packet: %w\n%v", err, bd)
 		}
 		return respHdr.ID, sr, nil
 	default:
@@ -514,6 +567,7 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 	}
 }
 
+// TODO annotate
 func Get(ctx context.Context, service string, target netip.AddrPort, token string, hopLimit uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, serviceAddr string, err error) {
 	if token == "" {
 		return nil, "", errors.New("token must not be empty")

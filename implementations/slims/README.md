@@ -27,11 +27,19 @@ Slims uses the hand-off method for client requests, making handling requests rea
 
 # Caveats
 
+## Payloads Limited to 1KB
+
+Each message in Slims is composed of a single UDP packet; multi-packet messages are not supported by the Orv library or the header itself.
+
+To fit in a standard MTU, these packets are also limited to 1KB (less than a typical MTU of 1500B). Most packets could fit in a more constrained MTU of 700B without much trouble.
+
+See [DESIGN.md](./DESIGN.md#multi-packet-messages)
+
 ## Unreliable UDP and Retries
 
 Slims does not currently perform retries or even await ACKs in many cases to save on development/research time.
 
-See [DESIGN.md](implementations/slims/DESIGN.md) for more information.
+See [DESIGN.md](./DESIGN.md) for more information.
 
 ## Client Response Handling
 

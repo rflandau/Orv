@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"maps"
-	"math"
-	"math/rand/v2"
 	"net"
 	"net/netip"
 	"slices"
@@ -195,10 +193,7 @@ func Test_respondError(t *testing.T) {
 
 // Ensures that the data returned by respondSuccess looks as we expect it to.
 func Test_respondSuccess(t *testing.T) {
-	var (
-		port     = rand.UintN(math.MaxUint16)
-		rcvrAddr = "[::1]:" + strconv.FormatInt(int64(port), 10)
-	)
+	var rcvrAddr = RandomLocalhostAddrPort().String()
 	// spawn a listener to receive the FAULT
 	ch := make(chan struct {
 		n          int
@@ -217,6 +212,7 @@ func Test_respondSuccess(t *testing.T) {
 				respBody   []byte
 				err        error
 			}{0, nil, protocol.Header{}, nil, err}
+			return
 		}
 		defer rcvr.Close()
 		n, senderAddr, respHdr, respBody, err := protocol.ReceivePacket(rcvr, t.Context())
@@ -257,7 +253,7 @@ func Test_respondSuccess(t *testing.T) {
 	res := <-ch
 	// test that it looks as expected
 	if res.err != nil {
-		t.Fatal(err)
+		t.Fatal(res.err)
 	}
 	if sa := netip.MustParseAddrPort(res.senderAddr.String()); sa.Compare(vkAddr) != 0 {
 		t.Error(ExpectedActual(vkAddr, sa))
@@ -276,9 +272,8 @@ func Test_respondSuccess(t *testing.T) {
 
 // Spins up a vk, sends a hello, then checks the vk's pending hello table
 func Test_serveHello(t *testing.T) {
-	var (
-		vkid = rand.Uint64()
-	)
+	var vkid = UniqueID()
+
 	// spin up a VK
 	ddl, _ := t.Deadline()
 	vk, err := New(vkid, RandomLocalhostAddrPort(),
@@ -292,7 +287,7 @@ func Test_serveHello(t *testing.T) {
 	for i := range 4 { // run it multiple times to ensure no hangs
 		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
 			// send a hello to the vk
-			clientID := rand.Uint64()
+			clientID := UniqueID()
 			respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vk.Address())
 			if err != nil {
 				t.Fatal(err)
@@ -314,7 +309,7 @@ func Test_serveHello(t *testing.T) {
 	}
 	t.Run("pending timeout", func(t *testing.T) {
 		var (
-			vkid    = rand.Uint64()
+			vkid    = UniqueID()
 			timeout = 30 * time.Millisecond
 		)
 		// spin up a VK
@@ -325,7 +320,7 @@ func Test_serveHello(t *testing.T) {
 			t.Fatal(err)
 		}
 		// send a hello to the vk
-		clientID := rand.Uint64()
+		clientID := UniqueID()
 		respVKID, respVKVersion, ack, err := client.Hello(t.Context(), clientID, vk.Address())
 		if err != nil {
 			t.Fatal(err)
@@ -339,7 +334,7 @@ func Test_serveHello(t *testing.T) {
 		if ack.Height != uint32(vk.Height()) {
 			t.Error(ExpectedActual(vk.Height(), uint16(ack.Height)))
 		}
-		time.Sleep(timeout + 3*time.Millisecond)
+		time.Sleep(timeout + PruneBuffer)
 		// check that our clientID has expired
 		if _, found := vk.pendingHellos.Load(clientID); found {
 			t.Errorf("client ID %d is in the vk's pending hellos but should have timed out", clientID)
@@ -352,7 +347,7 @@ func Test_serveHello(t *testing.T) {
 func Test_Join(t *testing.T) {
 	// spin up a parent
 	parentVK, err := New(
-		rand.Uint64(),
+		UniqueID(),
 		RandomLocalhostAddrPort(),
 		WithDragonsHoard(1),
 		WithPruneTimes(PruneTimes{Hello: 10 * time.Second}),
@@ -367,7 +362,7 @@ func Test_Join(t *testing.T) {
 	{
 		// spin up a child
 		childVK, err := New(
-			rand.Uint64(),
+			UniqueID(),
 			RandomLocalhostAddrPort(),
 		)
 		if err != nil {
@@ -395,7 +390,7 @@ func Test_Join(t *testing.T) {
 		}
 	}
 	{ // join a leaf under parent
-		leafID := rand.Uint64()
+		leafID := UniqueID()
 		t.Logf("child (%d) sending HELLO to parent (%d)", leafID, parentVK.ID())
 		if id, ver, ack, err := client.Hello(t.Context(), leafID, parentVK.Address()); err != nil {
 			t.Fatal(err)
@@ -426,18 +421,18 @@ func Test_Join(t *testing.T) {
 			bufferTime       = 50 * time.Millisecond // extra time to give after stale to give the pruner time to run
 		)
 		nop := zerolog.Nop()
-		LeafA, LeafB := Leaf{ID: rand.Uint64(), Services: map[string]struct {
+		LeafA, LeafB := Leaf{ID: UniqueID(), Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
 		}{
 			randomdata.City(): {serviceStaleTime, RandomLocalhostAddrPort()},
-		}}, Leaf{ID: rand.Uint64(), Services: map[string]struct {
+		}}, Leaf{ID: UniqueID(), Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
 		}{
 			randomdata.Day(): {serviceStaleTime, RandomLocalhostAddrPort()},
 		}}
-		cVK, err := New(rand.Uint64(), RandomLocalhostAddrPort(), WithLogger(&nop))
+		cVK, err := New(UniqueID(), RandomLocalhostAddrPort(), WithLogger(&nop))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := cVK.Start(); err != nil {
@@ -528,7 +523,7 @@ func Test_HeartBeatParent(t *testing.T) {
 		badHBLimit         = 2
 	)
 
-	parent, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+	parent, err := New(UniqueID(), RandomLocalhostAddrPort(),
 		WithDragonsHoard(1), WithPruneTimes(PruneTimes{ChildVK: parentCVKPruneTime}))
 	if err != nil {
 		t.Fatal(err)
@@ -536,7 +531,7 @@ func Test_HeartBeatParent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(parent.Stop)
-	child, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+	child, err := New(UniqueID(), RandomLocalhostAddrPort(),
 		WithCustomHeartbeats(true, childHeartbeatFreq, badHBLimit))
 	if err != nil {
 		t.Fatal(err)
@@ -562,7 +557,7 @@ func Test_HeartBeatParent(t *testing.T) {
 		parentAddr netip.AddrPort
 	}{0, parent.ID(), parent.Address()})
 	// allow the child to get pruned due to the heartbeater not running (as it has not been started)
-	time.Sleep(parentCVKPruneTime + 1*time.Millisecond)
+	time.Sleep(parentCVKPruneTime + PruneBuffer)
 	// confirm the child is not considered a child by the parent
 	parent.children.mu.Lock()
 	if _, found := parent.children.cvks.Load(child.ID()); found {
@@ -624,6 +619,77 @@ func Test_HeartBeatParent(t *testing.T) {
 		parentAddr netip.AddrPort
 	}{0, parent.ID(), parent.Address()})
 }
+
+// As it says on the tin, Test_MergeIncrement checks thats vks can merge and increment their children.
+/*func Test_MergeIncrement(t *testing.T) {
+	t.Run("0-0 merge", func(t *testing.T) {
+		t.Parallel()
+
+		const cVKPrune = 500 * time.Millisecond
+		// spawn two vks
+		vkNewRoot, err := New(UniqueID(), RandomLocalhostAddrPort(),
+			WithPruneTimes(PruneTimes{
+				Hello:           300 * time.Millisecond,
+				ServicelessLeaf: 10 * time.Minute,
+				ChildVK:         cVKPrune,
+			}))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vkNewRoot.Start(); err != nil {
+			t.Fatal(err)
+		}
+		vkOldRoot, err := New(UniqueID(), RandomLocalhostAddrPort(), WithCustomHeartbeats(true, 300*time.Millisecond, 3))
+		if err != nil {
+			t.Fatal(err)
+		} else if err := vkOldRoot.Start(); err != nil {
+			t.Fatal(err)
+		}
+		// merge them
+		if err := vkNewRoot.Merge(vkOldRoot.Address()); err != nil {
+			t.Fatal(err)
+		}
+		{ // check that the new child is recognized
+			vkNewRoot.children.mu.Lock()
+			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
+				vkNewRoot.children.mu.Unlock()
+				t.Fatal("new root does not recognize old root as a child")
+			}
+			vkNewRoot.children.mu.Unlock()
+
+			vkOldRoot.structure.mu.RLock()
+			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
+				vkOldRoot.structure.mu.RUnlock()
+				t.Fatalf("old root does not recognize new root as its parent.\n New root info: %d@%v | Old root's parent info: %d@%v",
+					vkNewRoot.id, vkNewRoot.addr,
+					vkOldRoot.structure.parentID,
+					vkOldRoot.structure.parentAddr,
+				)
+			}
+			vkOldRoot.structure.mu.RUnlock()
+		}
+		// wait to ensure heartbeating works
+		time.Sleep(cVKPrune + PruneBuffer)
+		{ // check that the new child is still recognized
+			vkNewRoot.children.mu.Lock()
+			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
+				vkNewRoot.children.mu.Unlock()
+				t.Fatal("new root does not recognize old root as a child")
+			}
+			vkNewRoot.children.mu.Unlock()
+
+			vkOldRoot.structure.mu.RLock()
+			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
+				vkOldRoot.structure.mu.RUnlock()
+				t.Fatalf("old root does not recognize new root as its parent.\n New root info: %d@%v | Old root's parent info: %d@%v",
+					vkNewRoot.id, vkNewRoot.addr,
+					vkOldRoot.structure.parentID,
+					vkOldRoot.structure.parentAddr,
+				)
+			}
+			vkOldRoot.structure.mu.RUnlock()
+		}
+	})
+}*/
 
 // checkParent tests that that the values in vk match the values in expected.
 //
@@ -726,7 +792,7 @@ func Test_serveRegister(t *testing.T) {
 			0, protocol.Header{
 				Version: defaultVersionsSupported.HighestSupported(),
 				Type:    pb.MessageType_REGISTER,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.Register{
 				Service: randomdata.City(),
 				Address: "1.1.1.1:1",
@@ -746,7 +812,7 @@ func Test_serveRegister(t *testing.T) {
 			0, protocol.Header{
 				Version: defaultVersionsSupported.HighestSupported(),
 				Type:    pb.MessageType_REGISTER,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.Register{
 				Service: randomdata.City(),
 				Address: "1.1.1.1:1",
@@ -767,7 +833,7 @@ func Test_serveRegister(t *testing.T) {
 			0, protocol.Header{
 				Version: defaultVersionsSupported.HighestSupported(),
 				Type:    pb.MessageType_REGISTER,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.Register{
 				Service: randomdata.City(),
 				Address: "1.1.1.1:1",
@@ -782,7 +848,7 @@ func Test_serveRegister(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// spin up the vk
-			vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+			vk, err := New(UniqueID(), RandomLocalhostAddrPort(),
 				WithPruneTimes(PruneTimes{10 * time.Second, servicelessLeafPT, 10 * time.Second}),
 				WithLogger(&zerolog.Logger{}), // suppress logging
 			)
@@ -816,6 +882,7 @@ func Test_serveRegister(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			t.Log("sending packet to serveRegister")
 			// use the requestor addr to receive the packet echo
 			erred, errno, _ := vk.serveRegister(tt.header, bd, requestorAddr)
 			if erred && !tt.wantError.erred {
@@ -826,8 +893,10 @@ func Test_serveRegister(t *testing.T) {
 					t.Fatal("bad errno", ExpectedActual(tt.wantError.errno, errno))
 				}
 			} else { // did not error, did not expect error
+				t.Log("awaiting response...")
 				// we only need to capture successes
 				registerResp := <-respCh
+				t.Log("received response.")
 				if registerResp.err != nil {
 					t.Fatal(err)
 				}
@@ -985,7 +1054,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 	t.Logf("requestor address: %v", requestorAddr)
 
 	// can be used in test creation to ensure that the ID in the header matches the ID of one or more registered services
-	staticID := rand.Uint64()
+	staticID := UniqueID()
 
 	tests := []struct {
 		name               string
@@ -1002,7 +1071,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 				Version:   protocol.SupportedVersions().HighestSupported(),
 				Shorthand: true,
 				Type:      pb.MessageType_SERVICE_HEARTBEAT,
-				ID:        rand.Uint64(),
+				ID:        UniqueID(),
 			}, &pb.ServiceHeartbeat{},
 			true,
 			pb.Fault_SHORTHAND_NOT_ACCEPTED,
@@ -1013,7 +1082,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			protocol.Header{
 				Version: version.Version{Major: 0, Minor: 0},
 				Type:    pb.MessageType_SERVICE_HEARTBEAT,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.ServiceHeartbeat{},
 			true,
 			pb.Fault_BODY_REQUIRED,
@@ -1024,7 +1093,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			protocol.Header{
 				Version: version.Version{Major: 0, Minor: 0},
 				Type:    pb.MessageType_SERVICE_HEARTBEAT,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.ServiceHeartbeat{Services: []string{"dummy value"}},
 			true,
 			pb.Fault_VERSION_NOT_SUPPORTED,
@@ -1035,7 +1104,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			protocol.Header{
 				Version: protocol.SupportedVersions().HighestSupported(),
 				Type:    pb.MessageType_SERVICE_HEARTBEAT,
-				ID:      rand.Uint64(),
+				ID:      UniqueID(),
 			}, &pb.ServiceHeartbeat{Services: []string{randomdata.Currency(), randomdata.Currency()}},
 			true,
 			pb.Fault_UNKNOWN_CHILD_ID,
@@ -1069,7 +1138,7 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// spin up the vk
-			vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(),
+			vk, err := New(UniqueID(), RandomLocalhostAddrPort(),
 				WithPruneTimes(PruneTimes{10 * time.Second, 10 * time.Second, 10 * time.Second}),
 				WithLogger(&zerolog.Logger{}), // suppress logging
 			)
@@ -1134,11 +1203,16 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 }
 
 // Tests both vk.Leave() and vk.serveLeave() handling.
-/*func Test_Leave(t *testing.T) {
-	const serviceStale time.Duration = 10 * time.Second
-	// Create a linear, 3-node topology
+func Test_Leave(t *testing.T) {
+	const (
+		serviceStale time.Duration = 30 * time.Second // disable service stale times
+		leafPrune    time.Duration = 30 * time.Second // disable leaves being pruned
+	)
+	ctx, cnl := context.WithTimeout(t.Context(), 5*time.Second) // ensure most single operations occur within a reasonable timeframe
+	t.Cleanup(cnl)
+	// Create a linear, 3-node topology (vk0 -> vk1 -> vk2)
 	l0 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
@@ -1153,10 +1227,10 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 		},
 	}
-	vk0 := spawnVK(t, 0, l0)
+	vk0 := spawnVK(t, l0, WithDragonsHoard(0), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk0.Stop)
 	l1 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
@@ -1167,28 +1241,32 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 			},
 		},
 	}
-	vk1 := spawnVK(t, 1, l1)
+	vk1 := spawnVK(t, l1, WithDragonsHoard(1), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk1.Stop)
 	l2 := Leaf{
-		ID: rand.Uint64(),
+		ID: UniqueID(),
 		Services: map[string]struct {
 			Stale time.Duration
 			Addr  netip.AddrPort
-		}{},
+		}{
+			"l2s1": {
+				Stale: serviceStale,
+				Addr:  RandomLocalhostAddrPort(),
+			},
+		},
 	}
-	vk2 := spawnVK(t, 2, l2)
+	vk2 := spawnVK(t, l2, WithDragonsHoard(2), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk2.Stop)
 	{
-		if err := vk0.Join(t.Context(), vk1.Address()); err != nil {
+		if err := vk0.Join(ctx, vk1.Address()); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, _, err := client.Hello(t.Context(), vk1.ID(), vk2.Address()); err != nil {
-			t.Fatal(err)
-		}
-		if err := vk1.Join(t.Context(), vk2.Address()); err != nil {
+		if err := vk1.Join(ctx, vk2.Address()); err != nil {
 			t.Fatal(err)
 		}
 	}
+	t.Log("topology generated")
+
 	{ // check that leaf0's service exist on each vk
 		snap := vk0.Snapshot()
 		if services, found := snap.Children.Leaves[l0.ID]; !found {
@@ -1211,35 +1289,64 @@ func Test_serveServiceHeartbeat(t *testing.T) {
 		}
 	}
 	// have vk0 leave and confirm that its services are no longer available on vk1 or vk2
-	//vk0.Leave()
+	vk0.Leave(300 * time.Millisecond)
+	// check that vk0 has updated its parent correctly
+	snap := vk0.Snapshot()
+	if snap.ParentAddr.IsValid() || snap.ParentID != 0 {
+		t.Error("vk0 did not update its parent information after leaving!")
+	}
+	time.Sleep(PruneBuffer)
 	// ensure other services have not been affected
-}*/
+	if _, serviceAddr, err := client.Get(t.Context(), "ssh", vk2.Address(), "WhaleWhaleWhale", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr == "" {
+		t.Fatal("failed to find the 'ssh' service at root (vk2)")
+	}
+	if _, serviceAddr, err := client.Get(t.Context(), "l2s1", vk2.Address(), "WaterWeHaveHere", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr == "" {
+		t.Fatal("failed to find the 'l2s1' service at root (vk2)")
+	}
+	// ensure vk0's unique service is gone on both nodes
+	if _, serviceAddr, err := client.Get(t.Context(), "l0s1", vk1.Address(), "KnockKnock", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr != "" {
+		t.Fatal("found the no-longer-active 'l0s1' service at mid (vk1)")
+	}
+	// ensure it was propagated upward
+	if _, serviceAddr, err := client.Get(t.Context(), "l0s1", vk2.Address(), "WhosThere", 1, nil); err != nil {
+		t.Fatal(err)
+	} else if serviceAddr != "" {
+		t.Fatalf("found the no-longer-active 'l0s1' service at root (vk2) (service address: %v)", serviceAddr)
+	}
+}
 
 // helper function to spin up a vk, start it, and register the given leaf (and its services) under it.
 // Fatal on error.
 // Remember to defer vk.Stop().
 // Attaches a 500ms timeout to each operation.
-func spawnVK(t *testing.T, childID slims.NodeID, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
+func spawnVK(t *testing.T, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
 	t.Helper()
 	ctx, cnl := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cnl()
 
-	vk, err := New(rand.Uint64(), RandomLocalhostAddrPort(), vkOpts...)
+	vk, err := New(UniqueID(), RandomLocalhostAddrPort(), vkOpts...)
 	if err != nil {
 		t.Fatal(err)
 	} else if err = vk.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := client.Hello(ctx, childID, vk.Address()); err != nil {
+	if _, _, _, err := client.Hello(ctx, childLeaf.ID, vk.Address()); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := client.Join(ctx, childID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
+	if _, _, err := client.Join(ctx, childLeaf.ID, vk.Address(), client.JoinInfo{IsVK: false}); err != nil {
 		t.Fatal(err)
 	}
 	for service, info := range childLeaf.Services {
-		if _, _, err := client.Register(ctx, childID, vk.Address(), service, info.Addr, info.Stale); err != nil {
+		if _, _, err := client.Register(ctx, childLeaf.ID, vk.Address(), service, info.Addr, info.Stale); err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("registered service %s from leaf %d on vk %d", service, childLeaf.ID, vk.ID())
 	}
 
 	return vk
