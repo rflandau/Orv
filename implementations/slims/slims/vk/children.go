@@ -215,10 +215,11 @@ func (vk *VaultKeeper) pruneProvider(services iter.Seq[string], childID slims.No
 		} else if _, found := m[childID]; !found {
 			continue
 		}
-		vk.log.Debug().Msgf("pruned provider %v from service %v", childID, svc)
 		delete(vk.children.allServices[svc], childID)
+		vk.log.Debug().Msgf("pruned provider %v from service %v", childID, svc)
 		if len(vk.children.allServices[svc]) == 0 {
 			delete(vk.children.allServices, svc)
+			vk.log.Info().Uint64("final provider ID", childID).Str("service name", svc).Msgf("no providers remaining, service pruned")
 			// notify parent
 			if respHdr, respBody, err := vk.messageParent(pb.MessageType_DEREGISTER, &pb.Deregister{Service: svc}); err != nil || respHdr.Type == pb.MessageType_FAULT {
 				ev := vk.log.Warn().Uint64("last provider's cID", childID).Str("service", svc)
@@ -256,6 +257,7 @@ func (vk *VaultKeeper) RemoveCVK(id slims.NodeID, lock bool) (found bool) {
 	}
 	found = vk.children.cvks.Delete(id)
 	vk.log.Info().Msgf("dropped cVK %d", id)
+
 	return found
 }
 
@@ -281,5 +283,6 @@ func (vk *VaultKeeper) RemoveLeaf(id slims.NodeID, lock bool) (found bool) {
 	}
 	delete(vk.children.leaves, id)
 	vk.log.Info().Msgf("dropped leaf %d", id)
+
 	return true
 }
