@@ -1255,7 +1255,7 @@ func Test_Leave(t *testing.T) {
 			},
 		},
 	}
-	vk2 := spawnVK(t, l2, WithDragonsHoard(2), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune})) // TODO set height
+	vk2 := spawnVK(t, l2, WithDragonsHoard(2), WithPruneTimes(PruneTimes{ServicelessLeaf: leafPrune}))
 	t.Cleanup(vk2.Stop)
 	{
 		if err := vk0.Join(ctx, vk1.Address()); err != nil {
@@ -1313,10 +1313,11 @@ func Test_Leave(t *testing.T) {
 	} else if serviceAddr != "" {
 		t.Fatal("found the no-longer-active 'l0s1' service at mid (vk1)")
 	}
+	// ensure it was propagated upward
 	if _, serviceAddr, err := client.Get(t.Context(), "l0s1", vk2.Address(), "WhosThere", 1, nil); err != nil {
 		t.Fatal(err)
 	} else if serviceAddr != "" {
-		t.Fatal("found the no-longer-active 'l0s1' service at root (vk2)")
+		t.Fatalf("found the no-longer-active 'l0s1' service at root (vk2) (service address: %v)", serviceAddr)
 	}
 }
 
