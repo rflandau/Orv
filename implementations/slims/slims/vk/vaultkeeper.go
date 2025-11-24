@@ -447,6 +447,7 @@ func (vk *VaultKeeper) dispatch(ctx context.Context) {
 					vk.log.Debug().
 						Str("sender address", senderAddr.String()).
 						Str("errno", errno.String()).
+						Str("message type", hdr.Type.String()).
 						Msg("responding negatively")
 					vk.respondError(senderAddr, hdr.Type, errno, ei...)
 				}
