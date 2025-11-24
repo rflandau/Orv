@@ -370,7 +370,7 @@ func Leave(ctx context.Context, target netip.AddrPort, senderID slims.NodeID) er
 	// generate header
 	reqHdr := protocol.Header{
 		Version: protocol.SupportedVersions().HighestSupported(),
-		Type:    pb.MessageType_LIST,
+		Type:    pb.MessageType_LEAVE,
 		ID:      senderID,
 	}
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
