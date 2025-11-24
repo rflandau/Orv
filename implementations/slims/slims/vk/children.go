@@ -207,12 +207,14 @@ func (vk *VaultKeeper) pruneServiceFromLeaf(childID slims.NodeID, service string
 // If the pruned provider was the last provider of the service,
 // the service is removed from the list of services and this VK's parent is notified via DEREGISTER.
 //
+// Returns UNKNOWN_SERVICE_ID (800), UNKNOWN_CHILD_ID (8), or 0 if okay.
+//
 // ! Expects the caller to hold the child lock.
-func (vk *VaultKeeper) removeProvider(service string, childID slims.NodeID) {
+func (vk *VaultKeeper) removeProvider(service string, childID slims.NodeID) (errno pb.Fault_Errnos) {
 	if m, found := vk.children.allServices[service]; !found {
-		return
+		return pb.Fault_UNKNOWN_SERVICE_ID
 	} else if _, found := m[childID]; !found {
-		return
+		return pb.Fault_UNKNOWN_CHILD_ID
 	}
 	delete(vk.children.allServices[service], childID)
 	vk.log.Debug().Msgf("pruned provider %v from service %v", childID, service)
@@ -236,6 +238,7 @@ func (vk *VaultKeeper) removeProvider(service string, childID slims.NodeID) {
 			ev.Msg("failed to deregister service")
 		}
 	}
+	return 0
 }
 
 // RemoveCVK attempts to delete the cVK associated to the given ID
