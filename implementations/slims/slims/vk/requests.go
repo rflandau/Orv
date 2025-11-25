@@ -69,7 +69,7 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 //
 // Returns errors that occur during the initial merge stage.
 // Logs and swallows errors that occur during the increment stage.
-/*func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 	if !target.IsValid() {
 		return client.ErrInvalidAddrPort
 	}
@@ -137,12 +137,12 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		return
 	})
 	return nil
-}*/
+}
 
 // increment does as it says on the tin: sending a single INCREMENT message to the target and awaiting its reply.
 // Does not acquire any locks.
 // Liberally returns errors (i.e. an returned error may represent a failure to sanity check the ack, which does not mean the increment itself failed).
-/*func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
+func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
 		return fmt.Errorf("failed to generate UDP dialer: %w", err)
@@ -176,7 +176,7 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		}
 	}
 	return nil
-}*/
+}
 
 // Leave makes the vaultkeeper leave (and notify) its current parent.
 // No-op if this vaultkeeper does not have a parent.
