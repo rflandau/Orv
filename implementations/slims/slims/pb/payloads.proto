@@ -28,6 +28,7 @@ message Fault {
     MALFORMED_ADDRESS = 7;
     UNKNOWN_CHILD_ID = 8;
     BAD_TOKEN = 9;
+    BAD_SERVICE_NAME = 10;
 
     // JOIN
 
@@ -37,11 +38,7 @@ message Fault {
 
     // REGISTER
 
-    BAD_SERVICE_NAME = 600;
-    BAD_STALE_TIME = 601;
-
-    // DEREGISTER
-    UNKNOWN_SERVICE_ID = 800;
+    BAD_STALE_TIME = 600;
 
     // MERGE
 
@@ -52,8 +49,8 @@ message Fault {
 
     NOT_PARENT = 1200;
 
-
     // SERVICE_HEARTBEAT
+
     ALL_UNKNOWN = 1400;
   }
 
