@@ -70,7 +70,10 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 // Returns errors that occur during the initial merge stage.
 // Logs and swallows errors that occur during the increment stage.
 func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+	var UDPAddr *net.UDPAddr
 	if !target.IsValid() {
+		return client.ErrInvalidAddrPort
+	} else if UDPAddr = net.UDPAddrFromAddrPort(target); UDPAddr == nil {
 		return client.ErrInvalidAddrPort
 	}
 	// send the HELLO
@@ -78,10 +81,6 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 	if err != nil {
 		return fmt.Errorf("HELLO: %w", err)
 	}
-
-	vk.net.mu.RLock()
-	UDPAddr := net.UDPAddrFromAddrPort(target)
-	vk.net.mu.RUnlock()
 
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
