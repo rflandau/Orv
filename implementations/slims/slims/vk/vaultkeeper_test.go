@@ -638,24 +638,27 @@ func Test_MergeIncrement(t *testing.T) {
 		} else if err := vkNewRoot.Start(); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(vkNewRoot.Stop)
 		vkOldRoot, err := New(UniqueID(), RandomLocalhostAddrPort(), WithCustomHeartbeats(true, 300*time.Millisecond, 3))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := vkOldRoot.Start(); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(vkOldRoot.Stop)
 		// merge them
 		if err := vkNewRoot.Merge(vkOldRoot.Address()); err != nil {
 			t.Fatal(err)
 		}
-		{ // check that the new child is recognized
+		{
+			// check that the new child is recognized by the new root
 			vkNewRoot.children.mu.Lock()
 			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
 				vkNewRoot.children.mu.Unlock()
 				t.Fatal("new root does not recognize old root as a child")
 			}
 			vkNewRoot.children.mu.Unlock()
-
+			// check that the new child recognizes its parent
 			vkOldRoot.structure.mu.RLock()
 			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
 				vkOldRoot.structure.mu.RUnlock()
