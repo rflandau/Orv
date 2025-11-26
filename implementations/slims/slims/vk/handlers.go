@@ -452,14 +452,25 @@ func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, sender
 	}
 
 	// check the height of the requestor
-	var reqHeight uint32
+	var (
+		reqHeight     uint32
+		parentAddrStr string
+		addrGiven     bool // used for logging; set iff an address was included in the body
+	)
 	if len(reqBody) != 0 {
 		var m pb.Merge
 		if err := pbun.Unmarshal(reqBody, &m); err != nil {
 			return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
 		}
 		reqHeight = m.Height
+		if m.VkAddress != nil {
+			parentAddrStr = *m.VkAddress
+			addrGiven = true
+		} else { // use sender addr
+			parentAddrStr = senderAddr.String()
+		}
 	}
+	// validate body
 	if reqHeight != uint32(vk.structure.height) {
 		return true, pb.Fault_BAD_HEIGHT, []string{"merges can only occur between equal height nodes. My height is " + strconv.FormatUint(uint64(vk.structure.height), 10)}
 	} else if reqHeight > math.MaxUint16-1 { // bounds check
@@ -467,11 +478,15 @@ func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, sender
 	}
 
 	// update our parent
-	if ap, err := netip.ParseAddrPort(senderAddr.String()); err != nil {
-		vk.log.Info().Err(err).Str("senderAddr", senderAddr.String()).Msg("failed to accept merge: failed to parse new parent address from senderAddr")
+	if parentAddr, err := netip.ParseAddrPort(parentAddrStr); err != nil {
+		vk.log.Info().Err(err).
+			Str("parent address", parentAddrStr).
+			Str("sender address", senderAddr.String()).
+			Bool("address given", addrGiven).
+			Msg("failed to accept merge: failed to parse new parent address from senderAddr")
 		return true, pb.Fault_MALFORMED_ADDRESS, nil
 	} else {
-		vk.structure.parentAddr = ap
+		vk.structure.parentAddr = parentAddr
 	}
 	vk.structure.parentID = reqHdr.ID
 	// accept the request
