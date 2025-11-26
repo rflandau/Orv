@@ -82,3 +82,16 @@ Once again following in ICMP's footsteps (and that of so many other network prot
 ### Design Process
 
 Errno was a relatively late addition and required a fair amount of refactoring. Originally, FAULTs were intended to be opaque, carrying only a "reason" string. This, however, made unit testing less precise and I figured that if I would get use out of error numbers, so could others.
+
+# Bifurcated Sending and Receiving in VKs
+
+This was not a conscious choice and I didn't really realize it until implementing MERGEs.
+
+It would likely make more sense to:
+
+1) collapse all communications for a given VK to a single port, like how most processes operate.
+
+or 
+
+2) bind a second port at start up to use for unprompted writes rather than creating a new client each time.
+
