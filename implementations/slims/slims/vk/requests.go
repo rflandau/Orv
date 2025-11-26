@@ -88,13 +88,18 @@ func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
 		return err
 	}
 
+	a := vk.Address().String()
+
 	// send the MERGE request
 	if _, err := protocol.WritePacket(vk.net.ctx, conn,
 		protocol.Header{
 			Version: protocol.SupportedVersions().HighestSupported(),
 			Type:    pb.MessageType_MERGE,
 			ID:      vk.id,
-		}, &pb.Merge{Height: uint32(vk.Height())}); err != nil {
+		}, &pb.Merge{
+			Height:    uint32(vk.Height()),
+			VkAddress: &a,
+		}); err != nil {
 		return err
 	}
 	// receive
