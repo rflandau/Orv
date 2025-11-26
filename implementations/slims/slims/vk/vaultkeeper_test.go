@@ -1339,6 +1339,11 @@ func spawnVK(t *testing.T, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
 	} else if err = vk.Start(); err != nil {
 		t.Fatal(err)
 	}
+	// only bother to spawn a leaf if an ID was given
+	if childLeaf.ID == 0 {
+		return vk
+	}
+
 	if _, _, _, err := client.Hello(ctx, childLeaf.ID, vk.Address()); err != nil {
 		t.Fatal(err)
 	}
