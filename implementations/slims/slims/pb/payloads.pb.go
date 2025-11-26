@@ -585,8 +585,11 @@ func (x *DeregisterAck) GetService() string {
 
 // Type #10
 type Merge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // current height of the requestor
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Height uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16 | current height of the requestor
+	// address+port the potential new parent vk listens on.
+	// if omitted, sender's address+port will be used
+	VkAddress     *string `protobuf:"bytes,2,opt,name=vkAddress,proto3,oneof" json:"vkAddress,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -628,10 +631,17 @@ func (x *Merge) GetHeight() uint32 {
 	return 0
 }
 
+func (x *Merge) GetVkAddress() string {
+	if x != nil && x.VkAddress != nil {
+		return *x.VkAddress
+	}
+	return ""
+}
+
 // Type #11
 type MergeAccept struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // echo height from Merge message
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16 | echo height from Merge message
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1604,9 +1614,12 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"Deregister\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\")\n" +
 	"\rDeregisterAck\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\"\x1f\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"P\n" +
 	"\x05Merge\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\rR\x06height\"%\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\x12!\n" +
+	"\tvkAddress\x18\x02 \x01(\tH\x00R\tvkAddress\x88\x01\x01B\f\n" +
+	"\n" +
+	"_vkAddress\"%\n" +
 	"\vMergeAccept\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\rR\x06height\"*\n" +
 	"\tIncrement\x12\x1d\n" +
@@ -1749,6 +1762,7 @@ func file_slims_pb_payloads_proto_init() {
 	}
 	file_slims_pb_message_types_proto_init()
 	file_slims_pb_payloads_proto_msgTypes[0].OneofWrappers = []any{}
+	file_slims_pb_payloads_proto_msgTypes[9].OneofWrappers = []any{}
 	file_slims_pb_payloads_proto_msgTypes[18].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
