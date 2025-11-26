@@ -243,7 +243,7 @@ Sent by a vk to indicate that the target vk should become one of its children (l
 ### Payload
 
 1. *height* (**uint16**): the current height of the requestor node
-2. *vkAddr* (**any**): address the requestor vk will be listening for heartbeats on
+2. *vkAddress* (**any**): address the requestor vk listens on. If omitted, the sender's address will be used 
 
 ## MERGE_ACCEPT
 
@@ -253,7 +253,9 @@ Sent by a vk to accept a vk's request to merge. Only used in root-root interacti
 
 Once received, the original vk (the vk that originally sent the MERGE) can safely consider itself to be the root of the newly merged vault, with the MERGE_ACCEPT sender a child vk. The requestor node must then update its height and send an INCREMENT to each child vk that was not part of the prior merge.
 
-MERGE_ACCEPT has no payload.
+### Payload
+
+1. *height* (**uint16**): echos the height in the MERGE message
 
 ## INCREMENT
 

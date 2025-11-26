@@ -120,12 +120,15 @@ message DeregisterAck{
 
 // Type #10
 message Merge {
-  uint32 height = 1; // current height of the requestor
+  uint32 height = 1; // uint16 | current height of the requestor
+  // address+port the potential new parent vk listens on.
+  // if omitted, sender's address+port will be used
+  optional string vkAddress = 2; 
 }
 
 // Type #11
 message MergeAccept {
-  uint32 height = 1; // echo height from Merge message
+  uint32 height = 1; // uint16 | echo height from Merge message
 }
 
 // Type #12
