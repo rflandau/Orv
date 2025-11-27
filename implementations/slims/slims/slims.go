@@ -29,14 +29,17 @@ func (e ErrUnexpectedResponseType) Error() string {
 	return "unexpected response type: " + string(e)
 }
 
-// FormatFault is a helper function used to format a fault message into a Go error.
-// Currently just prints errno and attaches additional_info (if supplied)
+// FormatFault is a helper function used to format a fault message into an Errno type error.
 func FormatFault(f *pb.Fault) error {
-	errMsg := "errno#" + strconv.FormatUint(uint64(f.Errno), 10)
-	if f.AdditionalInfo != nil && strings.TrimSpace(*f.AdditionalInfo) != "" {
-		errMsg += "(" + *f.AdditionalInfo + ")"
+	if f == nil {
+		return nil
 	}
-	return errors.New(errMsg)
+	err := Errno{Num: f.Errno}
+	if f.AdditionalInfo != nil {
+		err.AdditionalInfo = *f.AdditionalInfo
+	}
+
+	return err
 }
 
 // Errno provides an error type for and way to compare errnos.
@@ -49,7 +52,7 @@ type Errno struct {
 func (e Errno) Error() string {
 	base := strconv.FormatInt(int64(e.Num), 10)
 	if e.AdditionalInfo != "" {
-		return base + ": " + e.AdditionalInfo
+		return base + " (" + e.AdditionalInfo + ")"
 	}
 	return base
 }
