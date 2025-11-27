@@ -1,7 +1,9 @@
 {
     "cSpell.words": [
+        "autoheartbeater",
         "coap",
         "cvks",
+        "Errnos",
         "Hashset",
         "heartbeating",
         "huma",
@@ -9,6 +11,7 @@
         "pconn",
         "plgd",
         "randomdata",
+        "rcvr",
         "Rivered",
         "Rivering",
         "serviceless",
