@@ -14,7 +14,7 @@ Here is one example of a vault:
 
 Orv is highly flexible with the above example being just one of a myriad of paradigms.
 
-The name means **O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults. Or just "Orv". Or, Shrivyas' preferred name: "Izanami". Pick your favorite.
+The name means **O**rganically **R**estructuring **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults. Or just "Orv". Or, Shrivyas' preferred name: "Izanami". Pick your favorite.
 
 ## Authorship
 
