@@ -163,11 +163,11 @@ func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", err)
 	} else if hdr.Type == pb.MessageType_FAULT {
-		var f *pb.Fault
-		if err := pbun.Unmarshal(bd, f); err != nil {
+		var f pb.Fault
+		if err := pbun.Unmarshal(bd, &f); err != nil {
 			return fmt.Errorf("failed to receive INCREMENT_ACK: failed to unmarshal fault: %w", err)
 		}
-		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", slims.FormatFault(f))
+		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", slims.FormatFault(&f))
 	} else if hdr.Type != pb.MessageType_INCREMENT_ACK {
 		return fmt.Errorf("failed to receive INCREMENT_ACK: bad response message type (%s)", hdr.Type.String())
 	} else if bd != nil { // it isn't strictly necessary for the child to echo its new height
