@@ -38,3 +38,41 @@ func FormatFault(f *pb.Fault) error {
 	}
 	return errors.New(errMsg)
 }
+
+// Errno provides an error type for and way to compare errnos.
+// It is more accurate than ErrContainsErrno, but may not be implemented everywhere.
+type Errno struct {
+	Num            pb.Fault_Errnos
+	AdditionalInfo string
+}
+
+func (e Errno) Error() string {
+	base := strconv.FormatInt(int64(e.Num), 10)
+	if e.AdditionalInfo != "" {
+		return base + ": " + e.AdditionalInfo
+	}
+	return base
+}
+
+// Is checks if the given error's errno matches ours.
+// It does not care about additionalInfo.
+func (e Errno) Is(target error) bool {
+	if target == nil {
+		return false
+	}
+	targetErrno, ok := target.(Errno)
+	if !ok {
+		return false
+	}
+	return targetErrno.Num == e.Num
+}
+
+// ErrContainsErrno checks if the given error contains given errno.
+// This check is coarse and should be replaced by a new error type and errors.Is()... eventually.
+func ErrContainsErrno(err error, errno pb.Fault_Errnos) bool {
+	if err == nil {
+		return false
+	}
+	numStr := strconv.FormatInt(int64(errno.Number()), 10)
+	return strings.Contains(err.Error(), numStr)
+}
