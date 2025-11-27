@@ -692,6 +692,19 @@ func Test_MergeIncrement(t *testing.T) {
 			vkOldRoot.structure.mu.RUnlock()
 		}
 	})
+	t.Run("incorrect heights", func(t *testing.T) {
+		vk_h1 := spawnVK(t, Leaf{}, WithDragonsHoard(1))
+		t.Cleanup(vk_h1.Stop)
+		vk_h0 := spawnVK(t, Leaf{})
+		if err := vk_h0.Merge(vk_h1.Address()); err == nil {
+			t.Fatalf("expected error %s, got nil", pb.Fault_BAD_HEIGHT.String())
+		}
+		if err := vk_h1.Merge(vk_h0.Address()); !slims.ErrContainsErrno(err, pb.Fault_BAD_HEIGHT) {
+			t.Fatalf("expected error %s, got %v", pb.Fault_BAD_HEIGHT.String(), err)
+		}
+	})
+
+	// TODO include INCREMENT tests
 }
 
 // checkParent tests that that the values in vk match the values in expected.
