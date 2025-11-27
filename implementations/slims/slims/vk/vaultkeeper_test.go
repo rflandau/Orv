@@ -699,8 +699,8 @@ func Test_MergeIncrement(t *testing.T) {
 		if err := vkH0.Merge(vkH1.Address()); err == nil {
 			t.Fatalf("expected error %s, got nil", pb.Fault_BAD_HEIGHT.String())
 		}
-		if err := vkH1.Merge(vkH0.Address()); !slims.ErrContainsErrno(err, pb.Fault_BAD_HEIGHT) {
-			t.Fatalf("expected error %s, got %v", pb.Fault_BAD_HEIGHT.String(), err)
+		if err := vkH1.Merge(vkH0.Address()); !errors.Is(err, slims.Errno{Num: pb.Fault_BAD_HEIGHT}) {
+			t.Fatalf("expected error %s(%d), got %v", pb.Fault_BAD_HEIGHT.String(), pb.Fault_BAD_HEIGHT.Number(), err)
 		}
 	})
 
