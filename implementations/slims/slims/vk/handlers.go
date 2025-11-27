@@ -499,29 +499,34 @@ func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, sender
 	return
 }
 
+// NOTE(rlandau): this handler compares only the parentID to the ID in the request header.
+// It *should* check the address too, but VKs have bifurcated sending/receiving so this is not doable.
 func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	if reqHdr.Shorthand {
 		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
-	} else if len(reqBody) == 0 {
-		return true, pb.Fault_BODY_REQUIRED, nil
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
 		return true, pb.Fault_Errnos(pb.Fault_VERSION_NOT_SUPPORTED), nil
 	}
+	// no nil body check as a 0 height will cause protobuf to omit the body entirely
+
 	// ensure this request is coming from our parent
 	vk.structure.mu.RLock()
 	cParentAddr := vk.structure.parentAddr.Addr().String()
 	cParentID := vk.structure.parentID
 	vk.structure.mu.RUnlock()
-	if cParentAddr != senderAddr.String() {
+	if cParentID != reqHdr.ID {
 		vk.log.Warn().Msg("INCREMENT request received from non-parent")
 		return true, pb.Fault_NOT_PARENT, nil
 	}
 
 	// unpack the body
 	var inc pb.Increment
-	if err := pbun.Unmarshal(reqBody, &inc); err != nil {
-		return true, pb.Fault_MALFORMED_BODY, nil
+	if len(reqBody) > 0 {
+		if err := pbun.Unmarshal(reqBody, &inc); err != nil {
+			return true, pb.Fault_MALFORMED_BODY, nil
+		}
 	}
+
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	// ensure parent hasn't changed between critical sections
@@ -546,6 +551,9 @@ func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, se
 		return
 	case uint32(vk.structure.height) + 1: // success
 		wg := sync.WaitGroup{}
+
+		// increment
+		vk.structure.height += 1
 
 		// confirm the increment
 		wg.Go(func() {
