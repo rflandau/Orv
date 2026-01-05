@@ -287,7 +287,7 @@ Iterative request handling draws inspiration (id est: shamelessly copies) from i
 
 ## Comparison
 
-Development-wise, iterative and recursive are the most straightforward. Iterative models place more emphasis on the 
+Development-wise, iterative and recursive are the most straightforward. Iterative models place more emphasis on the client, requiring it to query each VK directly. Recursive models requiring each VK to keep the connection open until the request can rubberband back down the vault.
 
 The hand-off approach reduces the strain on VKs, but introduces a number of additional complexities. First, it will be arduous to implement in a client-server paradigm on a connection-oriented protocol like TCP. So probably don't do that; this makes more sense with an L4 Orv. Second, it requires the client spin up a listener to watch for the response packet(s) from *any host*, which brings its own set of challenges. Finally, it requires the introduction of ACK packets for each request type so parent VKs can confirm the hand-off. 
 
@@ -316,7 +316,7 @@ flowchart BT
 
 A knows how to access Service A directly and can respond to requests with LeafA's service address. In our current model, A would also know the address to Service B, so a request that reaches root can respond immediately. Our original design did not support this and, per the diagram, A would need to route a request for Service B down to B, which would know the service's actual address.
 
-This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered Vaultjeepers](#rivering-vaultkeepers).
+This design architecture would increase average hop count, which isn't ideal; possibly encourage an east-west traffic pattern; and possibly distribute the load more evenly in relatively constrained environments. Requests would have to go further on average, but this design could support Orv being implemented at Layer 3, while the current design can only support layer 4 and layer 5. Root would bear less, or at least different, load: VKs could reduce memory usage by grouping services from the same child into that child's entry. Root would still be responsible for forwarding a lot of packets (depending on the balance of the tree), though this could be mitigated by incorporating [Rivered Vaultkeepers](#rivering-vaultkeepers).
 
 ## Decrementing Height
 
