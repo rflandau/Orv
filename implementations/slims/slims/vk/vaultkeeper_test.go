@@ -744,6 +744,41 @@ func Test_MergeIncrement(t *testing.T) {
 				t.Fatal("bad child height post-Merge", ExpectedActual(1, childVK.Height()))
 			}
 		})
+		t.Run("downstream increment after new merge", func(t *testing.T) {
+			aChild := spawnVK(t, Leaf{})
+			aParent := spawnVK(t, Leaf{})
+			bChild := spawnVK(t, Leaf{})
+			bParent := spawnVK(t, Leaf{})
+			// build vault a
+			if err := aParent.Merge(aChild.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// build vault b
+			if err := bParent.Merge(bChild.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// confirm heights
+			if aChild.Height() != 0 || aParent.Height() != 1 {
+				t.Errorf("vault a has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, aChild.Height()), ExpectedActual(1, aParent.Height()))
+			}
+			if bChild.Height() != 0 || bParent.Height() != 1 {
+				t.Errorf("vault b has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, bChild.Height()), ExpectedActual(1, bParent.Height()))
+			}
+			if t.Failed() {
+				t.FailNow()
+			}
+			// merge roots, with b making the request
+			if err := bParent.Merge(aParent.Address()); err != nil {
+				t.Fatal("failed to merge roots: ", err)
+			}
+			// re-confirm heights
+			if aChild.Height() != 0 || aParent.Height() != 1 { // vault a's heights should be unchanged
+				t.Errorf("vault a has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, aChild.Height()), ExpectedActual(1, aParent.Height()))
+			}
+			if bChild.Height() != 1 || bParent.Height() != 2 { // vault b's heights should be one higher each
+				t.Errorf("vault b has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(1, bChild.Height()), ExpectedActual(2, bParent.Height()))
+			}
+		})
 	})
 }
 
