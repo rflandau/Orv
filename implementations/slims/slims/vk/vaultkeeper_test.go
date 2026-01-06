@@ -622,7 +622,7 @@ func Test_HeartBeatParent(t *testing.T) {
 
 // As it says on the tin, Test_MergeIncrement checks thats vks can merge and increment their children.
 func Test_MergeIncrement(t *testing.T) {
-	t.Run("0-0 merge", func(t *testing.T) {
+	t.Run("merge: 0h-0h", func(t *testing.T) {
 		t.Parallel()
 
 		const cVKPrune = 500 * time.Millisecond
@@ -692,7 +692,7 @@ func Test_MergeIncrement(t *testing.T) {
 			vkOldRoot.structure.mu.RUnlock()
 		}
 	})
-	t.Run("incorrect heights", func(t *testing.T) {
+	t.Run("merge: 0h-1h incorrect heights", func(t *testing.T) {
 		vkH1 := spawnVK(t, Leaf{}, WithDragonsHoard(1))
 		t.Cleanup(vkH1.Stop)
 		vkH0 := spawnVK(t, Leaf{})
@@ -703,7 +703,8 @@ func Test_MergeIncrement(t *testing.T) {
 			t.Fatalf("expected error %s(%d), got %v", pb.Fault_BAD_HEIGHT.String(), pb.Fault_BAD_HEIGHT.Number(), err)
 		}
 	})
-	t.Run("increment", func(t *testing.T) {
+	t.Run("manual increment", func(t *testing.T) {
+		// merge two h0s to build the tree
 		parentVK := spawnVK(t, Leaf{})
 		t.Cleanup(parentVK.Stop)
 		childVK := spawnVK(t, Leaf{})
@@ -711,9 +712,11 @@ func Test_MergeIncrement(t *testing.T) {
 		if err := parentVK.Merge(childVK.Address()); err != nil {
 			t.Fatal(err)
 		}
+
 		thirdVK := spawnVK(t, Leaf{}, WithDragonsHoard(1))
 		t.Cleanup(thirdVK.Stop)
-		t.Run("from non-parent", func(t *testing.T) {
+
+		t.Run("reject increment from non-parent", func(t *testing.T) {
 			var cAddr *net.UDPAddr
 			if cAddr = net.UDPAddrFromAddrPort(childVK.Address()); cAddr == nil {
 				t.Fatal("failed to parse childVK address into UDPAddr")
