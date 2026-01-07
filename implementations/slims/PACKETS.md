@@ -84,6 +84,10 @@ FAULT may be sent in response to any number of request packets.
         009: BAD_TOKEN: token was unsupported or empty.
             - This error is subject to implementation choices and may only correspond to an empty token.
 
+        010: BAD_SERVICE_NAME: the service name is unacceptable (due to being empty, too long, or containing invalid characters) or not found when expected.
+            - This error has different meanings in different contexts.
+                - In REGISTER messages, it means the registration was rejected because the literal name was bad.
+                - In DEREGISTER messages, it means the deregistration failed because the name is not currently known.
 
     - JOIN Codes (4XX):
 
@@ -95,14 +99,20 @@ FAULT may be sent in response to any number of request packets.
             - if a VK sent the JOIN request, then its ID is already in use here by a leaf and vice versa.
 
     - REGISTER Codes (6XX):
-
-        600: BAD_SERVICE_NAME: service name was left empty.
         
-        601: BAD_STALE_TIME: stale time was empty or not in Go time.
+        600: BAD_STALE_TIME: stale time was empty or not in Go time.
 
-    - SERVICE_HEARTBEAT (12XX):
+    - MERGE Codes (10XX):
 
-        1200: ALL_UNKNOWN: all requested services are unknown
+        1000: NOT_ROOT: this VK is not the root of its vault.
+
+    - INCREMENT Codes (12XX):
+
+        1200: NOT_PARENT: this VK does not consider the sender to be its parent and thus rejects this INCREMENT command.
+
+    - SERVICE_HEARTBEAT Codes (14XX):
+
+        1400: ALL_UNKNOWN: all requested services are unknown
 
 3. *additional_info* (**string**):  (OPTIONAL) extra, human-readable information to include
 
@@ -233,7 +243,7 @@ Sent by a vk to indicate that the target vk should become one of its children (l
 ### Payload
 
 1. *height* (**uint16**): the current height of the requestor node
-2. *vkAddr* (**any**): address the requestor vk will be listening for heartbeats on
+2. *vkAddress* (**any**): address the requestor vk listens on. If omitted, the sender's address will be used 
 
 ## MERGE_ACCEPT
 
@@ -243,7 +253,9 @@ Sent by a vk to accept a vk's request to merge. Only used in root-root interacti
 
 Once received, the original vk (the vk that originally sent the MERGE) can safely consider itself to be the root of the newly merged vault, with the MERGE_ACCEPT sender a child vk. The requestor node must then update its height and send an INCREMENT to each child vk that was not part of the prior merge.
 
-MERGE_ACCEPT has no payload.
+### Payload
+
+1. *height* (**uint16**): echos the height in the MERGE message
 
 ## INCREMENT
 

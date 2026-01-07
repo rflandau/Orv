@@ -621,8 +621,8 @@ func Test_HeartBeatParent(t *testing.T) {
 }
 
 // As it says on the tin, Test_MergeIncrement checks thats vks can merge and increment their children.
-/*func Test_MergeIncrement(t *testing.T) {
-	t.Run("0-0 merge", func(t *testing.T) {
+func Test_MergeIncrement(t *testing.T) {
+	t.Run("merge: 0h-0h", func(t *testing.T) {
 		t.Parallel()
 
 		const cVKPrune = 500 * time.Millisecond
@@ -638,24 +638,27 @@ func Test_HeartBeatParent(t *testing.T) {
 		} else if err := vkNewRoot.Start(); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(vkNewRoot.Stop)
 		vkOldRoot, err := New(UniqueID(), RandomLocalhostAddrPort(), WithCustomHeartbeats(true, 300*time.Millisecond, 3))
 		if err != nil {
 			t.Fatal(err)
 		} else if err := vkOldRoot.Start(); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(vkOldRoot.Stop)
 		// merge them
 		if err := vkNewRoot.Merge(vkOldRoot.Address()); err != nil {
 			t.Fatal(err)
 		}
-		{ // check that the new child is recognized
+		{
+			// check that the new child is recognized by the new root
 			vkNewRoot.children.mu.Lock()
 			if _, found := vkNewRoot.children.cvks.Load(vkOldRoot.ID()); !found {
 				vkNewRoot.children.mu.Unlock()
 				t.Fatal("new root does not recognize old root as a child")
 			}
 			vkNewRoot.children.mu.Unlock()
-
+			// check that the new child recognizes its parent
 			vkOldRoot.structure.mu.RLock()
 			if vkOldRoot.structure.parentAddr.String() != vkNewRoot.addr.String() || vkOldRoot.structure.parentID != vkNewRoot.id {
 				vkOldRoot.structure.mu.RUnlock()
@@ -689,7 +692,95 @@ func Test_HeartBeatParent(t *testing.T) {
 			vkOldRoot.structure.mu.RUnlock()
 		}
 	})
-}*/
+	t.Run("merge: 0h-1h incorrect heights", func(t *testing.T) {
+		vkH1 := spawnVK(t, Leaf{}, WithDragonsHoard(1))
+		t.Cleanup(vkH1.Stop)
+		vkH0 := spawnVK(t, Leaf{})
+		if err := vkH0.Merge(vkH1.Address()); err == nil {
+			t.Fatalf("expected error %s, got nil", pb.Fault_BAD_HEIGHT.String())
+		}
+		if err := vkH1.Merge(vkH0.Address()); !errors.Is(err, slims.Errno{Num: pb.Fault_BAD_HEIGHT}) {
+			t.Fatalf("expected error %s(%d), got %v", pb.Fault_BAD_HEIGHT.String(), pb.Fault_BAD_HEIGHT.Number(), err)
+		}
+	})
+	t.Run("manual increment", func(t *testing.T) {
+		// merge two h0s to build the tree
+		parentVK := spawnVK(t, Leaf{})
+		t.Cleanup(parentVK.Stop)
+		childVK := spawnVK(t, Leaf{})
+		t.Cleanup(childVK.Stop)
+		if err := parentVK.Merge(childVK.Address()); err != nil {
+			t.Fatal(err)
+		}
+
+		thirdVK := spawnVK(t, Leaf{}, WithDragonsHoard(1))
+		t.Cleanup(thirdVK.Stop)
+
+		t.Run("reject increment from non-parent", func(t *testing.T) {
+			var cAddr *net.UDPAddr
+			if cAddr = net.UDPAddrFromAddrPort(childVK.Address()); cAddr == nil {
+				t.Fatal("failed to parse childVK address into UDPAddr")
+			}
+
+			if err := thirdVK.increment(cAddr); !errors.Is(err, slims.Errno{Num: pb.Fault_NOT_PARENT}) {
+				t.Fatal(ExpectedActual(error(slims.Errno{Num: pb.Fault_NOT_PARENT}), err))
+			}
+		})
+		t.Run("successful increment after new merge", func(t *testing.T) {
+			// childVK(0) -> parentVK(1)	thirdVK(1)
+			// should become
+			// childVK(1) -> parentVK(2) <- thirdVK(1)
+
+			// sanity check child's precursor height
+			if childVK.Height() != 0 {
+				t.Fatal("failed sanity check", ExpectedActual(0, childVK.Height()))
+			}
+
+			if err := parentVK.Merge(thirdVK.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// check that the original child knows that the vault has grown
+			if childVK.Height() != 1 {
+				t.Fatal("bad child height post-Merge", ExpectedActual(1, childVK.Height()))
+			}
+		})
+		t.Run("downstream increment after new merge", func(t *testing.T) {
+			aChild := spawnVK(t, Leaf{})
+			aParent := spawnVK(t, Leaf{})
+			bChild := spawnVK(t, Leaf{})
+			bParent := spawnVK(t, Leaf{})
+			// build vault a
+			if err := aParent.Merge(aChild.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// build vault b
+			if err := bParent.Merge(bChild.Address()); err != nil {
+				t.Fatal(err)
+			}
+			// confirm heights
+			if aChild.Height() != 0 || aParent.Height() != 1 {
+				t.Errorf("vault a has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, aChild.Height()), ExpectedActual(1, aParent.Height()))
+			}
+			if bChild.Height() != 0 || bParent.Height() != 1 {
+				t.Errorf("vault b has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, bChild.Height()), ExpectedActual(1, bParent.Height()))
+			}
+			if t.Failed() {
+				t.FailNow()
+			}
+			// merge roots, with b making the request
+			if err := bParent.Merge(aParent.Address()); err != nil {
+				t.Fatal("failed to merge roots: ", err)
+			}
+			// re-confirm heights
+			if aChild.Height() != 0 || aParent.Height() != 1 { // vault a's heights should be unchanged
+				t.Errorf("vault a has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(0, aChild.Height()), ExpectedActual(1, aParent.Height()))
+			}
+			if bChild.Height() != 1 || bParent.Height() != 2 { // vault b's heights should be one higher each
+				t.Errorf("vault b has incorrect heights:\nchild:%v\nparent:%v", ExpectedActual(1, bChild.Height()), ExpectedActual(2, bParent.Height()))
+			}
+		})
+	})
+}
 
 // checkParent tests that that the values in vk match the values in expected.
 //
@@ -1336,6 +1427,13 @@ func spawnVK(t *testing.T, childLeaf Leaf, vkOpts ...VKOption) *VaultKeeper {
 	} else if err = vk.Start(); err != nil {
 		t.Fatal(err)
 	}
+	// TODO register t.Cleanup(vk.Stop)
+
+	// only bother to spawn a leaf if an ID was given
+	if childLeaf.ID == 0 {
+		return vk
+	}
+
 	if _, _, _, err := client.Hello(ctx, childLeaf.ID, vk.Address()); err != nil {
 		t.Fatal(err)
 	}

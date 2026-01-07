@@ -212,7 +212,7 @@ func (vk *VaultKeeper) pruneServiceFromLeaf(childID slims.NodeID, service string
 // ! Expects the caller to hold the child lock.
 func (vk *VaultKeeper) removeProvider(service string, childID slims.NodeID) (errno pb.Fault_Errnos) {
 	if m, found := vk.children.allServices[service]; !found {
-		return pb.Fault_UNKNOWN_SERVICE_ID
+		return pb.Fault_BAD_SERVICE_NAME
 	} else if _, found := m[childID]; !found {
 		return pb.Fault_UNKNOWN_CHILD_ID
 	}

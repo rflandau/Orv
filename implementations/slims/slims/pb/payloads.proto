@@ -28,6 +28,7 @@ message Fault {
     MALFORMED_ADDRESS = 7;
     UNKNOWN_CHILD_ID = 8;
     BAD_TOKEN = 9;
+    BAD_SERVICE_NAME = 10;
 
     // JOIN
 
@@ -37,19 +38,19 @@ message Fault {
 
     // REGISTER
 
-    BAD_SERVICE_NAME = 600;
-    BAD_STALE_TIME = 601;
-
-    // DEREGISTER
-    UNKNOWN_SERVICE_ID = 800;
+    BAD_STALE_TIME = 600;
 
     // MERGE
-    NOT_ROOT = 1000; // sent by a VK who receives a MERGE request but already has a different parent
+
+    // sent by a VK who receives a MERGE request but already has a different parent
+    NOT_ROOT = 1000;
 
     // INCREMENT
+
     NOT_PARENT = 1200;
 
     // SERVICE_HEARTBEAT
+
     ALL_UNKNOWN = 1400;
   }
 
@@ -119,12 +120,15 @@ message DeregisterAck{
 
 // Type #10
 message Merge {
-    uint32 height = 1; // current height of the requestor
+  uint32 height = 1; // uint16 | current height of the requestor
+  // address+port the potential new parent vk listens on.
+  // if omitted, sender's address+port will be used
+  optional string vkAddress = 2; 
 }
 
 // Type #11
 message MergeAccept {
-    uint32 height = 1; // echo height from Merge message
+  uint32 height = 1; // uint16 | echo height from Merge message
 }
 
 // Type #12
@@ -205,7 +209,8 @@ message ListAck {
 }
 
 // Type #22
-// Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+// Sent by the node that chooses to end and answer a list request
+// (because it is root or hop count was decremented to zero on it).
 message ListResp {
   string token = 1;
   // list of services known to the responding vk

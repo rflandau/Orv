@@ -1,5 +1,6 @@
 // Package client provides static subroutines for interacting with a vault and vaultkeeper.
-// Each subroutine lists if it is intended to be used only by leaves, only by vks, or by any node (even those not associated to the tree).
+// Each subroutine lists if it is intended to be used only by any node (even those not associated to the tree) and/or if a better,
+// VK-equivalent exists as a method on vaultkeepers.
 package client
 
 import (
@@ -70,7 +71,7 @@ func Hello(ctx context.Context, myID slims.NodeID, target netip.AddrPort) (vkID 
 }
 
 // JoinInfo contains information about the requestor used to compose the JOIN request.
-// If you are trying to join as a vk, prefer vaultkeeper.Join() (which will populate this for you).
+// If you are trying to join a tree as a vk, prefer vaultkeeper.Join() (which will populate this for you).
 type JoinInfo struct {
 	IsVK   bool           // am I a VK?
 	VKAddr netip.AddrPort // required iff isVK: where I am listening
@@ -81,7 +82,7 @@ type JoinInfo struct {
 // Sends the packet as protocol.SupportedVersions().HighestSupported().
 // If you are trying to join as a vk, prefer vaultkeeper.Join().
 //
-// This subroutine can be invoked by any node wishing to join a vault (as a leaf or as a child vk).
+// This subroutine can be invoked by any node wishing to join a vault after it has sent a HELLO message.
 func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req JoinInfo) (vkID slims.NodeID, _ *pb.JoinAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
@@ -132,7 +133,9 @@ func Join(ctx context.Context, myID slims.NodeID, target netip.AddrPort, req Joi
 
 // Register sends a REGISTER packet to the given address, returning the target node's ID and response.
 // This registers a single service with the target so long as myID is a known children.
-// Stale is only important if the registering node is a leaf (not a child vk).
+// Stale is only important/recognized if the registering node is a leaf (not a child vk).
+//
+// May be invoked by any node part of a tree.
 func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, service string, serviceAddr netip.AddrPort, stale time.Duration) (vkID slims.NodeID, _ *pb.RegisterAccept, _ error) {
 	// validate parameters
 	if ctx == nil {
@@ -186,7 +189,7 @@ func Register(ctx context.Context, myID slims.NodeID, target netip.AddrPort, ser
 }
 
 // RegisterNewLeaf is an ease-of-use function that HELLOs, JOINs, and REGISTERs under the target, returning on the first failure.
-// The new child will be registered as a leaf; if you are trying to join as a VK use the method on Vaultkeeper.
+// The new child will be registered as a leaf.
 //
 // ctx will be shared among all requests.
 func RegisterNewLeaf(ctx context.Context, myID slims.NodeID, target netip.AddrPort, services map[string]struct {
@@ -210,12 +213,11 @@ func RegisterNewLeaf(ctx context.Context, myID slims.NodeID, target netip.AddrPo
 }
 
 // ServiceHeartbeat sends a SERVICE_HEARTBEAT packet to the given address, which must be owned by this node's parent.
-// This should be run in a loop to ensure the service does not get pruned.
-// Because we are using UDP and thus packets can get lost, you should repeat this if no ACK is received (otherwise the service risks being pruned).
+// This should be run in a loop to ensure the service(s) does not get pruned.
 //
 // ServicesRefreshed should be checked to ensure it matches the given list of services; missing services may or may not have been refreshed.
 //
-// Do NOT use this for VK heartbeats. Use vk.Heartbeat() for that (or rely on the automated heartbeating this library implements in VKs).
+// Do NOT use this for VK heartbeats. Use vk.HeartbeatParent() for that (or rely on the VK's automated heartbeating).
 func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.AddrPort, services []string) (vkID slims.NodeID, servicesRefreshed []string, servicesUnknown []string, rerr error) {
 	if ctx == nil {
 		rerr = slims.ErrNilCtx
@@ -278,14 +280,14 @@ func ServiceHeartbeat(ctx context.Context, myID slims.NodeID, parentAddr netip.A
 	}
 }
 
-// ParentInfo can be used to pass validate-able parent info to client requests.
+// ParentInfo is used to pass validate-able parent info to client requests.
 type ParentInfo struct {
 	ID   slims.NodeID
 	Addr netip.AddrPort
 }
 
 // AutoServiceHeartbeat spins out a goroutine to send heartbeats for services on behalf of myID every frequency.
-// Easy way to spin up heartbeating for your service(s) without having to manually incorporate ServiceHeartbeats.
+// It provides an easy way to spin up heartbeating for your service(s) without having to manually incorporate ServiceHeartbeats.
 //
 // hbWriteTimeout sets the timeout for each HB send.
 //
@@ -308,7 +310,7 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 	}
 
 	var (
-		done atomic.Bool // tracks if this autoheartber been cancelled or is otherwise done
+		done atomic.Bool // tracks if this autoheartbeater been cancelled or is otherwise done
 		cnl  = make(chan bool)
 	)
 	services := slices.Clone(servicesToHB) // copy so we can safely alter list
@@ -355,9 +357,11 @@ func AutoServiceHeartbeat(hbWriteTimeout, frequency time.Duration, myID slims.No
 }
 
 // Leave alerts the target (who is, assumedly, your parent VK) that you are departing the vault.
-// Future interactions (excluding client requests) will require going through the handshake again.
+// Future interactions (excluding client requests) will require going through the HELLO handshake again.
 //
 // If a fault occurs, it is transformed into an error via slims.FormatFault().
+//
+// Prefer vaultkeeper.Leave() if you are a vk.
 func Leave(ctx context.Context, target netip.AddrPort, senderID slims.NodeID) error {
 	if !target.IsValid() {
 		return ErrInvalidAddrPort
@@ -567,7 +571,24 @@ func List(target netip.AddrPort, ctx context.Context, token string, hopCount uin
 	}
 }
 
-// TODO annotate
+// Get sends a GET request to the given address and returns the address of a provider of that service (if found).
+// This request will echo up the vault until a provider is found, hop count decrements to zero, or it hits the root.
+// Services are found by direct string match.
+//
+// token is a unique identifier for this request to guarantee that request and response can be matched.
+// It can be anything so long as the message will still fit in one packet.
+//
+// laddr is used to receive the response.
+// If the IP field of laddr is nil or an unspecified IP address,
+// ListenUDP listens on all available IP addresses of the local system except multicast IP addresses.
+// If the Port field of laddr is 0, a port number is automatically chosen.
+//
+// senderID sends the request longform, but is otherwise unused in Slims 1.0.
+//
+// Assuming the request was successfully sent, Get only returns if the context is cancelled/expires or a GET_RESP is received.
+// GET_ACKs are thrown away.
+//
+// This subroutine can be invoked by any node.
 func Get(ctx context.Context, service string, target netip.AddrPort, token string, hopLimit uint16, laddr *net.UDPAddr, senderID ...slims.NodeID) (responderAddr net.Addr, serviceAddr string, err error) {
 	if token == "" {
 		return nil, "", errors.New("token must not be empty")

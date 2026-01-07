@@ -55,11 +55,21 @@ Adding a timed waitgroup to vault keepers to ensure that all in-flights actually
 
 ## Gossip Hops Limited to 1
 
-As it says in the title, gossip is implemented, but only supports a single hop. In other words, information learned via gossip will not propagate beyond the paired vks.
+Gossip NYI
+
+As it says in the title, ~~gossip is implemented~~, but only supports a single hop. In other words, information learned via gossip will not propagate beyond the paired vks.
 
 ## VKs cannot directly register services
 
 TODO: enable services to be registered directly at a VK, with or without heartbeats.
+
+## Bifurcated Sending and Receiving in VKs
+
+VKs bind to a port when `.Start()` is called; this port handles all inbound traffic, including writing out responses.
+
+VKs bind to new sockets when they send data requests (unprompted writes).
+
+This means that, for example, Merge requests will come from a different port than that VK listens for heartbeats on.
 
 # Contributing
 

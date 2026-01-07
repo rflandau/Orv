@@ -29,12 +29,53 @@ func (e ErrUnexpectedResponseType) Error() string {
 	return "unexpected response type: " + string(e)
 }
 
-// FormatFault is a helper function used to format a fault message into a Go error.
-// Currently just prints errno and attaches additional_info (if supplied)
+// FormatFault is a helper function used to format a fault message into an Errno type error.
 func FormatFault(f *pb.Fault) error {
-	errMsg := "errno#" + strconv.FormatUint(uint64(f.Errno), 10)
-	if f.AdditionalInfo != nil && strings.TrimSpace(*f.AdditionalInfo) != "" {
-		errMsg += "(" + *f.AdditionalInfo + ")"
+	if f == nil {
+		return nil
 	}
-	return errors.New(errMsg)
+	err := Errno{Num: f.Errno}
+	if f.AdditionalInfo != nil {
+		err.AdditionalInfo = *f.AdditionalInfo
+	}
+
+	return err
+}
+
+// Errno provides an error type for and way to compare errnos.
+// It is more accurate than ErrContainsErrno, but may not be implemented everywhere.
+type Errno struct {
+	Num            pb.Fault_Errnos
+	AdditionalInfo string
+}
+
+func (e Errno) Error() string {
+	base := strconv.FormatInt(int64(e.Num), 10)
+	if e.AdditionalInfo != "" {
+		return base + " (" + e.AdditionalInfo + ")"
+	}
+	return base
+}
+
+// Is checks if the given error's errno matches ours.
+// It does not care about additionalInfo.
+func (e Errno) Is(target error) bool {
+	if target == nil {
+		return false
+	}
+	targetErrno, ok := target.(Errno)
+	if !ok {
+		return false
+	}
+	return targetErrno.Num == e.Num
+}
+
+// ErrContainsErrno checks if the given error contains given errno.
+// This check is coarse and should be replaced by a new error type and errors.Is()... eventually.
+func ErrContainsErrno(err error, errno pb.Fault_Errnos) bool {
+	if err == nil {
+		return false
+	}
+	numStr := strconv.FormatInt(int64(errno.Number()), 10)
+	return strings.Contains(err.Error(), numStr)
 }

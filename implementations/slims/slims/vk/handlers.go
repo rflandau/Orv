@@ -7,9 +7,12 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rflandau/Orv/implementations/slims/slims"
@@ -383,7 +386,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 
 // serveMerge handles incoming merge requests.
 // Handling mostly revolves around ensuring the requestor's height is equal to ours.
-/*func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+func (vk *VaultKeeper) serveMerge(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	// NOTE: because we are using protobufs, a zero-height request will cause an empty body.
 	// Hence, we cannot check for an empty body here even though we require a height.
 	// If no body is given, use zero height.
@@ -449,14 +452,25 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	}
 
 	// check the height of the requestor
-	var reqHeight uint32
+	var (
+		reqHeight     uint32
+		parentAddrStr string
+		addrGiven     bool // used for logging; set iff an address was included in the body
+	)
 	if len(reqBody) != 0 {
 		var m pb.Merge
 		if err := pbun.Unmarshal(reqBody, &m); err != nil {
 			return true, pb.Fault_MALFORMED_BODY, []string{err.Error()}
 		}
 		reqHeight = m.Height
+		if m.VkAddress != nil {
+			parentAddrStr = *m.VkAddress
+			addrGiven = true
+		} else { // use sender addr
+			parentAddrStr = senderAddr.String()
+		}
 	}
+	// validate body
 	if reqHeight != uint32(vk.structure.height) {
 		return true, pb.Fault_BAD_HEIGHT, []string{"merges can only occur between equal height nodes. My height is " + strconv.FormatUint(uint64(vk.structure.height), 10)}
 	} else if reqHeight > math.MaxUint16-1 { // bounds check
@@ -464,11 +478,15 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 	}
 
 	// update our parent
-	if ap, err := netip.ParseAddrPort(senderAddr.String()); err != nil {
-		vk.log.Info().Err(err).Str("senderAddr", senderAddr.String()).Msg("failed to accept merge: failed to parse new parent address from senderAddr")
+	if parentAddr, err := netip.ParseAddrPort(parentAddrStr); err != nil {
+		vk.log.Info().Err(err).
+			Str("parent address", parentAddrStr).
+			Str("sender address", senderAddr.String()).
+			Bool("address given", addrGiven).
+			Msg("failed to accept merge: failed to parse new parent address from senderAddr")
 		return true, pb.Fault_MALFORMED_ADDRESS, nil
 	} else {
-		vk.structure.parentAddr = ap
+		vk.structure.parentAddr = parentAddr
 	}
 	vk.structure.parentID = reqHdr.ID
 	// accept the request
@@ -479,31 +497,36 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		&pb.MergeAccept{Height: uint32(vk.structure.height)},
 	)
 	return
-}*/
+}
 
-/*func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
+// NOTE(rlandau): this handler compares only the parentID to the ID in the request header.
+// It *should* check the address too, but VKs have bifurcated sending/receiving so this is not doable.
+func (vk *VaultKeeper) serveIncrement(reqHdr protocol.Header, reqBody []byte, senderAddr net.Addr) (errored bool, errno pb.Fault_Errnos, extraInfo []string) {
 	if reqHdr.Shorthand {
 		return true, pb.Fault_SHORTHAND_NOT_ACCEPTED, nil
-	} else if len(reqBody) == 0 {
-		return true, pb.Fault_BODY_REQUIRED, nil
 	} else if !vk.versionSet.Supports(reqHdr.Version) {
 		return true, pb.Fault_Errnos(pb.Fault_VERSION_NOT_SUPPORTED), nil
 	}
+	// no nil body check as a 0 height will cause protobuf to omit the body entirely
+
 	// ensure this request is coming from our parent
 	vk.structure.mu.RLock()
 	cParentAddr := vk.structure.parentAddr.Addr().String()
 	cParentID := vk.structure.parentID
 	vk.structure.mu.RUnlock()
-	if cParentAddr != senderAddr.String() {
+	if cParentID != reqHdr.ID {
 		vk.log.Warn().Msg("INCREMENT request received from non-parent")
 		return true, pb.Fault_NOT_PARENT, nil
 	}
 
 	// unpack the body
 	var inc pb.Increment
-	if err := pbun.Unmarshal(reqBody, &inc); err != nil {
-		return true, pb.Fault_MALFORMED_BODY, nil
+	if len(reqBody) > 0 {
+		if err := pbun.Unmarshal(reqBody, &inc); err != nil {
+			return true, pb.Fault_MALFORMED_BODY, nil
+		}
 	}
+
 	vk.structure.mu.Lock()
 	defer vk.structure.mu.Unlock()
 	// ensure parent hasn't changed between critical sections
@@ -528,6 +551,9 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		return
 	case uint32(vk.structure.height) + 1: // success
 		wg := sync.WaitGroup{}
+
+		// increment
+		vk.structure.height += 1
 
 		// confirm the increment
 		wg.Go(func() {
@@ -562,7 +588,7 @@ func (vk *VaultKeeper) serveJoin(reqHdr protocol.Header, reqBody []byte, senderA
 		vk.log.Warn().Msg("unexpected INCREMENT height")
 		return true, pb.Fault_BAD_HEIGHT, nil
 	}
-}*/
+}
 
 // serveLeave handles incoming LEAVE packets.
 // If the ID matches a known child, that child will be removed from the list of known children and all its services deregistered up the tree.

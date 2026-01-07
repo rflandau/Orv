@@ -69,8 +69,11 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 //
 // Returns errors that occur during the initial merge stage.
 // Logs and swallows errors that occur during the increment stage.
-/*func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+func (vk *VaultKeeper) Merge(target netip.AddrPort) error {
+	var UDPAddr *net.UDPAddr
 	if !target.IsValid() {
+		return client.ErrInvalidAddrPort
+	} else if UDPAddr = net.UDPAddrFromAddrPort(target); UDPAddr == nil {
 		return client.ErrInvalidAddrPort
 	}
 	// send the HELLO
@@ -79,15 +82,13 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		return fmt.Errorf("HELLO: %w", err)
 	}
 
-	vk.net.mu.RLock()
-	UDPAddr := net.UDPAddrFromAddrPort(target)
-	vk.net.mu.RUnlock()
-
 	// generate a dialer
 	conn, err := net.DialUDP("udp", nil, UDPAddr)
 	if err != nil {
 		return err
 	}
+
+	a := vk.Address().String()
 
 	// send the MERGE request
 	if _, err := protocol.WritePacket(vk.net.ctx, conn,
@@ -95,7 +96,10 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 			Version: protocol.SupportedVersions().HighestSupported(),
 			Type:    pb.MessageType_MERGE,
 			ID:      vk.id,
-		}, &pb.Merge{Height: uint32(vk.Height())}); err != nil {
+		}, &pb.Merge{
+			Height:    uint32(vk.Height()),
+			VkAddress: &a,
+		}); err != nil {
 		return err
 	}
 	// receive
@@ -137,12 +141,12 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		return
 	})
 	return nil
-}*/
+}
 
 // increment does as it says on the tin: sending a single INCREMENT message to the target and awaiting its reply.
 // Does not acquire any locks.
 // Liberally returns errors (i.e. an returned error may represent a failure to sanity check the ack, which does not mean the increment itself failed).
-/*func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
+func (vk *VaultKeeper) increment(addr *net.UDPAddr) (err error) {
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
 		return fmt.Errorf("failed to generate UDP dialer: %w", err)
@@ -159,11 +163,11 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 	if err != nil {
 		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", err)
 	} else if hdr.Type == pb.MessageType_FAULT {
-		var f *pb.Fault
-		if err := pbun.Unmarshal(bd, f); err != nil {
+		var f pb.Fault
+		if err := pbun.Unmarshal(bd, &f); err != nil {
 			return fmt.Errorf("failed to receive INCREMENT_ACK: failed to unmarshal fault: %w", err)
 		}
-		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", slims.FormatFault(f))
+		return fmt.Errorf("failed to receive INCREMENT_ACK: %w", slims.FormatFault(&f))
 	} else if hdr.Type != pb.MessageType_INCREMENT_ACK {
 		return fmt.Errorf("failed to receive INCREMENT_ACK: bad response message type (%s)", hdr.Type.String())
 	} else if bd != nil { // it isn't strictly necessary for the child to echo its new height
@@ -176,7 +180,7 @@ func (vk *VaultKeeper) Join(ctx context.Context, target netip.AddrPort) (err err
 		}
 	}
 	return nil
-}*/
+}
 
 // Leave makes the vaultkeeper leave (and notify) its current parent.
 // No-op if this vaultkeeper does not have a parent.

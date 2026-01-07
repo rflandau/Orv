@@ -36,18 +36,14 @@ const (
 	Fault_MALFORMED_ADDRESS      Fault_Errnos = 7
 	Fault_UNKNOWN_CHILD_ID       Fault_Errnos = 8
 	Fault_BAD_TOKEN              Fault_Errnos = 9
+	Fault_BAD_SERVICE_NAME       Fault_Errnos = 10
 	Fault_HELLO_REQUIRED         Fault_Errnos = 400
 	Fault_BAD_HEIGHT             Fault_Errnos = 401
 	Fault_ID_IN_USE              Fault_Errnos = 402
-	Fault_BAD_SERVICE_NAME       Fault_Errnos = 600
-	Fault_BAD_STALE_TIME         Fault_Errnos = 601
-	// DEREGISTER
-	Fault_UNKNOWN_SERVICE_ID Fault_Errnos = 800
-	// MERGE
-	Fault_NOT_ROOT Fault_Errnos = 1000 // sent by a VK who receives a MERGE request but already has a different parent
-	// INCREMENT
-	Fault_NOT_PARENT Fault_Errnos = 1200
-	// SERVICE_HEARTBEAT
+	Fault_BAD_STALE_TIME         Fault_Errnos = 600
+	// sent by a VK who receives a MERGE request but already has a different parent
+	Fault_NOT_ROOT    Fault_Errnos = 1000
+	Fault_NOT_PARENT  Fault_Errnos = 1200
 	Fault_ALL_UNKNOWN Fault_Errnos = 1400
 )
 
@@ -64,12 +60,11 @@ var (
 		7:    "MALFORMED_ADDRESS",
 		8:    "UNKNOWN_CHILD_ID",
 		9:    "BAD_TOKEN",
+		10:   "BAD_SERVICE_NAME",
 		400:  "HELLO_REQUIRED",
 		401:  "BAD_HEIGHT",
 		402:  "ID_IN_USE",
-		600:  "BAD_SERVICE_NAME",
-		601:  "BAD_STALE_TIME",
-		800:  "UNKNOWN_SERVICE_ID",
+		600:  "BAD_STALE_TIME",
 		1000: "NOT_ROOT",
 		1200: "NOT_PARENT",
 		1400: "ALL_UNKNOWN",
@@ -85,12 +80,11 @@ var (
 		"MALFORMED_ADDRESS":      7,
 		"UNKNOWN_CHILD_ID":       8,
 		"BAD_TOKEN":              9,
+		"BAD_SERVICE_NAME":       10,
 		"HELLO_REQUIRED":         400,
 		"BAD_HEIGHT":             401,
 		"ID_IN_USE":              402,
-		"BAD_SERVICE_NAME":       600,
-		"BAD_STALE_TIME":         601,
-		"UNKNOWN_SERVICE_ID":     800,
+		"BAD_STALE_TIME":         600,
 		"NOT_ROOT":               1000,
 		"NOT_PARENT":             1200,
 		"ALL_UNKNOWN":            1400,
@@ -591,8 +585,11 @@ func (x *DeregisterAck) GetService() string {
 
 // Type #10
 type Merge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // current height of the requestor
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Height uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16 | current height of the requestor
+	// address+port the potential new parent vk listens on.
+	// if omitted, sender's address+port will be used
+	VkAddress     *string `protobuf:"bytes,2,opt,name=vkAddress,proto3,oneof" json:"vkAddress,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -634,10 +631,17 @@ func (x *Merge) GetHeight() uint32 {
 	return 0
 }
 
+func (x *Merge) GetVkAddress() string {
+	if x != nil && x.VkAddress != nil {
+		return *x.VkAddress
+	}
+	return ""
+}
+
 // Type #11
 type MergeAccept struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // echo height from Merge message
+	Height        uint32                 `protobuf:"varint,1,opt,name=height,proto3" json:"height,omitempty"` // uint16 | echo height from Merge message
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1250,7 +1254,8 @@ func (x *ListAck) GetToken() string {
 }
 
 // Type #22
-// Sent by the node that chooses to end and answer a list request (because it is root or hop count was decremented to zero on it).
+// Sent by the node that chooses to end and answer a list request
+// (because it is root or hop count was decremented to zero on it).
 type ListResp struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Token string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -1560,11 +1565,11 @@ var File_slims_pb_payloads_proto protoreflect.FileDescriptor
 
 const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\n" +
-	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\xac\x04\n" +
+	"\x17slims/pb/payloads.proto\x12\x03orv\x1a\x1cslims/pb/message_types.proto\"\x92\x04\n" +
 	"\x05Fault\x12,\n" +
 	"\boriginal\x18\x01 \x01(\x0e2\x10.msg.MessageTypeR\boriginal\x12'\n" +
 	"\x05errno\x18\x02 \x01(\x0e2\x11.orv.Fault.ErrnosR\x05errno\x12,\n" +
-	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\x89\x03\n" +
+	"\x0fadditional_info\x18\x03 \x01(\tH\x00R\x0eadditionalInfo\x88\x01\x01\"\xef\x02\n" +
 	"\x06Errnos\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fUNKNOWN_TYPE\x10\x01\x12\x15\n" +
@@ -1575,14 +1580,14 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"\x0eMALFORMED_BODY\x10\x06\x12\x15\n" +
 	"\x11MALFORMED_ADDRESS\x10\a\x12\x14\n" +
 	"\x10UNKNOWN_CHILD_ID\x10\b\x12\r\n" +
-	"\tBAD_TOKEN\x10\t\x12\x13\n" +
+	"\tBAD_TOKEN\x10\t\x12\x14\n" +
+	"\x10BAD_SERVICE_NAME\x10\n" +
+	"\x12\x13\n" +
 	"\x0eHELLO_REQUIRED\x10\x90\x03\x12\x0f\n" +
 	"\n" +
 	"BAD_HEIGHT\x10\x91\x03\x12\x0e\n" +
-	"\tID_IN_USE\x10\x92\x03\x12\x15\n" +
-	"\x10BAD_SERVICE_NAME\x10\xd8\x04\x12\x13\n" +
-	"\x0eBAD_STALE_TIME\x10\xd9\x04\x12\x17\n" +
-	"\x12UNKNOWN_SERVICE_ID\x10\xa0\x06\x12\r\n" +
+	"\tID_IN_USE\x10\x92\x03\x12\x13\n" +
+	"\x0eBAD_STALE_TIME\x10\xd8\x04\x12\r\n" +
 	"\bNOT_ROOT\x10\xe8\a\x12\x0f\n" +
 	"\n" +
 	"NOT_PARENT\x10\xb0\t\x12\x10\n" +
@@ -1609,9 +1614,12 @@ const file_slims_pb_payloads_proto_rawDesc = "" +
 	"Deregister\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\")\n" +
 	"\rDeregisterAck\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice\"\x1f\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"P\n" +
 	"\x05Merge\x12\x16\n" +
-	"\x06height\x18\x01 \x01(\rR\x06height\"%\n" +
+	"\x06height\x18\x01 \x01(\rR\x06height\x12!\n" +
+	"\tvkAddress\x18\x02 \x01(\tH\x00R\tvkAddress\x88\x01\x01B\f\n" +
+	"\n" +
+	"_vkAddress\"%\n" +
 	"\vMergeAccept\x12\x16\n" +
 	"\x06height\x18\x01 \x01(\rR\x06height\"*\n" +
 	"\tIncrement\x12\x1d\n" +
@@ -1754,6 +1762,7 @@ func file_slims_pb_payloads_proto_init() {
 	}
 	file_slims_pb_message_types_proto_init()
 	file_slims_pb_payloads_proto_msgTypes[0].OneofWrappers = []any{}
+	file_slims_pb_payloads_proto_msgTypes[9].OneofWrappers = []any{}
 	file_slims_pb_payloads_proto_msgTypes[18].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

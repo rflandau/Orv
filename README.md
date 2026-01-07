@@ -8,13 +8,12 @@ Orv does not actually interact with services, it just finds other nodes that pur
 
 Nodes join the network as either a leaf or a *Vaultkeeper* (the latter routes messages and supports child nodes, the former does neither) and both offer and request services to/from the tree (referred to as the *vault*). If a provider for the requested service is found, the tree returns the address it can be accessed at.
 
-Here is one example of a vault:
-
-![a diagram of an Orv vault](img/Orv.drawio.svg)
+Here is one example of a vault (using [hand-off requests](#client-request-propagation)):
+![an Orv vault](img/Orv-WithRequests.svg)
 
 Orv is highly flexible with the above example being just one of a myriad of paradigms.
 
-The name means **O**rganically **R**estructing **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults. Or just "Orv". Or, Shrivyas' preferred name: "Izanami". Pick your favorite.
+The name means **O**rganically **R**estructuring **V**aults or, if you prefer something recursive, **O**rv **R**uns **V**aults. Or just "Orv". Or, Shrivyas' preferred name: "Izanami". Pick your favorite.
 
 ## Authorship
 
